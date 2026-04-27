@@ -29,6 +29,7 @@ DEFAULT_TIMEOUT_SECONDS = 20
 DEFAULT_URLS = {
     "fomc_calendar": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
     "bls_release_calendar": "https://www.bls.gov/schedule/news_release/",
+    "nasdaq_earnings_calendar": "https://api.nasdaq.com/api/calendar/earnings",
 }
 OFFICIAL_DOMAIN_SUFFIXES = (
     "bls.gov",
@@ -37,6 +38,7 @@ OFFICIAL_DOMAIN_SUFFIXES = (
     "fiscaldata.treasury.gov",
     "fred.stlouisfed.org",
     "federalreserve.gov",
+    "nasdaq.com",
 )
 DEFAULT_SEARCH_QUERIES = {
     "bls_release_calendar": "site:bls.gov schedule economic news release calendar",
@@ -44,6 +46,7 @@ DEFAULT_SEARCH_QUERIES = {
     "bea_release_calendar": "site:bea.gov release schedule full",
     "fred_release_calendar": "site:fred.stlouisfed.org releases calendar",
     "fomc_calendar": "site:federalreserve.gov FOMC calendar",
+    "nasdaq_earnings_calendar": "site:nasdaq.com/market-activity/earnings earnings calendar",
 }
 CALENDAR_FIELDS = [
     "event_id",
@@ -212,7 +215,22 @@ def fetch(context: BundleContext, *, client: HttpClient | None = None) -> tuple[
     if not _is_official_url(source_url):
         raise CalendarDiscoveryError(f"calendar source URL is not on an approved official domain: {source_url}")
     client = client or HttpClient(timeout_seconds=int(params.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)))
-    result = _json_response(client.get(source_url, headers={"User-Agent": "trading-data-calendar-discovery/0.1"}))
+    request_params: dict[str, str] | None = None
+    if calendar_source == "nasdaq_earnings_calendar":
+        if "nasdaq.com/market-activity/earnings" in source_url:
+            source_url = DEFAULT_URLS["nasdaq_earnings_calendar"]
+        request_params = {"date": str(params.get("date") or datetime.now(ET).date().isoformat())}
+    result = _json_response(
+        client.get(
+            source_url,
+            params=request_params,
+            headers={
+                "User-Agent": "trading-execution-calendar-discovery/0.1",
+                "Accept": "application/json, text/plain, */*",
+                "Referer": "https://www.nasdaq.com/market-activity/earnings",
+            },
+        )
+    )
     content_type = result.headers.get("Content-Type", "")
     context.run_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = context.run_dir / "request_manifest.json"
@@ -340,6 +358,50 @@ def parse_bls_html(body: str, *, source_url: str) -> list[dict[str, str]]:
     return rows
 
 
+def _parse_nasdaq_as_of(value: str) -> date:
+    value = value.strip()
+    for fmt in ("%a, %b %d, %Y", "%b %d, %Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(value, fmt).date()
+        except ValueError:
+            continue
+    raise CalendarDiscoveryError(f"could not parse Nasdaq earnings calendar date: {value!r}")
+
+
+def _nasdaq_phase_time(value: str) -> time:
+    phase = value.strip().lower()
+    if phase == "time-pre-market":
+        return time(8, 0)
+    if phase == "time-after-hours":
+        return time(16, 0)
+    return time.min
+
+
+def parse_nasdaq_earnings_json(body: str, *, source_url: str) -> list[dict[str, str]]:
+    payload = json.loads(body)
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, dict):
+        return []
+    report_date = _parse_nasdaq_as_of(str(data.get("asOf") or ""))
+    rows_payload = data.get("rows") or []
+    if not isinstance(rows_payload, list):
+        return []
+
+    rows: list[dict[str, str]] = []
+    for item in rows_payload:
+        if not isinstance(item, dict):
+            continue
+        symbol = str(item.get("symbol") or "").strip().upper()
+        company_name = str(item.get("name") or "").strip()
+        if not symbol or not company_name:
+            continue
+        phase = str(item.get("time") or "time-not-supplied")
+        release_time = datetime.combine(report_date, _nasdaq_phase_time(phase), ET).isoformat()
+        event_name = f"{symbol} earnings release ({company_name})"
+        rows.append(_row("nasdaq_earnings_calendar", event_name, release_time, source_url, raw_summary=json.dumps(item, sort_keys=True)))
+    return rows
+
+
 def parse_calendar(fetched: FetchedCalendar, requested_format: str = "auto") -> tuple[list[dict[str, str]], list[str]]:
     body = fetched.body
     fmt = requested_format.lower()
@@ -347,16 +409,18 @@ def parse_calendar(fetched: FetchedCalendar, requested_format: str = "auto") -> 
     parsers: list[str]
     if fmt != "auto":
         parsers = [fmt]
+    elif fetched.calendar_source == "nasdaq_earnings_calendar":
+        parsers = ["nasdaq_earnings_json"]
     elif "BEGIN:VCALENDAR" in body:
         parsers = ["ics"]
-    elif "json" in fetched.content_type.lower() or body.lstrip().startswith(("{", "[")):
-        parsers = ["json"]
     elif fetched.calendar_source == "fomc_calendar":
         parsers = ["fomc_html"]
     elif fetched.calendar_source == "bls_release_calendar":
         parsers = ["bls_html"]
+    elif "json" in fetched.content_type.lower() or body.lstrip().startswith(("{", "[")):
+        parsers = ["json"]
     else:
-        parsers = ["ics", "json", "fomc_html", "bls_html"]
+        parsers = ["ics", "json", "fomc_html", "bls_html", "nasdaq_earnings_json"]
 
     for parser in parsers:
         try:
@@ -368,6 +432,8 @@ def parse_calendar(fetched: FetchedCalendar, requested_format: str = "auto") -> 
                 rows = parse_fomc_html(body, source_url=fetched.source_url)
             elif parser == "bls_html":
                 rows = parse_bls_html(body, source_url=fetched.source_url)
+            elif parser == "nasdaq_earnings_json":
+                rows = parse_nasdaq_earnings_json(body, source_url=fetched.source_url)
             else:
                 raise CalendarDiscoveryError(f"unsupported calendar format {parser!r}")
         except (json.JSONDecodeError, ValueError) as exc:

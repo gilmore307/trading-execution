@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from trading_execution.calendar_discovery.pipeline import HttpResult, discover_official_calendar_url, parse_ics, run
+from trading_execution.calendar_discovery.pipeline import HttpResult, discover_official_calendar_url, parse_ics, parse_nasdaq_earnings_json, run
 
 
 class FakeCalendarClient:
@@ -89,6 +89,42 @@ class CalendarDiscoveryPipelineTests(unittest.TestCase):
                 "output_root": str(Path(tmp) / "calendar_discovery_task_json"),
             }
             result = run(task_key, run_id="calendar_discovery_run_json", client=FakeCalendarClient(body, "application/json"))
+            self.assertEqual(result.status, "succeeded")
+            self.assertEqual(result.row_counts["release_calendar"], 1)
+
+    def test_parse_nasdaq_earnings_calendar_json(self):
+        body = json.dumps(
+            {
+                "data": {
+                    "asOf": "Mon, Apr 27, 2026",
+                    "rows": [
+                        {
+                            "symbol": "VZ",
+                            "name": "Verizon Communications Inc.",
+                            "time": "time-pre-market",
+                            "fiscalQuarterEnding": "Mar/2026",
+                            "epsForecast": "$1.22",
+                        }
+                    ],
+                }
+            }
+        )
+        rows = parse_nasdaq_earnings_json(body, source_url="https://api.nasdaq.com/api/calendar/earnings?date=2026-04-27")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["calendar_source"], "nasdaq_earnings_calendar")
+        self.assertEqual(rows[0]["event_name"], "VZ earnings release (Verizon Communications Inc.)")
+        self.assertEqual(rows[0]["release_time"], "2026-04-27T08:00:00-04:00")
+
+    def test_run_saves_nasdaq_earnings_calendar(self):
+        body = json.dumps({"data": {"asOf": "Mon, Apr 27, 2026", "rows": [{"symbol": "CDNS", "name": "Cadence Design Systems, Inc.", "time": "time-after-hours"}]}})
+        with tempfile.TemporaryDirectory() as tmp:
+            task_key = {
+                "task_id": "calendar_discovery_task_nasdaq",
+                "bundle": "calendar_discovery",
+                "params": {"calendar_source": "nasdaq_earnings_calendar", "date": "2026-04-27"},
+                "output_root": str(Path(tmp) / "calendar_discovery_task_nasdaq"),
+            }
+            result = run(task_key, run_id="calendar_discovery_run_nasdaq", client=FakeCalendarClient(body, "application/json"))
             self.assertEqual(result.status, "succeeded")
             self.assertEqual(result.row_counts["release_calendar"], 1)
 

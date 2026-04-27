@@ -31,7 +31,7 @@ docs/
 
 ## Current Implementation
 
-- `trading_execution.calendar_discovery` owns future macro release-calendar discovery for live/realtime acquisition scheduling. Historical macro values remain in `trading-data`.
+- `trading_execution.calendar_discovery` owns future macro release-calendar discovery and explicitly approved market calendars such as Nasdaq earnings dates for live/realtime acquisition scheduling. Historical macro values and source evidence remain in `trading-data`.
 
 ## Platform Dependencies
 
