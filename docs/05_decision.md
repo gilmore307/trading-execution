@@ -68,3 +68,8 @@ A narrow component boundary prevents hidden coupling and keeps cross-repository 
 - Implementation work must stay inside the accepted component role.
 - Shared names and contracts must route through `trading-main`.
 - Generated outputs and secrets must stay out of Git.
+
+
+## D002 - Calendar discovery belongs to execution
+
+Future macro release calendars are realtime acquisition triggers, not historical data payloads. `trading-execution` owns `calendar_discovery` code for discovering official release-calendar URLs, fetching official pages/feeds, and producing release-event rows for scheduling. `trading-data` remains focused on historical data retrieval and cleaning.

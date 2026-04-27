@@ -10,9 +10,11 @@ It does not own component responsibilities outside that boundary, global contrac
 
 ```text
 docs/        Repository scope, context, workflow, acceptance, task, decisions, and local memory.
+src/         Importable execution-runtime implementation code.
+tests/       First-party tests.
 ```
 
-Source, scripts, tests, and package layout are intentionally not created yet. Add them only after the component contracts, storage expectations, and first implementation slice are explicit. When implementation begins, use `src/` for importable/reusable code, `scripts/` for executable maintenance or operational entrypoints, and `tests/` for first-party tests; `scripts/` may import `src/`, but `src/` must not import `scripts/`.
+`src/` owns importable/reusable code. Add `scripts/` only for executable maintenance or operational entrypoints; `scripts/` may import `src/`, but `src/` must not import `scripts/`.
 
 ## Docs Spine
 
@@ -26,6 +28,10 @@ docs/
   05_decision.md
   06_memory.md
 ```
+
+## Current Implementation
+
+- `trading_execution.calendar_discovery` owns future macro release-calendar discovery for live/realtime acquisition scheduling. Historical macro values remain in `trading-data`.
 
 ## Platform Dependencies
 
