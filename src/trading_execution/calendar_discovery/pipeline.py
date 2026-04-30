@@ -174,7 +174,7 @@ def _load_brave_search():
         from trading_web_search import brave_search
     except ImportError as exc:
         raise CalendarDiscoveryError(
-            "calendar_discovery search mode requires trading-main helper package on PYTHONPATH: trading_web_search"
+            "calendar_discovery search mode requires trading-manager helper package on PYTHONPATH: trading_web_search"
         ) from exc
     return brave_search
 

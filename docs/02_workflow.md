@@ -15,7 +15,7 @@ promoted decision -> execution plan -> safety checks -> paper/live adapter -> or
 - Execution is safety-sensitive and must distinguish dry-run, paper, and live behavior.
 - Live external actions require explicit safeguards and should not be hidden inside generic tests.
 - Execution consumes promoted decisions; it must not train models or choose strategies by itself.
-- Shared fields, statuses, type values, helpers, and reusable templates must come from `trading-main`.
+- Shared fields, statuses, type values, helpers, and reusable templates must come from `trading-manager`.
 - Runtime outputs must be written outside Git-tracked source paths.
 - Cross-repository handoffs should use accepted request, artifact, manifest, and ready-signal contracts.
 

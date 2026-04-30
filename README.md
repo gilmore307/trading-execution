@@ -35,8 +35,8 @@ docs/
 
 ## Platform Dependencies
 
-- `trading-main` owns global contracts, registry, shared helpers, templates, and platform guidance.
+- `trading-manager` owns global contracts, registry, shared helpers, templates, and platform guidance.
 - `trading-storage` owns durable storage layout and retention unless this repository is `trading-storage` itself.
-- `trading-main` owns control-plane orchestration and lifecycle routing.
+- `trading-manager` owns control-plane orchestration and lifecycle routing.
 
-Any new global helper, reusable template, shared field, status, type, config key, or vocabulary discovered here must be routed back to `trading-main` before other repositories depend on it.
+Any new global helper, reusable template, shared field, status, type, config key, or vocabulary discovered here must be routed back to `trading-manager` before other repositories depend on it.

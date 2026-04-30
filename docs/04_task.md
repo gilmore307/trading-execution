@@ -9,7 +9,7 @@
 - Define the first implementation slice for `trading-execution`.
 - Define package/source/test layout after the first implementation slice is accepted.
 - Define fixture policy and default test commands.
-- Identify any global fields, helper surfaces, templates, or type values that must be registered in `trading-main`.
+- Identify any global fields, helper surfaces, templates, or type values that must be registered in `trading-manager`.
 
 ## Open Gaps
 
