@@ -9,7 +9,7 @@ The trading platform is split across multiple repositories so each major respons
 | System | Relationship |
 |---|---|
 | `trading-main` | Owns global architecture, registry, templates, shared helpers, and cross-repository contracts. |
-| `trading-manager` | Owns orchestration, lifecycle, scheduling, retries, requests, and promotion routing. |
+| `trading-main` control plane | Owns orchestration, lifecycle, scheduling, retries, requests, and promotion routing. |
 | `trading-data` | Produces data artifacts, manifests, and ready signals. |
 | `trading-storage` | Owns durable storage layout, retention, archive, backup, restore, and artifact placement rules. |
 | `trading-strategy` | Produces strategy research and backtest artifacts. |
@@ -22,7 +22,7 @@ The trading platform is split across multiple repositories so each major respons
 Potential external interfaces include:
 
 - broker/exchange APIs once approved.
-- trading-manager promoted decisions.
+- `trading-main` control-plane promoted decisions.
 - trading-storage execution artifact layout.
 
 Specific providers, credentials, package choices, deployment targets, and runtime settings are not settled unless recorded in this repository's decisions or inherited from `trading-main` contracts.
