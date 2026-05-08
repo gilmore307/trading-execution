@@ -34,19 +34,20 @@ Implementation changes are acceptable only when they:
 - include meaningful tests for the behavior introduced;
 - avoid external side effects in default tests unless explicitly guarded;
 - use accepted contracts for cross-repository handoffs;
+- reject missing or invalid `trade_risk_cap` payloads before any order construction, paper execution, live execution, or broker/account mutation;
 - route new shared names through `trading-manager/scripts/`.
 
 ## Verification Commands
 
-Current documentation-stage checks:
+Current checks:
 
 ```bash
+PYTHONPATH=src python3 -m unittest discover tests
+git diff --check
 git status --short
-find docs -maxdepth 1 -type f | sort
-find . -maxdepth 2 -type f | sort
 ```
 
-Once implementation exists, acceptance must add appropriate commands for unit tests, fixture tests, lint/type checks, schema validation, and artifact/manifest/ready-signal validation as applicable.
+Future execution slices must add appropriate lint/type checks, schema validation, and artifact/manifest/ready-signal validation as applicable.
 
 ## Required Review Evidence
 
@@ -71,4 +72,5 @@ A change must be rejected or returned if it:
 - stores secret values.
 - writes artifacts to undocumented paths.
 - claims acceptance without test or inspection evidence.
+- constructs or places an order when `trade_risk_cap` is missing, malformed, unsupported, stale, or impossible to enforce.
 - duplicates global contract definitions locally instead of referencing trading-manager.

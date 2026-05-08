@@ -27,11 +27,13 @@ docs/
   04_task.md
   05_decision.md
   06_memory.md
+  07_trade_risk_cap.md
 ```
 
 ## Current Implementation
 
 - `trading_execution.calendar_discovery` owns future macro release-calendar discovery and explicitly approved market calendars such as Nasdaq earnings dates for live/realtime acquisition scheduling. Historical macro values and source evidence remain in `trading-data`.
+- `trading_execution.risk_cap` owns broker-agnostic pre-order validation for mandatory `trade_risk_cap` payloads. Missing or invalid caps force order rejection before paper/live mutation.
 
 ## Platform Dependencies
 

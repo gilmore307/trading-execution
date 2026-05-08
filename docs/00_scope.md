@@ -13,7 +13,7 @@ This repository exists to keep that responsibility explicit, testable, and separ
 - paper/live execution runtime code once approved.
 - broker/exchange adapter boundaries.
 - order, fill, position, reconciliation, and execution artifact handling.
-- execution safety checks and dry-run/paper/live mode boundaries.
+- execution safety checks, mandatory trade-risk-cap validation, and dry-run/paper/live mode boundaries.
 - execution-local tests and simulation fixtures.
 
 ## Out of Scope
@@ -42,6 +42,7 @@ The repository should prefer explicit interfaces, fixture-backed tests, and narr
 - Generated artifacts and runtime outputs are not source files.
 - Secrets and credentials must stay outside the repository.
 - Shared helpers, templates, fields, statuses, and type values discovered here must be recorded through `trading-manager` before cross-repository use.
+- No executable order may be constructed or placed unless a valid `trade_risk_cap` has passed pre-order validation.
 
 ## Out-of-Scope Signals
 
