@@ -94,3 +94,24 @@ The cap must include positive `max_loss_usd`, positive `max_loss_pct`, ISO `time
 - Warn-only or best-effort cap handling is not accepted.
 - Broker adapters must call equivalent pre-order validation before any paper/live mutation.
 - Missing, malformed, unsupported, stale, or unenforceable caps are hard rejects.
+
+## D005 - Current execution-preparation phase is closed
+
+Date: 2026-05-09
+Status: Accepted
+
+### Context
+
+`trading-execution` now has a clear repository boundary, accepted calendar-discovery ownership, mandatory `trade_risk_cap` pre-order invariant, and a broker-agnostic validation helper.
+
+### Decision
+
+Close the current execution-preparation phase. `docs/08_execution_closeout.md` is the authoritative closeout receipt.
+
+No active execution-preparation tasks remain. Future execution work is deferred until a concrete reviewed decision/handoff consumer requires it: broker/order-construction, paper/live mode boundaries, order/fill/position/reconciliation artifacts, manager/storage integration, and broker-specific credential/adapter safeguards.
+
+### Consequences
+
+- `trading-execution` remains the owner of broker/exchange runtime and safety-sensitive mutations.
+- This closeout does not enable broker adapters, order construction, order placement, fills, positions, account mutation, provider calls, model activation, or manager dispatch.
+- New execution implementation must start from the hard `trade_risk_cap` validation invariant and an explicit acceptance gate.
