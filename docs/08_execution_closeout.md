@@ -46,9 +46,9 @@ This closeout does not enable or claim:
 
 Broker/order/fill/account lifecycle remains future execution production work and requires explicit acceptance before implementation.
 
-## Deferred Beyond This Closeout
+## Not Current Historical-Training Scope
 
-Future execution work should begin only when a reviewed decision/handoff consumer requires it:
+There are no active execution work items for the current no-broker historical-training preparation boundary. Future execution work should begin only when a reviewed decision/handoff consumer requires it:
 
 - first broker/order-construction slice after `trade_risk_cap` validation;
 - paper-trading mode boundary and audit evidence;
@@ -57,7 +57,7 @@ Future execution work should begin only when a reviewed decision/handoff consume
 - execution-owned receipt/manifest/ready-signal integration with manager/storage;
 - broker credential alias policy and adapter-specific safeguards.
 
-These are not blockers for closing the current execution-preparation phase.
+These are not blockers for current historical training.
 
 ## Acceptance Evidence
 

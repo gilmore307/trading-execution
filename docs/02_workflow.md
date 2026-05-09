@@ -25,11 +25,6 @@ promoted decision -> execution plan -> safety checks -> paper/live adapter -> or
 
 Upstream inputs and downstream outputs should be described by artifact references, manifests, ready signals, requests, or accepted storage contracts.
 
-## Open Gaps
+## Not Current Historical-Training Scope
 
-- Exact first implementation slice.
-- Exact request shape consumed or produced by this repository.
-- Exact artifact, manifest, and ready-signal schema interactions.
-- Exact shared storage paths and references.
-- Exact test harness and fixture policy.
-- Exact package/source layout once implementation begins.
+Execution implementation is intentionally outside the no-broker historical-training run. The exact first broker/order slice, request shape, artifact/manifest/ready-signal schema interactions, shared storage references, test harness, fixture policy, and package layout should be accepted only after explicit execution approval.
