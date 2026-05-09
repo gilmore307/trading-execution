@@ -55,3 +55,5 @@ Warn-only behavior is not accepted.
 ## Implementation hook
 
 `src/trading_execution/risk_cap/validator.py` owns the current reusable pre-order validator. It is intentionally small and broker-agnostic; later broker adapters must call equivalent validation before constructing any paper/live order.
+
+`scripts/execution/validate_trade_risk_cap.py` is the component-facing validation entrypoint for a unified decision record JSON. It exits non-zero when the cap is missing or invalid. It does not create orders, mutate broker state, or call external providers.

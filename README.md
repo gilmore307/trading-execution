@@ -10,11 +10,12 @@ It does not own component responsibilities outside that boundary, global contrac
 
 ```text
 docs/        Repository scope, context, workflow, acceptance, task, decisions, and local memory.
+scripts/     Executable execution-runtime validation helpers.
 src/         Importable execution-runtime implementation code.
 tests/       First-party tests.
 ```
 
-`src/` owns importable/reusable code. Add `scripts/` only for executable maintenance or operational entrypoints; `scripts/` may import `src/`, but `src/` must not import `scripts/`.
+`src/` owns importable/reusable code. `scripts/` owns executable maintenance or operational entrypoints; `scripts/` may import `src/`, but `src/` must not import `scripts/`.
 
 ## Docs Spine
 
@@ -28,6 +29,13 @@ docs/
   05_decision.md
   06_memory.md
   07_trade_risk_cap.md
+```
+
+## Verification
+
+```bash
+PYTHONPATH=src python3 -m unittest discover -s tests
+python3 -m compileall -q src scripts
 ```
 
 ## Current Implementation
