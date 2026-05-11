@@ -41,6 +41,15 @@ from .live_observe import (
     build_realtime_shadow_fixture_bundle,
 )
 from .live_provider import RealtimeLiveObservation, execute_live_observe
+from .realtime_monitor import (
+    DEFAULT_REALTIME_MODEL_LAYERS,
+    DEFAULT_UNIVERSE_PATH,
+    build_realtime_monitor_approval,
+    build_realtime_monitor_request,
+    load_etf_universe,
+    run_realtime_monitor_smoke,
+    summarize_live_observe_result,
+)
 
 __all__ = [
     "ALLOWED_MODES",
@@ -49,6 +58,8 @@ __all__ = [
     "RealtimeCaptureContract",
     "RealtimeDataInterface",
     "LIVE_OBSERVE_APPROVAL_CONTRACT",
+    "DEFAULT_REALTIME_MODEL_LAYERS",
+    "DEFAULT_UNIVERSE_PATH",
     "LIVE_OBSERVE_SOURCES",
     "MODEL_LAYER_ORDER",
     "ModelDecisionLayerInput",
@@ -63,6 +74,8 @@ __all__ = [
     "build_model_decision_input_snapshot",
     "execute_live_observe",
     "build_realtime_capture_fixture",
+    "build_realtime_monitor_approval",
+    "build_realtime_monitor_request",
     "build_realtime_feature_snapshot",
     "build_realtime_shadow_fixture_bundle",
     "build_realtime_subscription_plan",
@@ -70,7 +83,10 @@ __all__ = [
     "realtime_capture_contract",
     "realtime_data_interfaces",
     "realtime_feature_snapshot_contract",
+    "load_etf_universe",
     "realtime_input_coverage_matrix",
+    "run_realtime_monitor_smoke",
+    "summarize_live_observe_result",
     "validate_live_observe_approval",
     "validate_model_decision_input_snapshot",
     "validate_realtime_capture",

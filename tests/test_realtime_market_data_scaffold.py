@@ -15,6 +15,8 @@ from trading_execution.market_data import (
     build_realtime_shadow_fixture_bundle,
     build_realtime_subscription_plan,
     execute_live_observe,
+    load_etf_universe,
+    run_realtime_monitor_smoke,
     validate_live_observe_approval,
     validate_model_decision_input_snapshot,
     validate_realtime_capture,
@@ -262,6 +264,94 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertFalse(validation["valid"])
         self.assertIn("model_activation_allowed_must_be_false", validation["invalid_fields"])
 
+
+
+    def test_execute_live_observe_ignores_non_data_alpaca_secret_endpoint(self) -> None:
+        calls: list[tuple[str, dict[str, str]]] = []
+
+        def fake_transport(url: str, headers: dict[str, str]) -> dict[str, object]:
+            calls.append((url, headers))
+            return {"symbol": "SPY"}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            secret_path = Path(temp_dir) / "alpaca.json"
+            secret_path.write_text(
+                json.dumps(
+                    {
+                        "api_key": "unit_api_key",
+                        "secret_key": "unit_secret_key",
+                        "endpoint": "https://paper-api.alpaca.markets",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            execute_live_observe(
+                {
+                    "request_id": "rtlive_alpaca_endpoint_unit",
+                    "sources": ["alpaca"],
+                    "instrument_refs": ["SPY"],
+                    "decision_time": "2026-05-11T13:30:00+00:00",
+                },
+                approval={
+                    "contract_type": "realtime_live_observe_approval_v1",
+                    "approval_id": "rtla_alpaca_endpoint_unit",
+                    "approval_scope": "realtime_market_data_observe_only",
+                    "approved_sources": ["alpaca"],
+                    "approved_instrument_refs": ["SPY"],
+                    "approved_at_utc": "2026-05-11T13:00:00+00:00",
+                    "expires_at_utc": "2099-05-11T14:00:00+00:00",
+                    "max_provider_calls": 1,
+                    "execute_live_observe_allowed": True,
+                    "model_activation_allowed": False,
+                    "broker_execution_allowed": False,
+                    "broker_order_construction_allowed": False,
+                    "account_mutation_allowed": False,
+                },
+                execute_live_observe=True,
+                transport=fake_transport,
+                env={"ALPACA_SECRET_FILE": str(secret_path)},
+            )
+
+        self.assertTrue(calls[0][0].startswith("https://data.alpaca.markets/v2/stocks/SPY/snapshot"))
+
+    def test_realtime_monitor_smoke_loads_universe_and_runs_read_only(self) -> None:
+        calls: list[tuple[str, dict[str, str]]] = []
+
+        def fake_transport(url: str, headers: dict[str, str]) -> dict[str, object]:
+            calls.append((url, headers))
+            return {"symbol": "SPY", "latestTrade": {"p": 500.0}}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            universe_path = Path(temp_dir) / "universe.csv"
+            universe_path.write_text(
+                "symbol,model_layer\nSPY,layer_01_market_regime\nXLK,layer_02_sector_context\nAAPL,layer_03_target_state_vector\n",
+                encoding="utf-8",
+            )
+            secret_path = Path(temp_dir) / "alpaca.json"
+            secret_path.write_text(
+                json.dumps({"api_key": "unit_api_key", "secret_key": "unit_secret_key", "endpoint": "https://unit-data.alpaca.example"}),
+                encoding="utf-8",
+            )
+            self.assertEqual(load_etf_universe(universe_path), ["SPY", "XLK"])
+            receipt = run_realtime_monitor_smoke(
+                request_id="rtmon_unit",
+                approval_id="rtla_rtmon_unit",
+                universe_path=universe_path,
+                execute=True,
+                transport=fake_transport,
+                env={"ALPACA_SECRET_FILE": str(secret_path)},
+            )
+
+        self.assertEqual(receipt["contract_type"], "execution_realtime_monitor_smoke_receipt_v1")
+        self.assertEqual(receipt["summary"]["provider_calls_performed"], 2)
+        self.assertEqual(receipt["summary"]["observation_count"], 2)
+        self.assertEqual(receipt["summary"]["provider_status_counts"], {"observed": 2})
+        self.assertEqual(receipt["summary"]["broker_calls_performed"], 0)
+        self.assertFalse(receipt["summary"]["model_activation_performed"])
+        self.assertFalse(receipt["summary"]["broker_order_construction_performed"])
+        self.assertFalse(receipt["summary"]["account_mutation_performed"])
+        self.assertEqual(len(calls), 2)
+
     def test_execute_live_observe_uses_approved_read_only_provider_call(self) -> None:
         calls: list[tuple[str, dict[str, str]]] = []
 
@@ -326,7 +416,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                     {
                         "api_key": "unit_api_key",
                         "secret_key": "unit_secret_key",
-                        "endpoint": "https://unit-data.alpaca.example",
+                        "endpoint": "https://data.alpaca.unit.example",
                     }
                 ),
                 encoding="utf-8",
@@ -365,7 +455,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertEqual(result["provider_calls_performed"], 1)
         self.assertEqual(calls[0][1]["APCA-API-KEY-ID"], "unit_api_key")
         self.assertEqual(calls[0][1]["APCA-API-SECRET-KEY"], "unit_secret_key")
-        self.assertTrue(calls[0][0].startswith("https://unit-data.alpaca.example/v2/stocks/SPY/snapshot"))
+        self.assertTrue(calls[0][0].startswith("https://data.alpaca.unit.example/v2/stocks/SPY/snapshot"))
         self.assertEqual(result["broker_calls_performed"], 0)
         self.assertFalse(result["model_activation_performed"])
 

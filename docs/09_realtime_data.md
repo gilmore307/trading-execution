@@ -91,6 +91,20 @@ PYTHONPATH=src python3 scripts/execution/validate_realtime_capture.py capture.js
 
 `dry_run` and `fixture_replay` plans are ready without provider calls. `live_observe` plans remain blocked unless a reviewed `realtime_live_observe_approval_v1` is supplied.
 
+## Execution-owned realtime monitor smoke
+
+`execution_realtime_monitor_smoke_receipt_v1` is the first execution-owned runtime smoke for the 47-symbol ETF monitoring universe. It loads the reviewed Layer 1/2 ETF universe from `trading-storage/main/shared/market_regime_etf_universe.csv`, builds a bounded `realtime_live_observe_approval_v1`, and runs read-only Alpaca snapshot observations only when `--execute-live-observe` is supplied.
+
+The smoke writes a receipt containing request, approval, result, and summary rows. The summary intentionally excludes credentials and provider payload details; it reports provider calls, observation counts, provider status counts, capture counts, and the invariant flags for broker calls, model activation, order construction, and account mutation.
+
+```bash
+PYTHONPATH=src python3 scripts/execution/run_realtime_monitor_smoke.py \
+  --execute-live-observe \
+  --output-path storage/runtime/realtime_monitor/latest_smoke.json
+```
+
+This is a live market-data smoke, not a daemon and not a production model-decision executor. Continuous monitor service control, reconnect/backoff, and decision-effectiveness aggregation remain the next runtime-hardening slice.
+
 ## Formal live-observe execution
 
 The first formal realtime integration path is read-only provider observation, not trading. `src/trading_execution/market_data/live_approval.py` validates `realtime_live_observe_approval_v1`; `src/trading_execution/market_data/live_provider.py` executes approved read-only observations and emits `execution_realtime_live_observe_result_v1`.
@@ -114,7 +128,7 @@ PYTHONPATH=src python3 scripts/execution/execute_live_observe.py \
 Supported direct provider observe routes in this first formal slice:
 
 - OKX public REST ticker snapshot for approved crypto instruments.
-- Alpaca equity snapshot using `APCA_API_KEY_ID` / `APCA_API_SECRET_KEY` environment variables when injected by a service, or the registered source secret JSON at `/root/secrets/alpaca.json` for local OpenClaw-managed runs.
+- Alpaca equity snapshot using `APCA_API_KEY_ID` / `APCA_API_SECRET_KEY` environment variables when injected by a service, or the registered source secret JSON at `/root/secrets/alpaca.json` for local OpenClaw-managed runs. Unless `alpaca_data_base_url` / `ALPACA_DATA_BASE_URL` is explicitly supplied, realtime observe defaults to `https://data.alpaca.markets` so broker/trading endpoints in shared secrets are not mistaken for market-data endpoints.
 - ThetaData reviewed URL-template HTTP probe when the request supplies `thetadata_url_template`.
 
 The result may contain provider market-data calls and realtime capture rows, then package feature/model-input snapshots for downstream shadow routing. It still does not activate models, persist manager decisions, construct orders, execute broker calls, or mutate accounts.

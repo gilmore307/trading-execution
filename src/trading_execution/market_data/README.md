@@ -13,3 +13,4 @@ Key file:
 - `live_provider.py` — approved read-only provider observation path for OKX/Alpaca/ThetaData HTTP probes; still no model activation, order construction, or account mutation.
 - `capture.py` — `realtime_capture_validation_v1` checks for candidate append-only capture rows.
 - `features.py` — `realtime_feature_snapshot_v1` and `execution_model_decision_input_snapshot_v1` builders/validators that bridge realtime capture refs into historical-model decision input envelopes without activating models or opening streams.
+- `realtime_monitor.py` — execution-owned bounded ETF live-observe smoke runner and summary builder for the first realtime monitoring runtime slice.

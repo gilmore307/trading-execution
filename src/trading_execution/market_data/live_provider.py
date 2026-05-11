@@ -140,6 +140,16 @@ def _optional_secret_text(value: Any) -> str | None:
     return stripped or None
 
 
+def _alpaca_data_base_url(request_payload: Mapping[str, Any], env: Mapping[str, str]) -> str:
+    explicit = request_payload.get("alpaca_data_base_url") or env.get("ALPACA_DATA_BASE_URL") or env.get("APCA_DATA_BASE_URL")
+    if explicit:
+        return str(explicit).rstrip("/")
+    _key, _secret, endpoint = _alpaca_secret_values(env)
+    if endpoint and "data.alpaca" in endpoint:
+        return endpoint.rstrip("/")
+    return "https://data.alpaca.markets"
+
+
 def _provider_request(source_id: str, instrument_ref: str, request_payload: Mapping[str, Any], env: Mapping[str, str]) -> tuple[str, dict[str, str]]:
     if source_id == "okx":
         inst_id = request_payload.get("okx_inst_id") or instrument_ref
@@ -150,8 +160,7 @@ def _provider_request(source_id: str, instrument_ref: str, request_payload: Mapp
         }
     if source_id == "alpaca":
         feed = request_payload.get("alpaca_feed") or "iex"
-        _key, _secret, endpoint = _alpaca_secret_values(env)
-        base_url = str(request_payload.get("alpaca_data_base_url") or endpoint or "https://data.alpaca.markets").rstrip("/")
+        base_url = _alpaca_data_base_url(request_payload, env)
         symbol = parse.quote(instrument_ref, safe="")
         query = parse.urlencode({"feed": feed})
         return f"{base_url}/v2/stocks/{symbol}/snapshot?{query}", _alpaca_headers(env)

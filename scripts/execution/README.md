@@ -15,3 +15,4 @@ Executable component helpers for execution-runtime inspection and validation.
 - `build_broker_order_intent.py` constructs an approved OKX broker order intent after `trade_risk_cap` validation; it does not submit the order or mutate accounts.
 
 Scripts may import `src/trading_execution`; `src/` must not import scripts.
+- `run_realtime_monitor_smoke.py` runs the execution-owned read-only Alpaca ETF realtime monitor smoke and writes a summary receipt; it requires `--execute-live-observe` for provider calls and performs no model activation, order construction, broker submission, or account mutation.

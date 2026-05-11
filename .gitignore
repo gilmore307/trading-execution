@@ -33,3 +33,6 @@ credentials/
 .DS_Store
 .vscode/
 .idea/
+
+# Runtime receipts
+storage/runtime/
