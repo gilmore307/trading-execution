@@ -16,3 +16,4 @@ Executable component helpers for execution-runtime inspection and validation.
 
 Scripts may import `src/trading_execution`; `src/` must not import scripts.
 - `run_realtime_monitor_smoke.py` runs the execution-owned read-only Alpaca ETF realtime monitor smoke and writes a summary receipt; it requires `--execute-live-observe` for provider calls and performs no model activation, order construction, broker submission, or account mutation.
+- `run_realtime_monitor_loop.py` runs repeated realtime monitor smoke cycles, writes per-cycle receipts plus `loop_receipt.json`, and keeps model activation/order/broker/account mutation disabled.

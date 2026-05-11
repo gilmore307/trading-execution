@@ -9,6 +9,8 @@ broker calls, or mutate accounts.
 from __future__ import annotations
 
 import csv
+import json
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -154,6 +156,33 @@ def summarize_live_observe_result(result: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _safe_cycle_failure_summary(*, request_id: str, error: BaseException) -> dict[str, Any]:
+    return {
+        "contract_type": "execution_realtime_monitor_summary_v1",
+        "request_id": request_id,
+        "live_observe_status": "failed",
+        "provider_calls_performed": 0,
+        "broker_calls_performed": 0,
+        "model_activation_performed": False,
+        "broker_order_construction_performed": False,
+        "account_mutation_performed": False,
+        "observation_count": 0,
+        "capture_count": 0,
+        "capture_valid_count": 0,
+        "instrument_count": 0,
+        "provider_status_counts": {},
+        "feature_snapshot_readiness": None,
+        "decision_input_readiness": None,
+        "error_type": type(error).__name__,
+        "error_message": str(error),
+    }
+
+
+def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def run_realtime_monitor_smoke(
     *,
     request_id: str,
@@ -197,12 +226,129 @@ def run_realtime_monitor_smoke(
     }
 
 
+def run_realtime_monitor_loop(
+    *,
+    request_prefix: str,
+    approval_prefix: str,
+    universe_path: str | Path = DEFAULT_UNIVERSE_PATH,
+    source_id: str = "alpaca",
+    model_layers: Sequence[str] = DEFAULT_REALTIME_MODEL_LAYERS,
+    max_symbols: int | None = None,
+    cycles: int = 1,
+    interval_seconds: float = 0.0,
+    execute: bool = False,
+    output_dir: str | Path | None = None,
+    transport: Transport | None = None,
+    env: Mapping[str, str] | None = None,
+    sleep_fn: Any = time.sleep,
+) -> dict[str, Any]:
+    """Run a bounded realtime monitor loop with per-cycle receipts.
+
+    The loop is execution-owned runtime scaffolding: it may perform read-only
+    provider observation only when ``execute`` is true and a bounded approval is
+    built for the cycle. It never activates models, constructs/submits orders,
+    calls broker mutation endpoints, or mutates accounts.
+    """
+
+    if cycles < 1:
+        raise ValueError("cycles must be >= 1")
+    if interval_seconds < 0:
+        raise ValueError("interval_seconds must be >= 0")
+
+    started_utc = _iso(_now())
+    cycle_rows: list[dict[str, Any]] = []
+    per_cycle_receipt_paths: list[str] = []
+    output_path = Path(output_dir) if output_dir is not None else None
+
+    for index in range(1, cycles + 1):
+        cycle_started_utc = _iso(_now())
+        request_id = f"{request_prefix}_cycle_{index}"
+        approval_id = f"{approval_prefix}_cycle_{index}"
+        receipt: dict[str, Any] | None = None
+        try:
+            receipt = run_realtime_monitor_smoke(
+                request_id=request_id,
+                approval_id=approval_id,
+                universe_path=universe_path,
+                source_id=source_id,
+                model_layers=model_layers,
+                max_symbols=max_symbols,
+                execute=execute,
+                transport=transport,
+                env=env,
+            )
+            summary = dict(receipt["summary"])
+            cycle_status = "succeeded" if summary.get("live_observe_status") in {"observed", "planned"} else "failed"
+        except Exception as error:  # Defensive runtime isolation for daemon-style loops.
+            summary = _safe_cycle_failure_summary(request_id=request_id, error=error)
+            cycle_status = "failed"
+
+        cycle_finished_utc = _iso(_now())
+        cycle_row = {
+            "contract_type": "execution_realtime_monitor_cycle_summary_v1",
+            "cycle_index": index,
+            "cycle_status": cycle_status,
+            "cycle_started_utc": cycle_started_utc,
+            "cycle_finished_utc": cycle_finished_utc,
+            "request_id": request_id,
+            "approval_id": approval_id,
+            "summary": summary,
+            "next_cycle_delay_seconds": interval_seconds if index < cycles else 0,
+        }
+        cycle_rows.append(cycle_row)
+
+        if output_path is not None:
+            cycle_receipt = receipt or {"contract_type": "execution_realtime_monitor_failed_cycle_receipt_v1", "summary": summary}
+            cycle_receipt = dict(cycle_receipt)
+            cycle_receipt["cycle_summary"] = cycle_row
+            receipt_path = output_path / f"cycle_{index}.json"
+            _write_json(receipt_path, cycle_receipt)
+            per_cycle_receipt_paths.append(str(receipt_path))
+
+        if index < cycles and interval_seconds:
+            sleep_fn(interval_seconds)
+
+    total_provider_calls = sum(int(row["summary"].get("provider_calls_performed") or 0) for row in cycle_rows)
+    total_broker_calls = sum(int(row["summary"].get("broker_calls_performed") or 0) for row in cycle_rows)
+    failed_cycles = [row["cycle_index"] for row in cycle_rows if row["cycle_status"] != "succeeded"]
+    receipt = {
+        "contract_type": "execution_realtime_monitor_loop_receipt_v1",
+        "request_prefix": request_prefix,
+        "approval_prefix": approval_prefix,
+        "source_id": source_id,
+        "model_layers": list(model_layers),
+        "cycles_requested": cycles,
+        "cycles_completed": len(cycle_rows),
+        "failed_cycle_indexes": failed_cycles,
+        "loop_status": "completed" if not failed_cycles else "completed_with_cycle_failures",
+        "started_utc": started_utc,
+        "finished_utc": _iso(_now()),
+        "execute_live_observe": execute,
+        "interval_seconds": interval_seconds,
+        "provider_calls_performed": total_provider_calls,
+        "broker_calls_performed": total_broker_calls,
+        "model_activation_performed": any(bool(row["summary"].get("model_activation_performed")) for row in cycle_rows),
+        "broker_order_construction_performed": any(bool(row["summary"].get("broker_order_construction_performed")) for row in cycle_rows),
+        "account_mutation_performed": any(bool(row["summary"].get("account_mutation_performed")) for row in cycle_rows),
+        "cycle_summaries": cycle_rows,
+        "cycle_receipt_paths": per_cycle_receipt_paths,
+        "runtime_boundary": (
+            "Execution-owned realtime monitor loop. Manager may consume receipts, but does not control process "
+            "lifecycle, reconnect/backoff, throttling, broker mutation, or account mutation."
+        ),
+    }
+    if output_path is not None:
+        _write_json(output_path / "loop_receipt.json", receipt)
+    return receipt
+
+
 __all__ = [
     "DEFAULT_REALTIME_MODEL_LAYERS",
     "DEFAULT_UNIVERSE_PATH",
     "build_realtime_monitor_approval",
     "build_realtime_monitor_request",
     "load_etf_universe",
+    "run_realtime_monitor_loop",
     "run_realtime_monitor_smoke",
     "summarize_live_observe_result",
 ]

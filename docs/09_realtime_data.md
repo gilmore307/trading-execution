@@ -103,7 +103,9 @@ PYTHONPATH=src python3 scripts/execution/run_realtime_monitor_smoke.py \
   --output-path storage/runtime/realtime_monitor/latest_smoke.json
 ```
 
-This is a live market-data smoke, not a daemon and not a production model-decision executor. Continuous monitor service control, reconnect/backoff, and decision-effectiveness aggregation remain the next runtime-hardening slice.
+`execution_realtime_monitor_loop_receipt_v1` is the bounded runtime-loop receipt for supervised monitor operation. `scripts/execution/run_realtime_monitor_loop.py` runs repeated smoke cycles, writes per-cycle receipts plus `loop_receipt.json`, preserves reconnect/backoff observability through cycle status/delay fields, and keeps the same hard invariants: no model activation, no order construction/submission, no broker mutation, and no account mutation.
+
+This is still not a production model-decision executor. Decision-effectiveness aggregation is the lightweight quality surface for later shadow/live model review; historical dataset construction remains owned by the historical backfill/promotion pipeline.
 
 ## Formal live-observe execution
 

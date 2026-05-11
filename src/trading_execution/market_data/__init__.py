@@ -47,6 +47,7 @@ from .realtime_monitor import (
     build_realtime_monitor_approval,
     build_realtime_monitor_request,
     load_etf_universe,
+    run_realtime_monitor_loop,
     run_realtime_monitor_smoke,
     summarize_live_observe_result,
 )
@@ -85,6 +86,7 @@ __all__ = [
     "realtime_feature_snapshot_contract",
     "load_etf_universe",
     "realtime_input_coverage_matrix",
+    "run_realtime_monitor_loop",
     "run_realtime_monitor_smoke",
     "summarize_live_observe_result",
     "validate_live_observe_approval",

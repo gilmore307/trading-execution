@@ -16,6 +16,7 @@ from trading_execution.market_data import (
     build_realtime_subscription_plan,
     execute_live_observe,
     load_etf_universe,
+    run_realtime_monitor_loop,
     run_realtime_monitor_smoke,
     validate_live_observe_approval,
     validate_model_decision_input_snapshot,
@@ -351,6 +352,51 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertFalse(receipt["summary"]["broker_order_construction_performed"])
         self.assertFalse(receipt["summary"]["account_mutation_performed"])
         self.assertEqual(len(calls), 2)
+
+    def test_realtime_monitor_loop_writes_cycle_receipts_and_keeps_mutation_disabled(self) -> None:
+        calls: list[tuple[str, dict[str, str]]] = []
+
+        def fake_transport(url: str, headers: dict[str, str]) -> dict[str, object]:
+            calls.append((url, headers))
+            return {"symbol": "SPY", "latestTrade": {"p": 500.0}}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            universe_path = temp_path / "universe.csv"
+            universe_path.write_text(
+                "symbol,model_layer\nSPY,layer_01_market_regime\nXLK,layer_02_sector_context\n",
+                encoding="utf-8",
+            )
+            secret_path = temp_path / "alpaca.json"
+            secret_path.write_text(
+                json.dumps({"api_key": "unit_api_key", "secret_key": "unit_secret_key", "endpoint": "https://unit-data.alpaca.example"}),
+                encoding="utf-8",
+            )
+            output_dir = temp_path / "rtmon"
+            receipt = run_realtime_monitor_loop(
+                request_prefix="rtmon_loop_unit",
+                approval_prefix="rtla_loop_unit",
+                universe_path=universe_path,
+                cycles=2,
+                interval_seconds=0,
+                execute=True,
+                output_dir=output_dir,
+                transport=fake_transport,
+                env={"ALPACA_SECRET_FILE": str(secret_path)},
+            )
+
+            self.assertEqual(receipt["contract_type"], "execution_realtime_monitor_loop_receipt_v1")
+            self.assertEqual(receipt["loop_status"], "completed")
+            self.assertEqual(receipt["cycles_completed"], 2)
+            self.assertEqual(receipt["provider_calls_performed"], 4)
+            self.assertEqual(receipt["broker_calls_performed"], 0)
+            self.assertFalse(receipt["model_activation_performed"])
+            self.assertFalse(receipt["broker_order_construction_performed"])
+            self.assertFalse(receipt["account_mutation_performed"])
+            self.assertEqual(len(receipt["cycle_receipt_paths"]), 2)
+            self.assertTrue((output_dir / "loop_receipt.json").exists())
+        self.assertEqual(len(calls), 4)
+
 
     def test_execute_live_observe_uses_approved_read_only_provider_call(self) -> None:
         calls: list[tuple[str, dict[str, str]]] = []
