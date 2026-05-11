@@ -25,6 +25,7 @@ These items are intentionally outside the current no-broker historical-training 
 
 ## Recently Accepted
 
+- Added concrete side-effect-free realtime live-observe fixture scaffolds for Alpaca, ThetaData, OKX, calendar/event refs, read-only execution account/restriction context refs, and derived model context refs. The new adapter/capture/feature/model-input bundle still performs no provider calls, model activation, broker calls, order construction, persistence, or account mutation.
 - Added side-effect-free realtime feature and model-decision input scaffold: `realtime_feature_snapshot_v1`, `execution_model_decision_input_snapshot_v1`, builders, validators, CLIs, and fixture/shadow tests. These prepare direct handoff into historical-model decision routing without activating models.
 - Added side-effect-free execution capability catalogs: `execution_realtime_data_interface_v1`, `execution_broker_interface_v1`, and `execution_capability_catalog_v1`.
 - Accepted the first interface split: realtime market data may share canonical providers with historical data, but it uses distinct realtime transports; broker mutation is a separate authority from market-data access.

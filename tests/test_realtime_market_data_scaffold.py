@@ -8,8 +8,11 @@ import unittest
 from pathlib import Path
 
 from trading_execution.market_data import (
+    build_live_observe_adapter_plan,
     build_model_decision_input_snapshot,
+    build_realtime_capture_fixture,
     build_realtime_feature_snapshot,
+    build_realtime_shadow_fixture_bundle,
     build_realtime_subscription_plan,
     validate_model_decision_input_snapshot,
     validate_realtime_capture,
@@ -18,6 +21,84 @@ from trading_execution.market_data import (
 
 
 class RealtimeMarketDataScaffoldTests(unittest.TestCase):
+    def test_live_observe_adapter_plan_covers_provider_event_account_routes(self) -> None:
+        plan = build_live_observe_adapter_plan(
+            {
+                "request_id": "rtlive_unit",
+                "mode": "fixture_replay",
+                "sources": ["alpaca", "thetadata", "okx", "calendar_discovery", "execution_account_state", "derived_model_context"],
+                "instrument_refs": ["AAPL"],
+            }
+        )
+
+        self.assertEqual(plan["contract_type"], "execution_realtime_live_observe_adapter_plan_set_v1")
+        self.assertEqual(plan["provider_calls_performed"], 0)
+        self.assertEqual(plan["broker_calls_performed"], 0)
+        self.assertFalse(plan["account_mutation_performed"])
+        rows = {row["source_id"]: row for row in plan["adapter_plans"]}
+        self.assertIn("layer_03_target_state_vector", rows["alpaca"]["model_layers"])
+        self.assertIn("layer_08_option_expression", rows["thetadata"]["model_layers"])
+        self.assertIn("layer_01_market_regime", rows["okx"]["model_layers"])
+        self.assertEqual(rows["calendar_discovery"]["model_layers"], ["layer_04_event_overlay"])
+        self.assertEqual(rows["derived_model_context"]["model_layers"], ["layer_05_alpha_confidence"])
+        self.assertIn("layer_06_position_projection", rows["execution_account_state"]["model_layers"])
+
+    def test_live_observe_adapter_blocks_real_stream_without_approval(self) -> None:
+        plan = build_live_observe_adapter_plan(
+            {
+                "mode": "live_observe",
+                "sources": ["alpaca"],
+                "model_layers": ["layer_02_sector_context"],
+                "instrument_refs": ["XLK"],
+            }
+        )
+
+        row = plan["adapter_plans"][0]
+        self.assertEqual(row["live_observe_status"], "blocked_requires_live_stream_approval_ref")
+        self.assertIn("live_stream_approval_ref", row["required_gate_refs"])
+        self.assertEqual(row["provider_calls_performed"], 0)
+
+    def test_realtime_capture_fixture_rows_validate(self) -> None:
+        fixture = build_realtime_capture_fixture(
+            {
+                "request_id": "rtcap_fixture_unit",
+                "mode": "fixture_replay",
+                "sources": ["alpaca", "execution_account_state"],
+                "model_layers": ["layer_06_position_projection", "layer_07_underlying_action"],
+                "instrument_refs": ["AAPL"],
+                "decision_time": "2026-05-11T13:30:00+00:00",
+                "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
+                "frozen_model_config_ref": "trading-model://configs/frozen/unit",
+            }
+        )
+
+        self.assertEqual(fixture["contract_type"], "execution_realtime_capture_fixture_set_v1")
+        self.assertGreaterEqual(len(fixture["captures"]), 2)
+        for row in fixture["captures"]:
+            validation = validate_realtime_capture(row)
+            self.assertTrue(validation["valid"], validation)
+            self.assertEqual(validation["provider_calls_performed"], 0)
+
+    def test_realtime_shadow_fixture_bundle_builds_decision_input(self) -> None:
+        bundle = build_realtime_shadow_fixture_bundle(
+            {
+                "request_id": "rtshadow_unit",
+                "mode": "fixture_replay",
+                "instrument_refs": ["AAPL"],
+                "decision_time": "2026-05-11T13:30:00+00:00",
+                "available_time": "2026-05-11T13:30:01+00:00",
+                "tradeable_time": "2026-05-11T13:30:02+00:00",
+                "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
+                "frozen_model_config_ref": "trading-model://configs/frozen/unit",
+            }
+        )
+
+        self.assertEqual(bundle["contract_type"], "execution_realtime_shadow_fixture_bundle_v1")
+        self.assertEqual(bundle["bundle_status"], "ready_for_model_route_plan")
+        self.assertEqual(bundle["provider_calls_performed"], 0)
+        self.assertFalse(bundle["broker_order_construction_performed"])
+        self.assertEqual(len(bundle["decision_input_snapshot"]["layer_input_refs"]), 8)
+
     def test_build_realtime_subscription_plan_for_alpaca_target_layer(self) -> None:
         plan = build_realtime_subscription_plan(
             {

@@ -58,7 +58,14 @@ Accepted dataset roles are `forward_holdout` and `shadow_monitoring`. The contra
 
 ## Adapter scaffold
 
-The first adapter scaffold is planning/validation only:
+The adapter scaffold now has two safe layers:
+
+1. generic subscription planning via `execution_realtime_subscription_plan_v1`;
+2. concrete provider/source live-observe fixture planning via `execution_realtime_live_observe_adapter_plan_v1`.
+
+Concrete fixture routes currently cover Alpaca equity/ETF quote/trade/bar/snapshot refs, ThetaData option quote/trade/IV/Greeks/OI refs, OKX crypto ticker/trade/candle/snapshot refs, calendar/event refs, read-only execution account/restriction context refs, and derived model context refs. These are still fixture/shadow routes: they do not open sockets or perform provider/broker calls.
+
+The generic adapter scaffold is planning/validation only:
 
 ```bash
 PYTHONPATH=src python3 scripts/execution/plan_realtime_capture.py \
@@ -71,6 +78,26 @@ PYTHONPATH=src python3 scripts/execution/validate_realtime_capture.py capture.js
 ```
 
 `dry_run` and `fixture_replay` plans are ready without provider calls. `live_observe` plans remain blocked unless a future reviewed live-stream approval ref is supplied; even then the current helper only emits a plan row and does not execute the stream.
+
+Concrete fixture planning:
+
+```bash
+PYTHONPATH=src python3 scripts/execution/plan_live_observe_adapters.py \
+  --mode fixture_replay \
+  --instrument-ref AAPL
+
+PYTHONPATH=src python3 scripts/execution/build_realtime_shadow_fixture.py \
+  --request-id rtshadow_example \
+  --mode fixture_replay \
+  --instrument-ref AAPL \
+  --decision-time 2026-05-11T13:30:00+00:00 \
+  --available-time 2026-05-11T13:30:01+00:00 \
+  --tradeable-time 2026-05-11T13:30:02+00:00 \
+  --historical-dataset-snapshot-ref trading-model://snapshots/historical/reviewed \
+  --frozen-model-config-ref trading-model://configs/frozen/reviewed
+```
+
+The shadow fixture bundle contains adapter plans, validated capture-fixture rows, a realtime feature snapshot, and an execution-side model decision input snapshot. It performs zero provider calls, zero model activation, zero broker calls, zero order construction, and zero account mutation.
 
 ## Realtime feature and model-decision handoff
 
@@ -109,7 +136,7 @@ This makes the bridge to historical model data decision routing explicit while k
 
 ## Implementation hook
 
-`src/trading_execution/market_data/contracts.py` owns the side-effect-free `execution_realtime_data_interface_v1`, `execution_realtime_input_coverage_v1`, and `realtime_capture_contract_v1` catalogs. `adapters.py` owns `execution_realtime_subscription_plan_v1` planning; `capture.py` owns `realtime_capture_validation_v1`; `features.py` owns `realtime_feature_snapshot_v1` and `execution_model_decision_input_snapshot_v1` builders/validators.
+`src/trading_execution/market_data/contracts.py` owns the side-effect-free `execution_realtime_data_interface_v1`, `execution_realtime_input_coverage_v1`, and `realtime_capture_contract_v1` catalogs. `adapters.py` owns `execution_realtime_subscription_plan_v1` planning; `live_observe.py` owns concrete provider/account/event fixture adapter plans, capture-fixture rows, and execution-side realtime shadow fixture bundles; `capture.py` owns `realtime_capture_validation_v1`; `features.py` owns `realtime_feature_snapshot_v1` and `execution_model_decision_input_snapshot_v1` builders/validators.
 
 The current implementation slice is catalog/contract/fixture handoff only. Later adapters must add:
 
