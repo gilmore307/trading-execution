@@ -2,7 +2,7 @@
 
 ## Active Tasks
 
-- Define the initial execution interface boundary without enabling mutation: realtime market-data interfaces are cataloged separately from historical backfill endpoints, and broker/exchange interfaces are cataloged separately from market-data observation.
+- Define the initial execution interface boundary without enabling mutation: realtime market-data interfaces are cataloged separately from historical backfill endpoints, model input coverage is explicit for Layers 1-8, append-only capture requirements are defined for forward/shadow validation, and broker/exchange interfaces are cataloged separately from market-data observation.
 - Start OKX crypto execution on the safe path only: catalog and future adapter scaffold are allowed, but live order mutation remains disabled until explicit mode, approval, idempotency, credential, risk-cap, and receipt gates exist.
 - Keep Firstrade equity/options execution deferred because no official trading API is accepted. Do not implement reverse-engineered login, browser trading, or unofficial order automation.
 

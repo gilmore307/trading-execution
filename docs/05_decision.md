@@ -174,3 +174,22 @@ Firstrade remains the intended equity/options broker, but automated execution is
 - Do not implement reverse-engineered Firstrade login, browser trading, scraped order tickets, or unofficial order automation.
 - Equity/options broker mutation remains unavailable in `trading-execution` for now.
 - The catalog may record Firstrade as deferred so future work does not accidentally treat it as an active adapter.
+
+## D009 - Realtime coverage matrix and capture contract are side-effect-free
+
+Date: 2026-05-11
+Status: Accepted
+
+### Context
+
+Realtime inputs should cover the model stack's live inference needs and later support forward/shadow validation, but cataloging those needs must not accidentally enable provider streams, model activation, or broker mutation.
+
+### Decision
+
+`trading-execution` records `execution_realtime_input_coverage_v1` rows for Layers 1-8 and a `realtime_capture_contract_v1` for append-only validation evidence. The matrix separates complete routes from partial/gap routes, especially proxy coverage for Layer 1, event routes for Layer 4, account-state routes for Layer 6, restriction/account routes for Layer 7, and ThetaData terminal requirements for Layer 8.
+
+### Consequences
+
+- Realtime coverage gaps remain visible instead of being hidden behind generic "connected" language.
+- Future adapters must emit point-in-time capture facts before realtime rows can become `forward_holdout` or `shadow_monitoring` evidence.
+- Catalog inspection performs no provider calls, opens no streams, activates no models, and mutates no broker/account state.

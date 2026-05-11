@@ -86,11 +86,17 @@ def broker_interfaces() -> tuple[BrokerInterface, ...]:
 def build_execution_capability_catalog() -> dict[str, Any]:
     """Return a combined side-effect-free execution capability catalog."""
 
-    from trading_execution.market_data import realtime_data_interfaces
+    from trading_execution.market_data import (
+        realtime_capture_contract,
+        realtime_data_interfaces,
+        realtime_input_coverage_matrix,
+    )
 
     return {
         "contract_type": "execution_capability_catalog_v1",
         "realtime_data_interfaces": [interface.summary_row() for interface in realtime_data_interfaces()],
+        "realtime_input_coverage_matrix": [coverage.summary_row() for coverage in realtime_input_coverage_matrix()],
+        "realtime_capture_contract": realtime_capture_contract().summary_row(),
         "broker_interfaces": [interface.summary_row() for interface in broker_interfaces()],
         "order_mutation_enabled": False,
         "provider_calls_performed": 0,

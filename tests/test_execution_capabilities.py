@@ -6,7 +6,11 @@ import sys
 import unittest
 
 from trading_execution.broker import broker_interfaces, build_execution_capability_catalog
-from trading_execution.market_data import realtime_data_interfaces
+from trading_execution.market_data import (
+    realtime_capture_contract,
+    realtime_data_interfaces,
+    realtime_input_coverage_matrix,
+)
 
 
 class ExecutionCapabilityCatalogTests(unittest.TestCase):
@@ -19,6 +23,34 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
         self.assertIn("historical OKX data", interfaces["okx"].boundary_note)
         self.assertIn("alpaca", interfaces)
         self.assertIn("thetadata", interfaces)
+
+    def test_realtime_input_coverage_matrix_covers_all_model_layers(self) -> None:
+        coverage = {row.model_layer: row for row in realtime_input_coverage_matrix()}
+
+        self.assertEqual(len(coverage), 8)
+        self.assertEqual(coverage["layer_01_market_regime"].model_id, "model_01_market_regime")
+        self.assertIn("alpaca", coverage["layer_01_market_regime"].primary_realtime_sources)
+        self.assertIn("okx", coverage["layer_01_market_regime"].primary_realtime_sources)
+        self.assertIn("proxy_gap_review_required", coverage["layer_01_market_regime"].coverage_status)
+        self.assertEqual(coverage["layer_05_alpha_confidence"].primary_realtime_sources, ("derived_model_context",))
+        self.assertIn("execution_account_state", coverage["layer_06_position_projection"].primary_realtime_sources)
+        self.assertIn("thetadata", coverage["layer_08_option_expression"].primary_realtime_sources)
+        self.assertIn("option_chain_snapshot", coverage["layer_08_option_expression"].realtime_input_groups)
+        for row in coverage.values():
+            self.assertEqual(row.contract_type, "execution_realtime_input_coverage_v1")
+            self.assertIn("observation_time", row.required_capture_fields)
+            self.assertIn("tradeable_time", row.required_capture_fields)
+
+    def test_realtime_capture_contract_is_append_only_and_non_mutating(self) -> None:
+        contract = realtime_capture_contract()
+
+        self.assertEqual(contract.contract_type, "realtime_capture_contract_v1")
+        self.assertEqual(contract.accepted_dataset_roles, ("forward_holdout", "shadow_monitoring"))
+        self.assertIn("frozen_model_config_ref", contract.required_fields)
+        self.assertIn("label_maturity_time", contract.required_fields)
+        self.assertIn("historical_snapshot_rewrite", contract.forbidden_actions)
+        self.assertIn("broker_order_mutation", contract.forbidden_actions)
+        self.assertIn("ready_signal_v1", contract.manager_handoff_refs)
 
     def test_broker_catalog_accepts_okx_but_defers_firstrade(self) -> None:
         brokers = {broker.broker_id: broker for broker in broker_interfaces()}
@@ -37,6 +69,8 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
         catalog = build_execution_capability_catalog()
 
         self.assertEqual(catalog["contract_type"], "execution_capability_catalog_v1")
+        self.assertEqual(len(catalog["realtime_input_coverage_matrix"]), 8)
+        self.assertEqual(catalog["realtime_capture_contract"]["contract_type"], "realtime_capture_contract_v1")
         self.assertFalse(catalog["order_mutation_enabled"])
         self.assertEqual(catalog["provider_calls_performed"], 0)
         self.assertEqual(catalog["broker_calls_performed"], 0)
@@ -53,6 +87,7 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
         payload = json.loads(result.stdout)
 
         self.assertEqual(payload["contract_type"], "execution_capability_catalog_v1")
+        self.assertEqual(len(payload["realtime_input_coverage_matrix"]), 8)
         self.assertFalse(payload["order_mutation_enabled"])
 
 
