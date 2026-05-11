@@ -54,15 +54,19 @@ The matrix intentionally exposes gaps. A partial row is not a failure; it preven
 
 ## Runtime ownership
 
-Realtime monitoring is isolated from manager-owned historical modeling. `trading-execution` owns the live monitor control loop: process lifecycle, provider subscriptions, stream/session health, throttling, reconnect/backoff, and monitoring-specific runtime capacity. `trading-manager` may consume append-only receipts, coverage summaries, shadow handoff artifacts, and mature validation evidence, but it must not start, stop, schedule, throttle, reconnect, or otherwise control realtime provider monitoring.
+Realtime monitoring is isolated from manager-owned historical modeling. `trading-execution` owns the live monitor control loop: process lifecycle, provider subscriptions, stream/session health, throttling, reconnect/backoff, and monitoring-specific runtime capacity. `trading-manager` may consume append-only receipts, coverage summaries, shadow handoff artifacts, and mature decision-effectiveness metrics, but it must not start, stop, schedule, throttle, reconnect, or otherwise control realtime provider monitoring.
 
 This separation lets live monitoring continue while historical training is paused, restarting, backlogged, or running under market-hours protection. Manager-side schedulers may reserve capacity for realtime systems and back off when live monitoring needs priority; they do not become the realtime runtime owner.
 
 ## Realtime capture contract
 
-`realtime_capture_contract_v1` is the append-only evidence shape for future realtime forward-validation and shadow-monitoring capture. Required facts include observation time, provider available time, tradeable time, source/interface, instrument ref, normalized payload ref, frozen model/config refs, model output refs, dataset role, label maturity time, outcome label refs, and manager/storage handoff refs.
+`realtime_capture_contract_v1` is the append-only evidence shape for realtime observation capture. Required facts include observation time, provider available time, tradeable time, source/interface, instrument ref, normalized payload ref, frozen model/config refs, model output refs, label maturity time, outcome label refs, and manager/storage handoff refs.
 
-Accepted dataset roles are `forward_holdout` and `shadow_monitoring`. The contract forbids provider-stream activation by catalog inspection, historical snapshot rewrites, model refit before reviewed snapshot boundaries, model activation, broker order construction, broker order mutation, and account mutation.
+The realtime monitor does not create historical test/holdout/training rows by default. Historical backfill will eventually cover the same calendar period through the historical pipeline. Realtime capture should stay light enough to support online model decision-effectiveness metrics: decision id, model/config refs, decision/output ref, evaluation horizon, matured outcome label/ref, correctness status, and aggregate accuracy/hit-rate/error metrics. The contract forbids provider-stream activation by catalog inspection, historical snapshot rewrites, model refit before reviewed snapshot boundaries, model activation, broker order construction, broker order mutation, and account mutation.
+
+## Realtime model effectiveness metrics
+
+`realtime_model_decision_effectiveness_v1` is the accepted monitoring surface for model quality in live/shadow operation. It summarizes whether the model's decisions were correct after the relevant outcome horizon matures. These metrics may inform promotion review, drift review, trust reduction, and retraining planning, but they are not historical test-set rows and should not force the realtime monitor to run the historical dataset-processing ladder.
 
 ## Adapter scaffold
 

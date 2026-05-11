@@ -296,3 +296,25 @@ The platform now has two very different operating loops: manager-owned historica
 - Historical modeling cannot accidentally disable or starve live monitoring by owning its runtime loop.
 - Shared names/contracts may still be registered through `trading-manager`, but registration and receipt consumption do not imply runtime control.
 - Production model activation, order construction, broker submission, and account mutation remain separate reviewed gates.
+
+## D015 - Realtime monitoring records decision effectiveness, not historical test sets
+
+Date: 2026-05-11
+Status: Accepted
+
+### Context
+
+Realtime monitoring can produce high-volume observations. Chentong clarified that these observations do not need to become historical test-set rows because historical backfill will eventually reach the same period, and heavy realtime-side dataset processing would burden the monitor.
+
+### Decision
+
+`trading-execution` should keep realtime model-quality evidence lightweight. The monitor records the model decision/output made at a point in time, model/config refs, instrument, evaluation horizon, matured outcome label/ref, correctness status, and aggregate effectiveness metrics such as accuracy, hit rate, and error counts.
+
+Realtime capture must not create historical train/test/holdout rows by default and must not run the historical dataset-processing ladder just to measure model quality.
+
+### Consequences
+
+- Realtime monitoring remains focused on live/shadow decision quality and operational health.
+- Historical data/model pipelines remain responsible for reviewed historical dataset snapshots and splits.
+- Manager may consume aggregate decision-effectiveness metrics for promotion, drift, trust, or retraining review.
+- Metrics do not authorize model activation, order construction, broker submission, or account mutation.
