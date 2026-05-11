@@ -14,3 +14,4 @@ Key file:
 - `capture.py` — `realtime_capture_validation_v1` checks for candidate append-only capture rows.
 - `features.py` — `realtime_feature_snapshot_v1` and `execution_model_decision_input_snapshot_v1` builders/validators that bridge realtime capture refs into historical-model decision input envelopes without activating models or opening streams.
 - `realtime_monitor.py` — execution-owned bounded ETF live-observe smoke/loop runners, cycle summaries, and credential-free receipts for the realtime monitoring runtime slice.
+- `effectiveness.py` — lightweight `realtime_model_decision_effectiveness_v1` aggregation for matured shadow/live decision outcomes; creates no historical dataset rows and performs no activation, persistence, broker call, or account mutation.

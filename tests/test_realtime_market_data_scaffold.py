@@ -11,6 +11,7 @@ from trading_execution.market_data import (
     build_live_observe_adapter_plan,
     build_model_decision_input_snapshot,
     build_realtime_capture_fixture,
+    build_realtime_decision_effectiveness,
     build_realtime_feature_snapshot,
     build_realtime_shadow_fixture_bundle,
     build_realtime_subscription_plan,
@@ -21,6 +22,7 @@ from trading_execution.market_data import (
     validate_live_observe_approval,
     validate_model_decision_input_snapshot,
     validate_realtime_capture,
+    validate_realtime_decision_effectiveness,
     validate_realtime_feature_snapshot,
 )
 
@@ -352,6 +354,89 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertFalse(receipt["summary"]["broker_order_construction_performed"])
         self.assertFalse(receipt["summary"]["account_mutation_performed"])
         self.assertEqual(len(calls), 2)
+
+    def test_realtime_decision_effectiveness_aggregates_matured_shadow_outcomes(self) -> None:
+        aggregate = build_realtime_decision_effectiveness(
+            [
+                {
+                    "decision_id": "decision_1",
+                    "model_id": "LayerOneMarketRegime",
+                    "model_layer": "layer_01_market_regime",
+                    "instrument_ref": "SPY",
+                    "decision_time": "2026-05-11T14:00:00+00:00",
+                    "evaluation_horizon_seconds": 900,
+                    "matured_outcome_ref": "outcome://decision_1",
+                    "correctness_status": "correct",
+                },
+                {
+                    "decision_id": "decision_2",
+                    "model_id": "LayerOneMarketRegime",
+                    "model_layer": "layer_01_market_regime",
+                    "instrument_ref": "QQQ",
+                    "decision_time": "2026-05-11T14:01:00+00:00",
+                    "evaluation_horizon_seconds": 900,
+                    "matured_outcome_ref": "outcome://decision_2",
+                    "correctness_status": "incorrect",
+                },
+            ],
+            evaluation_window_ref="window://unit",
+        )
+        validation = validate_realtime_decision_effectiveness(aggregate)
+
+        self.assertEqual(aggregate["contract_type"], "realtime_model_decision_effectiveness_v1")
+        self.assertEqual(aggregate["decision_count"], 2)
+        self.assertEqual(aggregate["matured_decision_count"], 2)
+        self.assertEqual(aggregate["correct_decision_count"], 1)
+        self.assertEqual(aggregate["incorrect_decision_count"], 1)
+        self.assertEqual(aggregate["accuracy"], 0.5)
+        self.assertEqual(aggregate["hit_rate"], 0.5)
+        self.assertEqual(aggregate["historical_dataset_rows_created"], 0)
+        self.assertEqual(aggregate["provider_calls_performed"], 0)
+        self.assertEqual(aggregate["broker_calls_performed"], 0)
+        self.assertFalse(aggregate["model_activation_performed"])
+        self.assertFalse(aggregate["broker_order_construction_performed"])
+        self.assertFalse(aggregate["account_mutation_performed"])
+        self.assertTrue(validation["valid"])
+
+    def test_realtime_decision_effectiveness_cli_outputs_monitoring_aggregate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            records_path = temp_path / "records.jsonl"
+            records_path.write_text(
+                json.dumps(
+                    {
+                        "decision_id": "decision_cli",
+                        "model_id": "LayerTwoSectorContext",
+                        "model_layer": "layer_02_sector_context",
+                        "instrument_ref": "XLK",
+                        "decision_time": "2026-05-11T14:00:00+00:00",
+                        "evaluation_horizon_seconds": 900,
+                        "matured_outcome_ref": "outcome://decision_cli",
+                        "correctness_status": "hit",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            output_path = temp_path / "effectiveness.json"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/execution/aggregate_realtime_decision_effectiveness.py",
+                    str(records_path),
+                    "--output-path",
+                    str(output_path),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            payload = json.loads(result.stdout)
+
+            self.assertEqual(payload["contract_type"], "realtime_model_decision_effectiveness_v1")
+            self.assertEqual(payload["correct_decision_count"], 1)
+            self.assertTrue(output_path.exists())
+
 
     def test_realtime_monitor_loop_writes_cycle_receipts_and_keeps_mutation_disabled(self) -> None:
         calls: list[tuple[str, dict[str, str]]] = []
