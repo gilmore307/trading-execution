@@ -13,6 +13,7 @@ This document defines the first execution-facing realtime data boundary. It does
 
 - Historical backfill and cleaned historical datasets remain owned by `trading-data`.
 - Realtime market observations needed for execution monitoring, risk checks, and order routing belong under `trading-execution` once activated.
+- Realtime observations may feed manager/model shadow or forward-validation evidence only as append-only point-in-time capture with frozen model/config refs; they do not replace the initial historical validation/test split ladder.
 - Shared source names, interface terms, and cross-repository contracts must be registered through `trading-manager` before other repos depend on them.
 - Runtime observations must be written outside Git-tracked source paths.
 - Secrets and provider credentials stay outside the repository.
