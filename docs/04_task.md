@@ -2,21 +2,24 @@
 
 ## Active Tasks
 
-- Continue hardening execution-owned realtime monitoring without enabling mutation: realtime market-data interfaces are cataloged separately from historical backfill endpoints, model input coverage is explicit for Layers 1-8, append-only capture requirements are defined for forward/shadow validation, dry-run/fixture subscription planning and capture validation are available, realtime feature/model-decision input handoff envelopes can feed fixture/shadow historical-model decision routing, broker/exchange interfaces are cataloged separately from market-data observation, and the bounded monitor loop now records per-cycle receipts, and matured shadow/live decisions can be summarized as lightweight decision-effectiveness aggregates. Realtime runtime control belongs to `trading-execution`, not `trading-manager`; realtime quality evidence should be lightweight decision-effectiveness metrics, not historical test-set construction.
-- Start OKX crypto execution on the safe path only: catalog and future adapter scaffold are allowed, but live order mutation remains disabled until explicit mode, approval, idempotency, credential, risk-cap, and receipt gates exist.
-- Keep Firstrade equity/options execution deferred because no official trading API is accepted. Do not implement reverse-engineered login, browser trading, or unofficial order automation.
+- None for the current promote-first model phase.
+
+Execution-side realtime data and monitoring scaffolds are accepted but parked until at least one model has an approved/promotable version. Do not continue realtime monitor hardening, realtime feed expansion, live/shadow integration, or execution adapter work during the current focus window unless explicitly reopened.
 
 The accepted `trade_risk_cap` validator remains mandatory for future execution-facing decision records but must not be treated as permission to construct or place orders.
 
 ## Historical-Training Todo Status
 
-- No execution tasks are required for no-broker historical training.
+- No execution tasks are required for no-broker historical training or the current promote-first model phase.
+- Realtime data/monitoring is parked until a model has an approved/promotable version.
 - Broker/order/fill/account work remains blocked until explicit execution acceptance.
 
 ## Not Current Historical-Training Scope
 
-These items are intentionally outside the current no-broker historical-training run and must not be treated as active execution work items:
+These items are intentionally outside the current promote-first model phase and must not be treated as active execution work items:
 
+- realtime data/monitoring hardening or feed expansion;
+- live/shadow integration expansion;
 - broker adapters;
 - order construction or placement;
 - paper/live mode enablement;
