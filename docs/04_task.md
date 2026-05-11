@@ -2,9 +2,11 @@
 
 ## Active Tasks
 
-- None for the historical-data training preparation boundary.
+- Define the initial execution interface boundary without enabling mutation: realtime market-data interfaces are cataloged separately from historical backfill endpoints, and broker/exchange interfaces are cataloged separately from market-data observation.
+- Start OKX crypto execution on the safe path only: catalog and future adapter scaffold are allowed, but live order mutation remains disabled until explicit mode, approval, idempotency, credential, risk-cap, and receipt gates exist.
+- Keep Firstrade equity/options execution deferred because no official trading API is accepted. Do not implement reverse-engineered login, browser trading, or unofficial order automation.
 
-`trading-execution` is intentionally inactive while the current work is historical data acquisition, offline feature/model training, and evidence generation. The accepted `trade_risk_cap` validator remains available for future execution-facing decision records but must not be treated as permission to construct or place orders.
+The accepted `trade_risk_cap` validator remains mandatory for future execution-facing decision records but must not be treated as permission to construct or place orders.
 
 ## Historical-Training Todo Status
 
@@ -23,7 +25,11 @@ These items are intentionally outside the current no-broker historical-training 
 
 ## Recently Accepted
 
-- Closed the current execution-preparation phase in `docs/08_execution_closeout.md`: repository boundary, calendar-discovery ownership, mandatory pre-order `trade_risk_cap` invariant, broker-agnostic risk-cap validator, and package/source/test layout are accepted. No broker adapter, order construction, order placement, fill handling, account mutation, model activation, provider call, or manager dispatch is enabled by this closeout.
+- Added side-effect-free execution capability catalogs: `execution_realtime_data_interface_v1`, `execution_broker_interface_v1`, and `execution_capability_catalog_v1`.
+- Accepted the first interface split: realtime market data may share canonical providers with historical data, but it uses distinct realtime transports; broker mutation is a separate authority from market-data access.
+- Accepted OKX as crypto execution venue candidate because an official API exists; live mutation remains disabled.
+- Deferred Firstrade equity/options automation because no official trading API is accepted.
+- Closed the prior execution-preparation phase in `docs/08_execution_closeout.md`: repository boundary, calendar-discovery ownership, mandatory pre-order `trade_risk_cap` invariant, broker-agnostic risk-cap validator, and package/source/test layout are accepted. No broker adapter, order construction, order placement, fill handling, account mutation, model activation, provider call, or manager dispatch is enabled by this closeout.
 - Added component-facing validation entrypoint `scripts/execution/validate_trade_risk_cap.py` and tests. This provides the integration route for unified decision records before any future broker/paper order-construction path.
 - Accepted current package/source/test layout and default verification commands: `PYTHONPATH=src python3 -m unittest discover -s tests` and `python3 -m compileall -q src scripts`.
 - Added accepted `trade_risk_cap` pre-order invariant and broker-agnostic validator. Missing or invalid caps force `reject_order` before order construction/placement.

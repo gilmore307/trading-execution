@@ -30,6 +30,8 @@ docs/
   06_memory.md
   07_trade_risk_cap.md
   08_execution_closeout.md
+  09_realtime_data.md
+  10_broker_interfaces.md
 ```
 
 ## Verification
@@ -43,7 +45,9 @@ python3 -m compileall -q src scripts
 
 - `trading_execution.calendar_discovery` owns future macro release-calendar discovery and explicitly approved market calendars such as Nasdaq earnings dates for live/realtime acquisition scheduling. Historical macro values and source evidence remain in `trading-data`.
 - `trading_execution.risk_cap` owns broker-agnostic pre-order validation for mandatory `trade_risk_cap` payloads. Missing or invalid caps force order rejection before paper/live mutation.
-- `docs/08_execution_closeout.md` records the current execution-preparation closeout; it does not enable broker adapters, order placement, fills, positions, or account mutation.
+- `trading_execution.market_data` owns the side-effect-free realtime data interface catalog. Realtime acquisition may use the same canonical data providers as historical backfill, but through distinct realtime transports such as WebSocket streams or realtime HTTP snapshots.
+- `trading_execution.broker` owns the side-effect-free broker/exchange interface catalog. OKX is accepted for crypto adapter scaffolding with live mutation disabled; Firstrade equity/options execution is deferred because no official trading API is accepted.
+- `docs/08_execution_closeout.md` records the prior execution-preparation closeout; `docs/09_realtime_data.md` and `docs/10_broker_interfaces.md` open the next execution design slice without enabling broker adapters, order construction, order placement, fills, positions, or account mutation.
 
 ## Platform Dependencies
 

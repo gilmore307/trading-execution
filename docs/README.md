@@ -12,6 +12,8 @@ This directory is the authoritative documentation spine for `trading-execution`.
 - `05_decision.md` — ratified repository decisions.
 - `06_memory.md` — durable local continuity that does not fit narrower docs.
 - `07_trade_risk_cap.md` — mandatory pre-order hard risk-cap invariant and validation surface.
-- `08_execution_closeout.md` — current execution-preparation phase closeout receipt.
+- `08_execution_closeout.md` — prior execution-preparation phase closeout receipt.
+- `09_realtime_data.md` — realtime market-data interface boundary for execution.
+- `10_broker_interfaces.md` — broker/exchange interface posture for OKX and Firstrade.
 
 Do not place generated data, artifacts, notebooks, logs, credentials, or implementation outputs in this directory.

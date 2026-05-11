@@ -115,3 +115,62 @@ No active execution-preparation tasks remain. Future execution work is deferred 
 - `trading-execution` remains the owner of broker/exchange runtime and safety-sensitive mutations.
 - This closeout does not enable broker adapters, order construction, order placement, fills, positions, account mutation, provider calls, model activation, or manager dispatch.
 - New execution implementation must start from the hard `trade_risk_cap` validation invariant and an explicit acceptance gate.
+
+## D006 - Realtime market data uses reviewed realtime interfaces
+
+Date: 2026-05-11
+Status: Accepted
+
+### Context
+
+Execution needs current market observations for monitoring, risk checks, and order routing. Chentong clarified that realtime data should generally use the same data sources as historical data, but not necessarily the same interfaces.
+
+### Decision
+
+Realtime market-data acquisition is an execution-facing interface boundary separate from historical backfill. OKX, Alpaca, and ThetaData may share canonical provider/source identities with historical data, but execution must use separately reviewed realtime transports such as public WebSocket channels, realtime HTTP snapshots, or terminal WebSocket streams.
+
+### Consequences
+
+- Historical cleaned data remains owned by `trading-data`.
+- Execution realtime streams must not become historical source-of-truth backfills.
+- Market-data access does not imply broker/order authority.
+- Adapters start from side-effect-free catalogs and fixture tests before any live stream is enabled.
+
+## D007 - OKX is the first crypto execution venue candidate
+
+Date: 2026-05-11
+Status: Accepted
+
+### Context
+
+Chentong selected OKX for crypto trading. OKX has official REST and WebSocket APIs, including public market-data channels and authenticated private trading/account channels.
+
+### Decision
+
+OKX is accepted as the first crypto broker/exchange interface candidate. Initial development may add catalogs, schemas, dry-run validation, signing fixtures, and simulated order lifecycle, but live order mutation remains disabled until explicit execution-mode, approval, idempotency, credential, risk-cap, and receipt gates are implemented.
+
+### Consequences
+
+- OKX credentials resolve only through external secret aliases.
+- Any future order adapter must call `trade_risk_cap` validation before order construction/placement.
+- Public market-data routes and private order/account routes remain separate.
+- No live OKX order call is enabled by the initial catalog work.
+
+## D008 - Firstrade equity/options execution is deferred
+
+Date: 2026-05-11
+Status: Accepted
+
+### Context
+
+Chentong selected Firstrade for US stocks and options, but Firstrade does not appear to provide an accepted official trading API. Web review found reverse-engineered community clients, which are not enough for this system.
+
+### Decision
+
+Firstrade remains the intended equity/options broker, but automated execution is deferred until an official or explicitly reviewed compliant trading interface exists.
+
+### Consequences
+
+- Do not implement reverse-engineered Firstrade login, browser trading, scraped order tickets, or unofficial order automation.
+- Equity/options broker mutation remains unavailable in `trading-execution` for now.
+- The catalog may record Firstrade as deferred so future work does not accidentally treat it as an active adapter.

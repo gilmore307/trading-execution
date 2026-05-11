@@ -12,6 +12,7 @@ This repository exists to keep that responsibility explicit, testable, and separ
 
 - paper/live execution runtime code once approved.
 - broker/exchange adapter boundaries.
+- realtime market-data interface boundaries required by execution monitoring and risk checks.
 - order, fill, position, reconciliation, and execution artifact handling.
 - execution safety checks, mandatory trade-risk-cap validation, and dry-run/paper/live mode boundaries.
 - execution-local tests and simulation fixtures.
@@ -19,7 +20,7 @@ This repository exists to keep that responsibility explicit, testable, and separ
 ## Out of Scope
 
 - strategy selection or model training.
-- market data fetching as source of truth.
+- historical market data fetching as source of truth.
 - cross-repository promotion decisions.
 - dashboard rendering.
 - shared storage policy.
@@ -43,6 +44,8 @@ The repository should prefer explicit interfaces, fixture-backed tests, and narr
 - Secrets and credentials must stay outside the repository.
 - Shared helpers, templates, fields, statuses, and type values discovered here must be recorded through `trading-manager` before cross-repository use.
 - No executable order may be constructed or placed unless a valid `trade_risk_cap` has passed pre-order validation.
+- Realtime market data may share canonical providers with historical data, but execution must use separately reviewed realtime interfaces and must not backfill historical truth from execution streams.
+- Firstrade equity/options execution remains deferred until an official or explicitly reviewed compliant trading interface exists; reverse-engineered login/order automation is not accepted.
 
 ## Out-of-Scope Signals
 
