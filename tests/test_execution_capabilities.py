@@ -7,8 +7,10 @@ import unittest
 
 from trading_execution.broker import broker_interfaces, build_execution_capability_catalog
 from trading_execution.market_data import (
+    model_decision_input_snapshot_contract,
     realtime_capture_contract,
     realtime_data_interfaces,
+    realtime_feature_snapshot_contract,
     realtime_input_coverage_matrix,
 )
 
@@ -52,6 +54,20 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
         self.assertIn("broker_order_mutation", contract.forbidden_actions)
         self.assertIn("ready_signal_v1", contract.manager_handoff_refs)
 
+    def test_realtime_feature_and_decision_input_contracts_cover_all_layers(self) -> None:
+        feature_contract = realtime_feature_snapshot_contract()
+        decision_contract = model_decision_input_snapshot_contract()
+
+        self.assertEqual(feature_contract["contract_type"], "realtime_feature_snapshot_contract_v1")
+        self.assertEqual(len(feature_contract["required_layer_rows"]), 8)
+        self.assertIn("historical_dataset_snapshot_ref", feature_contract["required_fields"])
+        self.assertEqual(
+            decision_contract["contract_type"],
+            "execution_model_decision_input_snapshot_contract_v1",
+        )
+        self.assertEqual(len(decision_contract["required_layer_inputs"]), 8)
+        self.assertIn("model_activation", decision_contract["forbidden_actions"])
+
     def test_broker_catalog_accepts_okx_but_defers_firstrade(self) -> None:
         brokers = {broker.broker_id: broker for broker in broker_interfaces()}
 
@@ -71,6 +87,14 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(catalog["contract_type"], "execution_capability_catalog_v1")
         self.assertEqual(len(catalog["realtime_input_coverage_matrix"]), 8)
         self.assertEqual(catalog["realtime_capture_contract"]["contract_type"], "realtime_capture_contract_v1")
+        self.assertEqual(
+            catalog["realtime_feature_snapshot_contract"]["contract_type"],
+            "realtime_feature_snapshot_contract_v1",
+        )
+        self.assertEqual(
+            catalog["model_decision_input_snapshot_contract"]["contract_type"],
+            "execution_model_decision_input_snapshot_contract_v1",
+        )
         self.assertFalse(catalog["order_mutation_enabled"])
         self.assertEqual(catalog["provider_calls_performed"], 0)
         self.assertEqual(catalog["broker_calls_performed"], 0)

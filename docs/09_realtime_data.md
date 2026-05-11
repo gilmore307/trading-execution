@@ -72,11 +72,46 @@ PYTHONPATH=src python3 scripts/execution/validate_realtime_capture.py capture.js
 
 `dry_run` and `fixture_replay` plans are ready without provider calls. `live_observe` plans remain blocked unless a future reviewed live-stream approval ref is supplied; even then the current helper only emits a plan row and does not execute the stream.
 
+## Realtime feature and model-decision handoff
+
+Realtime capture is still too raw for the model stack. The accepted handoff chain is:
+
+```text
+realtime_capture_contract_v1
+  -> realtime_feature_snapshot_v1
+  -> execution_model_decision_input_snapshot_v1
+  -> historical-model decision stack fixture/shadow route
+```
+
+`realtime_feature_snapshot_v1` preserves the same point-in-time timing discipline as historical features: `feature_time <= available_time <= tradeable_time`, plus historical feature parity refs, frozen model/config refs, dataset snapshot refs, source capture refs, and per-layer feature refs. It is not a new training substrate by itself.
+
+`execution_model_decision_input_snapshot_v1` packages all Layer 1-8 feature refs into the shape needed by the historical model decision stack. It is intentionally fixture/shadow-ready only: it does not activate a model, construct an order, mutate an account, or authorize provider streams.
+
+Example:
+
+```bash
+PYTHONPATH=src python3 scripts/execution/build_realtime_feature_snapshot.py \
+  --decision-time 2026-05-11T13:30:00+00:00 \
+  --available-time 2026-05-11T13:30:01+00:00 \
+  --tradeable-time 2026-05-11T13:30:02+00:00 \
+  --instrument-ref AAPL \
+  --historical-dataset-snapshot-ref trading-model://snapshots/historical/unit \
+  --frozen-model-config-ref trading-model://configs/frozen/unit \
+  --source-capture-ref capture://alpaca/aapl/unit > feature_snapshot.json
+
+PYTHONPATH=src python3 scripts/execution/build_realtime_model_input.py \
+  --feature-snapshot feature_snapshot.json > decision_input.json
+
+PYTHONPATH=src python3 scripts/execution/validate_realtime_model_input.py decision_input.json
+```
+
+This makes the bridge to historical model data decision routing explicit while keeping live inference/model activation behind later reviewed gates.
+
 ## Implementation hook
 
-`src/trading_execution/market_data/contracts.py` owns the side-effect-free `execution_realtime_data_interface_v1`, `execution_realtime_input_coverage_v1`, and `realtime_capture_contract_v1` catalogs. `adapters.py` owns `execution_realtime_subscription_plan_v1` planning; `capture.py` owns `realtime_capture_validation_v1`.
+`src/trading_execution/market_data/contracts.py` owns the side-effect-free `execution_realtime_data_interface_v1`, `execution_realtime_input_coverage_v1`, and `realtime_capture_contract_v1` catalogs. `adapters.py` owns `execution_realtime_subscription_plan_v1` planning; `capture.py` owns `realtime_capture_validation_v1`; `features.py` owns `realtime_feature_snapshot_v1` and `execution_model_decision_input_snapshot_v1` builders/validators.
 
-The first implementation slice is catalog/contract only. Later adapters must add:
+The current implementation slice is catalog/contract/fixture handoff only. Later adapters must add:
 
 1. explicit mode (`dry_run`, `paper`, `live_observe`, or equivalent accepted values);
 2. entitlement/secret alias resolution without leaking secrets;

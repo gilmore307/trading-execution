@@ -212,3 +212,22 @@ The realtime data layer needs to become executable without collapsing safety bou
 - Adapter scaffolds are now connected across OKX, Alpaca, ThetaData, derived model context, calendar discovery, and execution account-state placeholders.
 - Plan/validation helpers report zero provider calls, zero broker calls, and no model activation.
 - Future live-observe adapters must reuse these contracts and add explicit approval, secret, reconnect/backoff, manifest, artifact, and ready-signal handling before any external stream is opened.
+
+## D011 - Realtime feature snapshots bridge into historical-model decision inputs
+
+Date: 2026-05-11
+Status: Accepted
+
+### Context
+
+Raw realtime captures are not model inputs. The model stack was designed and validated around point-in-time feature/model-output contracts, so live observations need a deterministic bridge that preserves historical feature parity and frozen model/data refs before any decision handoff.
+
+### Decision
+
+`trading-execution` owns `realtime_feature_snapshot_v1` and `execution_model_decision_input_snapshot_v1` as side-effect-free handoff envelopes. The feature snapshot converts realtime capture refs into Layer 1-8 feature refs with `feature_time`, `available_time`, `tradeable_time`, historical feature parity refs, frozen model config refs, and historical dataset snapshot refs. The decision input snapshot packages those layer refs for fixture/shadow historical-model decision routing.
+
+### Consequences
+
+- Realtime data can now be prepared into the shape expected by historical model decision paths without opening streams or activating models.
+- Feature generation remains parity-bound to historical `trading-data` / `trading-model` definitions; realtime builders must not silently invent divergent live-only semantics.
+- The handoff still does not authorize provider streams, model activation, production decision activation, order construction, broker mutation, or account mutation.

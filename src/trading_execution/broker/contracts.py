@@ -87,8 +87,10 @@ def build_execution_capability_catalog() -> dict[str, Any]:
     """Return a combined side-effect-free execution capability catalog."""
 
     from trading_execution.market_data import (
+        model_decision_input_snapshot_contract,
         realtime_capture_contract,
         realtime_data_interfaces,
+        realtime_feature_snapshot_contract,
         realtime_input_coverage_matrix,
     )
 
@@ -97,6 +99,8 @@ def build_execution_capability_catalog() -> dict[str, Any]:
         "realtime_data_interfaces": [interface.summary_row() for interface in realtime_data_interfaces()],
         "realtime_input_coverage_matrix": [coverage.summary_row() for coverage in realtime_input_coverage_matrix()],
         "realtime_capture_contract": realtime_capture_contract().summary_row(),
+        "realtime_feature_snapshot_contract": realtime_feature_snapshot_contract(),
+        "model_decision_input_snapshot_contract": model_decision_input_snapshot_contract(),
         "broker_interfaces": [interface.summary_row() for interface in broker_interfaces()],
         "order_mutation_enabled": False,
         "provider_calls_performed": 0,

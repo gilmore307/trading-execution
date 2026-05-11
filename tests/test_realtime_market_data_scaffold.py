@@ -7,7 +7,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from trading_execution.market_data import build_realtime_subscription_plan, validate_realtime_capture
+from trading_execution.market_data import (
+    build_model_decision_input_snapshot,
+    build_realtime_feature_snapshot,
+    build_realtime_subscription_plan,
+    validate_model_decision_input_snapshot,
+    validate_realtime_capture,
+    validate_realtime_feature_snapshot,
+)
 
 
 class RealtimeMarketDataScaffoldTests(unittest.TestCase):
@@ -104,6 +111,49 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertIn("broker_order_mutation", result["forbidden_actions_present"])
         self.assertIn("observation_time", result["missing_fields"])
 
+    def test_build_realtime_feature_snapshot_covers_all_model_layers(self) -> None:
+        snapshot = build_realtime_feature_snapshot(
+            {
+                "decision_time": "2026-05-11T13:30:00+00:00",
+                "available_time": "2026-05-11T13:30:01+00:00",
+                "tradeable_time": "2026-05-11T13:30:02+00:00",
+                "instrument_ref": "AAPL",
+                "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
+                "frozen_model_config_ref": "trading-model://configs/frozen/unit",
+                "source_capture_refs": ["capture://alpaca/aapl/unit"],
+            }
+        )
+
+        self.assertEqual(snapshot["contract_type"], "realtime_feature_snapshot_v1")
+        self.assertEqual(snapshot["readiness_status"], "ready_for_fixture_or_shadow_model_decision_input")
+        self.assertEqual(len(snapshot["feature_rows"]), 8)
+        self.assertEqual(snapshot["provider_calls_performed"], 0)
+        self.assertFalse(snapshot["model_activation_performed"])
+        validation = validate_realtime_feature_snapshot(snapshot)
+        self.assertTrue(validation["valid"])
+        self.assertEqual(validation["missing_layer_rows"], [])
+
+    def test_build_model_decision_input_snapshot_from_realtime_features(self) -> None:
+        decision_input = build_model_decision_input_snapshot(
+            {
+                "decision_time": "2026-05-11T13:30:00+00:00",
+                "available_time": "2026-05-11T13:30:01+00:00",
+                "tradeable_time": "2026-05-11T13:30:02+00:00",
+                "instrument_ref": "AAPL",
+                "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
+                "frozen_model_config_ref": "trading-model://configs/frozen/unit",
+                "source_capture_refs": ["capture://alpaca/aapl/unit"],
+            }
+        )
+
+        self.assertEqual(decision_input["contract_type"], "execution_model_decision_input_snapshot_v1")
+        self.assertEqual(decision_input["readiness_status"], "ready_for_historical_model_decision_handoff")
+        self.assertEqual(len(decision_input["layer_input_refs"]), 8)
+        self.assertEqual(decision_input["provider_calls_performed"], 0)
+        self.assertFalse(decision_input["broker_order_construction_performed"])
+        validation = validate_model_decision_input_snapshot(decision_input)
+        self.assertTrue(validation["valid"])
+
     def test_plan_and_validate_clis_are_side_effect_free(self) -> None:
         plan_result = subprocess.run(
             [
@@ -161,6 +211,63 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         validation = json.loads(validate_result.stdout)
         self.assertTrue(validation["valid"])
         self.assertEqual(validation["broker_calls_performed"], 0)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            feature_path = Path(temp_dir) / "feature_snapshot.json"
+            feature_result = subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/execution/build_realtime_feature_snapshot.py",
+                    "--decision-time",
+                    "2026-05-11T13:30:00+00:00",
+                    "--available-time",
+                    "2026-05-11T13:30:01+00:00",
+                    "--tradeable-time",
+                    "2026-05-11T13:30:02+00:00",
+                    "--instrument-ref",
+                    "AAPL",
+                    "--historical-dataset-snapshot-ref",
+                    "trading-model://snapshots/historical/unit",
+                    "--frozen-model-config-ref",
+                    "trading-model://configs/frozen/unit",
+                    "--source-capture-ref",
+                    "capture://alpaca/aapl/unit",
+                ],
+                check=True,
+                cwd="/root/projects/trading-execution",
+                env={"PYTHONPATH": "src"},
+                text=True,
+                capture_output=True,
+            )
+            feature_snapshot = json.loads(feature_result.stdout)
+            feature_path.write_text(json.dumps(feature_snapshot), encoding="utf-8")
+            self.assertEqual(feature_snapshot["provider_calls_performed"], 0)
+            self.assertEqual(len(feature_snapshot["feature_rows"]), 8)
+
+            decision_result = subprocess.run(
+                [sys.executable, "scripts/execution/build_realtime_model_input.py", "--feature-snapshot", str(feature_path)],
+                check=True,
+                cwd="/root/projects/trading-execution",
+                env={"PYTHONPATH": "src"},
+                text=True,
+                capture_output=True,
+            )
+            decision_input = json.loads(decision_result.stdout)
+            decision_path = Path(temp_dir) / "decision_input.json"
+            decision_path.write_text(json.dumps(decision_input), encoding="utf-8")
+            self.assertEqual(decision_input["readiness_status"], "ready_for_historical_model_decision_handoff")
+
+            decision_validation_result = subprocess.run(
+                [sys.executable, "scripts/execution/validate_realtime_model_input.py", str(decision_path)],
+                check=True,
+                cwd="/root/projects/trading-execution",
+                env={"PYTHONPATH": "src"},
+                text=True,
+                capture_output=True,
+            )
+            decision_validation = json.loads(decision_validation_result.stdout)
+            self.assertTrue(decision_validation["valid"])
+            self.assertFalse(decision_validation["model_activation_performed"])
 
 
 if __name__ == "__main__":
