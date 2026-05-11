@@ -14,6 +14,8 @@ from trading_execution.market_data import (
     build_realtime_feature_snapshot,
     build_realtime_shadow_fixture_bundle,
     build_realtime_subscription_plan,
+    execute_live_observe,
+    validate_live_observe_approval,
     validate_model_decision_input_snapshot,
     validate_realtime_capture,
     validate_realtime_feature_snapshot,
@@ -234,6 +236,119 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertFalse(decision_input["broker_order_construction_performed"])
         validation = validate_model_decision_input_snapshot(decision_input)
         self.assertTrue(validation["valid"])
+
+    def test_live_observe_approval_blocks_mutating_flags(self) -> None:
+        validation = validate_live_observe_approval(
+            {
+                "contract_type": "realtime_live_observe_approval_v1",
+                "approval_id": "rtla_unit",
+                "approval_scope": "realtime_market_data_observe_only",
+                "approved_sources": ["okx"],
+                "approved_instrument_refs": ["BTC-USDT"],
+                "approved_at_utc": "2026-05-11T13:00:00+00:00",
+                "expires_at_utc": "2099-05-11T14:00:00+00:00",
+                "max_provider_calls": 1,
+                "execute_live_observe_allowed": True,
+                "model_activation_allowed": True,
+                "broker_execution_allowed": False,
+                "broker_order_construction_allowed": False,
+                "account_mutation_allowed": False,
+            },
+            requested_sources=["okx"],
+            requested_instrument_refs=["BTC-USDT"],
+            requested_provider_calls=1,
+        )
+
+        self.assertFalse(validation["valid"])
+        self.assertIn("model_activation_allowed_must_be_false", validation["invalid_fields"])
+
+    def test_execute_live_observe_uses_approved_read_only_provider_call(self) -> None:
+        calls: list[tuple[str, dict[str, str]]] = []
+
+        def fake_transport(url: str, headers: dict[str, str]) -> dict[str, object]:
+            calls.append((url, headers))
+            return {"code": "0", "data": [{"instId": "BTC-USDT", "last": "100.0"}]}
+
+        result = execute_live_observe(
+            {
+                "request_id": "rtlive_exec_unit",
+                "sources": ["okx"],
+                "model_layers": ["layer_01_market_regime"],
+                "instrument_refs": ["BTC-USDT"],
+                "decision_time": "2026-05-11T13:30:00+00:00",
+                "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
+                "frozen_model_config_ref": "trading-model://configs/frozen/unit",
+            },
+            approval={
+                "contract_type": "realtime_live_observe_approval_v1",
+                "approval_id": "rtla_unit",
+                "approval_scope": "realtime_market_data_observe_only",
+                "approved_sources": ["okx"],
+                "approved_instrument_refs": ["BTC-USDT"],
+                "approved_at_utc": "2026-05-11T13:00:00+00:00",
+                "expires_at_utc": "2099-05-11T14:00:00+00:00",
+                "max_provider_calls": 1,
+                "execute_live_observe_allowed": True,
+                "model_activation_allowed": False,
+                "broker_execution_allowed": False,
+                "broker_order_construction_allowed": False,
+                "account_mutation_allowed": False,
+            },
+            execute_live_observe=True,
+            transport=fake_transport,
+        )
+
+        self.assertEqual(result["live_observe_status"], "observed")
+        self.assertEqual(result["provider_calls_performed"], 1)
+        self.assertEqual(len(calls), 1)
+        self.assertIn("/api/v5/market/ticker", calls[0][0])
+        self.assertEqual(result["broker_calls_performed"], 0)
+        self.assertFalse(result["model_activation_performed"])
+        self.assertFalse(result["broker_order_construction_performed"])
+        self.assertFalse(result["account_mutation_performed"])
+        self.assertEqual(len(result["captures"]), 1)
+        self.assertTrue(result["captures"][0]["capture_validation"]["valid"])
+        self.assertEqual(result["feature_snapshot"]["readiness_status"], "blocked_missing_realtime_feature_requirements")
+        self.assertEqual(result["decision_input_snapshot"]["readiness_status"], "blocked_missing_model_decision_input_requirements")
+
+    def test_execute_live_observe_cli_plan_only_does_not_call_provider(self) -> None:
+        request_payload = {
+            "request_id": "rtlive_cli_unit",
+            "sources": ["okx"],
+            "instrument_refs": ["BTC-USDT"],
+            "decision_time": "2026-05-11T13:30:00+00:00",
+        }
+        approval_payload = {
+            "contract_type": "realtime_live_observe_approval_v1",
+            "approval_id": "rtla_cli_unit",
+            "approval_scope": "realtime_market_data_observe_only",
+            "approved_sources": ["okx"],
+            "approved_instrument_refs": ["BTC-USDT"],
+            "approved_at_utc": "2026-05-11T13:00:00+00:00",
+            "expires_at_utc": "2099-05-11T14:00:00+00:00",
+            "max_provider_calls": 1,
+            "execute_live_observe_allowed": True,
+            "model_activation_allowed": False,
+            "broker_execution_allowed": False,
+            "broker_order_construction_allowed": False,
+            "account_mutation_allowed": False,
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            request_path = Path(temp_dir) / "request.json"
+            approval_path = Path(temp_dir) / "approval.json"
+            request_path.write_text(json.dumps(request_payload), encoding="utf-8")
+            approval_path.write_text(json.dumps(approval_payload), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, "scripts/execution/execute_live_observe.py", "--request", str(request_path), "--approval", str(approval_path)],
+                check=True,
+                cwd="/root/projects/trading-execution",
+                env={"PYTHONPATH": "src"},
+                text=True,
+                capture_output=True,
+            )
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["live_observe_status"], "ready_requires_execute_live_observe_flag")
+        self.assertEqual(payload["provider_calls_performed"], 0)
 
     def test_plan_and_validate_clis_are_side_effect_free(self) -> None:
         plan_result = subprocess.run(

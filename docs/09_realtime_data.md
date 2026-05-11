@@ -77,7 +77,35 @@ PYTHONPATH=src python3 scripts/execution/plan_realtime_capture.py \
 PYTHONPATH=src python3 scripts/execution/validate_realtime_capture.py capture.json
 ```
 
-`dry_run` and `fixture_replay` plans are ready without provider calls. `live_observe` plans remain blocked unless a future reviewed live-stream approval ref is supplied; even then the current helper only emits a plan row and does not execute the stream.
+`dry_run` and `fixture_replay` plans are ready without provider calls. `live_observe` plans remain blocked unless a reviewed `realtime_live_observe_approval_v1` is supplied.
+
+## Formal live-observe execution
+
+The first formal realtime integration path is read-only provider observation, not trading. `src/trading_execution/market_data/live_approval.py` validates `realtime_live_observe_approval_v1`; `src/trading_execution/market_data/live_provider.py` executes approved read-only observations and emits `execution_realtime_live_observe_result_v1`.
+
+A valid approval must bound sources, instruments, expiry, and `max_provider_calls`; set `approval_scope=realtime_market_data_observe_only`; set `execute_live_observe_allowed=true`; and keep all mutation/activation flags false:
+
+- `model_activation_allowed=false`
+- `broker_execution_allowed=false`
+- `broker_order_construction_allowed=false`
+- `account_mutation_allowed=false`
+
+Execute only with the explicit flag:
+
+```bash
+PYTHONPATH=src python3 scripts/execution/execute_live_observe.py \
+  --request live_observe_request.json \
+  --approval realtime_live_observe_approval.json \
+  --execute-live-observe
+```
+
+Supported direct provider observe routes in this first formal slice:
+
+- OKX public REST ticker snapshot for approved crypto instruments.
+- Alpaca equity snapshot using `APCA_API_KEY_ID` / `APCA_API_SECRET_KEY` environment variables.
+- ThetaData reviewed URL-template HTTP probe when the request supplies `thetadata_url_template`.
+
+The result may contain provider market-data calls and realtime capture rows, then package feature/model-input snapshots for downstream shadow routing. It still does not activate models, persist manager decisions, construct orders, execute broker calls, or mutate accounts.
 
 Concrete fixture planning:
 

@@ -24,7 +24,21 @@ No broker adapter may construct or place a paper/live order unless all of these 
 6. order mutation is explicitly enabled by a reviewed decision path;
 7. the adapter emits order/fill/position/reconcile artifacts through accepted manager/storage contracts.
 
-The current catalog does not enable live trading.
+The current catalog does not enable live trading. It now permits a narrower formal step: approved order-intent construction without broker submission.
+
+## Formal order-intent construction
+
+`src/trading_execution/broker/order_construction.py` owns `execution_order_construction_approval_v1` and `execution_broker_order_intent_v1`.
+
+`build_broker_order_intent.py` can construct an OKX-shaped order intent only when all of the following pass:
+
+1. reviewed `execution_order_construction_approval_v1` with `approval_scope=broker_order_construction_only`;
+2. `construct_order_allowed=true`;
+3. `broker_execution_allowed=false` and `account_mutation_allowed=false`;
+4. approved instrument, side, order type, and broker;
+5. valid `trade_risk_cap` on the decision record.
+
+The resulting intent is `constructed_not_submitted`: it contains the broker-shaped payload and idempotency key, but performs zero broker calls and zero account mutation.
 
 ## Reviewed broker interfaces
 
@@ -40,7 +54,7 @@ OKX official docs describe authenticated private REST requests with `OK-ACCESS-K
 Accepted initial OKX development path:
 
 1. catalog and safety contracts;
-2. dry-run order-intent validation;
+2. approved order-intent construction without submission;
 3. request signing unit tests with fixed fixtures only;
 4. paper/simulated order lifecycle;
 5. live order mutation only after explicit activation gate.
@@ -62,5 +76,7 @@ Firstrade can stay in the broker catalog as `deferred_no_official_trading_api` u
 ## Implementation hook
 
 `src/trading_execution/broker/contracts.py` owns the side-effect-free `execution_broker_interface_v1` catalog and combined `execution_capability_catalog_v1`.
+
+`src/trading_execution/broker/order_construction.py` owns gated order-intent construction. `scripts/execution/build_broker_order_intent.py --construct-order` constructs a broker-shaped intent only after approval and risk-cap validation; it does not submit the order.
 
 `scripts/execution/list_execution_capabilities.py` prints the reviewed catalog without external calls, provider calls, broker calls, order construction, or account mutation.

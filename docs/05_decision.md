@@ -213,6 +213,28 @@ The realtime data layer needs to become executable without collapsing safety bou
 - Plan/validation helpers report zero provider calls, zero broker calls, and no model activation.
 - Future live-observe adapters must reuse these contracts and add explicit approval, secret, reconnect/backoff, manifest, artifact, and ready-signal handling before any external stream is opened.
 
+## D012 - Formal realtime provider observation is gated and read-only
+
+Date: 2026-05-11
+Status: Accepted
+
+### Context
+
+Fixture-only realtime paths are not sufficient for formal integration. Execution needs a real provider-observation path, but provider calls, model activation, manager persistence, and broker/account mutation have different safety profiles and must not be enabled by one implicit switch.
+
+### Decision
+
+`trading-execution` accepts `realtime_live_observe_approval_v1` as the first formal live-integration gate. With a valid approval and explicit `--execute-live-observe`, `scripts/execution/execute_live_observe.py` may perform bounded read-only market-data observations for reviewed OKX, Alpaca, and ThetaData routes and emit `execution_realtime_live_observe_result_v1`, realtime capture rows, feature snapshots, and model-input snapshots.
+
+This approval is only for realtime market-data observation. It must explicitly keep model activation, broker execution, broker order construction, and account mutation disabled.
+
+### Consequences
+
+- Formal provider observation is no longer fixture-only; approved read-only provider calls are supported.
+- A plan-only invocation still performs zero provider calls.
+- Model activation, production configuration activation, broker execution, and account mutation require separate reviewed gates. Order construction has its own separate approval gate under `execution_order_construction_approval_v1`.
+- Manager visibility can consume the produced artifacts, but execution does not persist manager decisions.
+
 ## D011 - Realtime feature snapshots bridge into historical-model decision inputs
 
 Date: 2026-05-11
@@ -231,3 +253,24 @@ Raw realtime captures are not model inputs. The model stack was designed and val
 - Realtime data can now be prepared into the shape expected by historical model decision paths without opening streams or activating models.
 - Feature generation remains parity-bound to historical `trading-data` / `trading-model` definitions; realtime builders must not silently invent divergent live-only semantics.
 - The handoff still does not authorize provider streams, model activation, production decision activation, order construction, broker mutation, or account mutation.
+
+## D013 - Approved order-intent construction is separate from broker submission
+
+Date: 2026-05-11
+Status: Accepted
+
+### Context
+
+Formal integration needs to progress beyond validating risk caps, but constructing an order payload and submitting it to a broker are not the same safety boundary.
+
+### Decision
+
+`trading-execution` accepts `execution_order_construction_approval_v1` as the first broker-facing order-construction gate. With a valid approval, a valid `trade_risk_cap`, and explicit `--construct-order`, `scripts/execution/build_broker_order_intent.py` may construct an OKX-shaped `execution_broker_order_intent_v1`.
+
+The resulting intent is `constructed_not_submitted`. It carries an idempotency key and broker payload, but performs zero broker calls and zero account mutation.
+
+### Consequences
+
+- Order construction is no longer only theoretical; approved order intents can be built.
+- Broker submission, fills, position/account mutation, and reconciliation remain separate gates.
+- Missing or invalid `trade_risk_cap` still blocks construction.
