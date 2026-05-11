@@ -193,3 +193,22 @@ Realtime inputs should cover the model stack's live inference needs and later su
 - Realtime coverage gaps remain visible instead of being hidden behind generic "connected" language.
 - Future adapters must emit point-in-time capture facts before realtime rows can become `forward_holdout` or `shadow_monitoring` evidence.
 - Catalog inspection performs no provider calls, opens no streams, activates no models, and mutates no broker/account state.
+
+## D010 - Realtime adapter scaffold starts with planning and capture validation
+
+Date: 2026-05-11
+Status: Accepted
+
+### Context
+
+The realtime data layer needs to become executable without collapsing safety boundaries. Opening WebSocket streams, resolving credentials, or using account state requires separate live-observe approvals, but the system can already validate request shape, route coverage, and capture evidence locally.
+
+### Decision
+
+`trading-execution` adds side-effect-free realtime subscription planning and capture validation. `execution_realtime_subscription_plan_v1` supports `dry_run`, `fixture_replay`, and approval-blocked `live_observe` plan rows. `realtime_capture_validation_v1` checks candidate capture rows against `realtime_capture_contract_v1`.
+
+### Consequences
+
+- Adapter scaffolds are now connected across OKX, Alpaca, ThetaData, derived model context, calendar discovery, and execution account-state placeholders.
+- Plan/validation helpers report zero provider calls, zero broker calls, and no model activation.
+- Future live-observe adapters must reuse these contracts and add explicit approval, secret, reconnect/backoff, manifest, artifact, and ready-signal handling before any external stream is opened.

@@ -7,3 +7,5 @@ This package records reviewed realtime interfaces for providers that may also ex
 Key file:
 
 - `contracts.py` — `execution_realtime_data_interface_v1` catalog for OKX, Alpaca, and ThetaData realtime routes; `execution_realtime_input_coverage_v1` coverage rows for Layers 1-8; and `realtime_capture_contract_v1` for append-only forward/shadow validation evidence.
+- `adapters.py` — `execution_realtime_subscription_plan_v1` planning helpers for dry-run, fixture-replay, and approval-blocked live-observe routes.
+- `capture.py` — `realtime_capture_validation_v1` checks for candidate append-only capture rows.

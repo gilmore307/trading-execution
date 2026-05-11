@@ -56,9 +56,25 @@ The matrix intentionally exposes gaps. A partial row is not a failure; it preven
 
 Accepted dataset roles are `forward_holdout` and `shadow_monitoring`. The contract forbids provider-stream activation by catalog inspection, historical snapshot rewrites, model refit before reviewed snapshot boundaries, model activation, broker order construction, broker order mutation, and account mutation.
 
+## Adapter scaffold
+
+The first adapter scaffold is planning/validation only:
+
+```bash
+PYTHONPATH=src python3 scripts/execution/plan_realtime_capture.py \
+  --mode dry_run \
+  --source alpaca \
+  --model-layer layer_03_target_state_vector \
+  --instrument-ref AAPL
+
+PYTHONPATH=src python3 scripts/execution/validate_realtime_capture.py capture.json
+```
+
+`dry_run` and `fixture_replay` plans are ready without provider calls. `live_observe` plans remain blocked unless a future reviewed live-stream approval ref is supplied; even then the current helper only emits a plan row and does not execute the stream.
+
 ## Implementation hook
 
-`src/trading_execution/market_data/contracts.py` owns the side-effect-free `execution_realtime_data_interface_v1`, `execution_realtime_input_coverage_v1`, and `realtime_capture_contract_v1` catalogs.
+`src/trading_execution/market_data/contracts.py` owns the side-effect-free `execution_realtime_data_interface_v1`, `execution_realtime_input_coverage_v1`, and `realtime_capture_contract_v1` catalogs. `adapters.py` owns `execution_realtime_subscription_plan_v1` planning; `capture.py` owns `realtime_capture_validation_v1`.
 
 The first implementation slice is catalog/contract only. Later adapters must add:
 
