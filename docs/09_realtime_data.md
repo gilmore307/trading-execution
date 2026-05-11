@@ -114,7 +114,7 @@ PYTHONPATH=src python3 scripts/execution/execute_live_observe.py \
 Supported direct provider observe routes in this first formal slice:
 
 - OKX public REST ticker snapshot for approved crypto instruments.
-- Alpaca equity snapshot using `APCA_API_KEY_ID` / `APCA_API_SECRET_KEY` environment variables.
+- Alpaca equity snapshot using `APCA_API_KEY_ID` / `APCA_API_SECRET_KEY` environment variables when injected by a service, or the registered source secret JSON at `/root/secrets/alpaca.json` for local OpenClaw-managed runs.
 - ThetaData reviewed URL-template HTTP probe when the request supplies `thetadata_url_template`.
 
 The result may contain provider market-data calls and realtime capture rows, then package feature/model-input snapshots for downstream shadow routing. It still does not activate models, persist manager decisions, construct orders, execute broker calls, or mutate accounts.

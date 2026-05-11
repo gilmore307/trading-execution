@@ -311,6 +311,64 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertEqual(result["feature_snapshot"]["readiness_status"], "blocked_missing_realtime_feature_requirements")
         self.assertEqual(result["decision_input_snapshot"]["readiness_status"], "blocked_missing_model_decision_input_requirements")
 
+
+    def test_execute_live_observe_resolves_alpaca_source_secret_file(self) -> None:
+        calls: list[tuple[str, dict[str, str]]] = []
+
+        def fake_transport(url: str, headers: dict[str, str]) -> dict[str, object]:
+            calls.append((url, headers))
+            return {"symbol": "SPY", "latestTrade": {"p": 500.0}}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            secret_path = Path(temp_dir) / "alpaca.json"
+            secret_path.write_text(
+                json.dumps(
+                    {
+                        "api_key": "unit_api_key",
+                        "secret_key": "unit_secret_key",
+                        "endpoint": "https://unit-data.alpaca.example",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = execute_live_observe(
+                {
+                    "request_id": "rtlive_alpaca_secret_unit",
+                    "sources": ["alpaca"],
+                    "model_layers": ["layer_03_target_state_vector"],
+                    "instrument_refs": ["SPY"],
+                    "decision_time": "2026-05-11T13:30:00+00:00",
+                    "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
+                    "frozen_model_config_ref": "trading-model://configs/frozen/unit",
+                },
+                approval={
+                    "contract_type": "realtime_live_observe_approval_v1",
+                    "approval_id": "rtla_alpaca_unit",
+                    "approval_scope": "realtime_market_data_observe_only",
+                    "approved_sources": ["alpaca"],
+                    "approved_instrument_refs": ["SPY"],
+                    "approved_at_utc": "2026-05-11T13:00:00+00:00",
+                    "expires_at_utc": "2099-05-11T14:00:00+00:00",
+                    "max_provider_calls": 1,
+                    "execute_live_observe_allowed": True,
+                    "model_activation_allowed": False,
+                    "broker_execution_allowed": False,
+                    "broker_order_construction_allowed": False,
+                    "account_mutation_allowed": False,
+                },
+                execute_live_observe=True,
+                transport=fake_transport,
+                env={"ALPACA_SECRET_FILE": str(secret_path)},
+            )
+
+        self.assertEqual(result["live_observe_status"], "observed")
+        self.assertEqual(result["provider_calls_performed"], 1)
+        self.assertEqual(calls[0][1]["APCA-API-KEY-ID"], "unit_api_key")
+        self.assertEqual(calls[0][1]["APCA-API-SECRET-KEY"], "unit_secret_key")
+        self.assertTrue(calls[0][0].startswith("https://unit-data.alpaca.example/v2/stocks/SPY/snapshot"))
+        self.assertEqual(result["broker_calls_performed"], 0)
+        self.assertFalse(result["model_activation_performed"])
+
     def test_execute_live_observe_cli_plan_only_does_not_call_provider(self) -> None:
         request_payload = {
             "request_id": "rtlive_cli_unit",

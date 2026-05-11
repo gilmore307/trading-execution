@@ -13,6 +13,7 @@ import os
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
+from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 from urllib import error, parse, request
 
@@ -92,11 +93,51 @@ def _instrument_values(instruments: Sequence[Any]) -> list[str]:
 
 
 def _alpaca_headers(env: Mapping[str, str]) -> dict[str, str]:
+    key, secret, _endpoint = _alpaca_secret_values(env)
+    if not key or not secret:
+        raise ValueError(
+            "Alpaca live observe requires APCA_API_KEY_ID/APCA_API_SECRET_KEY environment variables "
+            "or the registered Alpaca source secret JSON"
+        )
+    return {"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret}
+
+
+def _alpaca_secret_values(env: Mapping[str, str]) -> tuple[str | None, str | None, str | None]:
+    """Resolve Alpaca market-data credentials without exposing secret values.
+
+    The shared trading environment is anchored by ``trading-manager``. Runtime
+    callers may inject standard Alpaca environment variables, but local
+    OpenClaw-managed runs should also be able to use the registered source
+    secret JSON shape under ``/root/secrets/alpaca.json``.
+    """
+
     key = env.get("APCA_API_KEY_ID") or env.get("ALPACA_API_KEY_ID") or env.get("APCA_API_KEY")
     secret = env.get("APCA_API_SECRET_KEY") or env.get("ALPACA_API_SECRET_KEY") or env.get("APCA_API_SECRET")
-    if not key or not secret:
-        raise ValueError("Alpaca live observe requires APCA_API_KEY_ID and APCA_API_SECRET_KEY environment variables")
-    return {"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret}
+    endpoint = env.get("ALPACA_DATA_BASE_URL") or env.get("APCA_DATA_BASE_URL")
+    if key and secret:
+        return key, secret, endpoint
+
+    secret_path = Path(env.get("ALPACA_SECRET_FILE") or "/root/secrets/alpaca.json")
+    if not secret_path.exists():
+        return key, secret, endpoint
+    try:
+        payload = json.loads(secret_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("Alpaca source secret JSON could not be loaded") from exc
+    if not isinstance(payload, Mapping):
+        raise ValueError("Alpaca source secret JSON must be an object")
+
+    key = key or _optional_secret_text(payload.get("api_key"))
+    secret = secret or _optional_secret_text(payload.get("secret_key"))
+    endpoint = endpoint or _optional_secret_text(payload.get("endpoint"))
+    return key, secret, endpoint
+
+
+def _optional_secret_text(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
 
 
 def _provider_request(source_id: str, instrument_ref: str, request_payload: Mapping[str, Any], env: Mapping[str, str]) -> tuple[str, dict[str, str]]:
@@ -109,7 +150,8 @@ def _provider_request(source_id: str, instrument_ref: str, request_payload: Mapp
         }
     if source_id == "alpaca":
         feed = request_payload.get("alpaca_feed") or "iex"
-        base_url = str(request_payload.get("alpaca_data_base_url") or "https://data.alpaca.markets").rstrip("/")
+        _key, _secret, endpoint = _alpaca_secret_values(env)
+        base_url = str(request_payload.get("alpaca_data_base_url") or endpoint or "https://data.alpaca.markets").rstrip("/")
         symbol = parse.quote(instrument_ref, safe="")
         query = parse.urlencode({"feed": feed})
         return f"{base_url}/v2/stocks/{symbol}/snapshot?{query}", _alpaca_headers(env)
