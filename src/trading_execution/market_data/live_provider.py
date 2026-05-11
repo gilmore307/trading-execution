@@ -103,7 +103,10 @@ def _provider_request(source_id: str, instrument_ref: str, request_payload: Mapp
     if source_id == "okx":
         inst_id = request_payload.get("okx_inst_id") or instrument_ref
         query = parse.urlencode({"instId": inst_id})
-        return f"https://www.okx.com/api/v5/market/ticker?{query}", {}
+        return f"https://www.okx.com/api/v5/market/ticker?{query}", {
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0 OpenClaw formal-live-observe/1.0",
+        }
     if source_id == "alpaca":
         feed = request_payload.get("alpaca_feed") or "iex"
         base_url = str(request_payload.get("alpaca_data_base_url") or "https://data.alpaca.markets").rstrip("/")
