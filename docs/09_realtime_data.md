@@ -13,8 +13,9 @@ This document defines the first execution-facing realtime data boundary. It does
 
 - Historical backfill and cleaned historical datasets remain owned by `trading-data`.
 - Realtime market observations needed for execution monitoring, risk checks, and order routing belong under `trading-execution` once activated.
+- The realtime monitoring runtime is execution-owned: live observe processes, provider stream/session lifecycle, subscriptions, throttling, heartbeat/reconnect/backoff, and runtime health are not controlled by `trading-manager`.
 - Realtime observations may feed manager/model shadow or forward-validation evidence only as append-only point-in-time capture with frozen model/config refs; they do not replace the initial historical validation/test split ladder.
-- Shared source names, interface terms, and cross-repository contracts must be registered through `trading-manager` before other repos depend on them.
+- Shared source names, interface terms, and cross-repository contracts must be registered through `trading-manager` before other repos depend on them, but registration/receipt visibility does not make manager the live monitoring controller.
 - Runtime observations must be written outside Git-tracked source paths.
 - Secrets and provider credentials stay outside the repository.
 
@@ -49,6 +50,13 @@ Realtime coverage is tracked by `execution_realtime_input_coverage_v1` rows in `
 | 8 | `option_expression_plan` | underlying quote, option-chain snapshot, option quote/trade stream, IV/Greeks, OI/latest interest | ThetaData, Alpaca | Route defined; adapter not started; terminal required |
 
 The matrix intentionally exposes gaps. A partial row is not a failure; it prevents us from pretending that realtime coverage is complete before a provider, account-state, or restriction route is accepted.
+
+
+## Runtime ownership
+
+Realtime monitoring is isolated from manager-owned historical modeling. `trading-execution` owns the live monitor control loop: process lifecycle, provider subscriptions, stream/session health, throttling, reconnect/backoff, and monitoring-specific runtime capacity. `trading-manager` may consume append-only receipts, coverage summaries, shadow handoff artifacts, and mature validation evidence, but it must not start, stop, schedule, throttle, reconnect, or otherwise control realtime provider monitoring.
+
+This separation lets live monitoring continue while historical training is paused, restarting, backlogged, or running under market-hours protection. Manager-side schedulers may reserve capacity for realtime systems and back off when live monitoring needs priority; they do not become the realtime runtime owner.
 
 ## Realtime capture contract
 

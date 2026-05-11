@@ -2,7 +2,7 @@
 
 ## Active Tasks
 
-- Define the initial execution interface boundary without enabling mutation: realtime market-data interfaces are cataloged separately from historical backfill endpoints, model input coverage is explicit for Layers 1-8, append-only capture requirements are defined for forward/shadow validation, dry-run/fixture subscription planning and capture validation are available, realtime feature/model-decision input handoff envelopes can feed fixture/shadow historical-model decision routing, and broker/exchange interfaces are cataloged separately from market-data observation.
+- Define the execution-owned realtime monitoring boundary without enabling mutation: realtime market-data interfaces are cataloged separately from historical backfill endpoints, model input coverage is explicit for Layers 1-8, append-only capture requirements are defined for forward/shadow validation, dry-run/fixture subscription planning and capture validation are available, realtime feature/model-decision input handoff envelopes can feed fixture/shadow historical-model decision routing, and broker/exchange interfaces are cataloged separately from market-data observation. Realtime runtime control belongs to `trading-execution`, not `trading-manager`.
 - Start OKX crypto execution on the safe path only: catalog and future adapter scaffold are allowed, but live order mutation remains disabled until explicit mode, approval, idempotency, credential, risk-cap, and receipt gates exist.
 - Keep Firstrade equity/options execution deferred because no official trading API is accepted. Do not implement reverse-engineered login, browser trading, or unofficial order automation.
 
@@ -25,6 +25,7 @@ These items are intentionally outside the current no-broker historical-training 
 
 ## Recently Accepted
 
+- Accepted that realtime monitoring runtime control is execution-owned and isolated from manager-owned historical modeling; manager may consume receipts/evidence but must not control provider monitoring processes.
 - Added concrete realtime live-observe fixture scaffolds for Alpaca, ThetaData, OKX, calendar/event refs, read-only execution account/restriction context refs, and derived model context refs.
 - Added the first formal realtime provider-observe path: `realtime_live_observe_approval_v1` plus `scripts/execution/execute_live_observe.py` can perform bounded read-only OKX/Alpaca/ThetaData market-data observations after explicit approval and execute flag.
 - Added the first formal order-construction path: `execution_order_construction_approval_v1` plus `scripts/execution/build_broker_order_intent.py --construct-order` builds an OKX-shaped order intent after `trade_risk_cap` validation; broker submission and account mutation remain separate gates.

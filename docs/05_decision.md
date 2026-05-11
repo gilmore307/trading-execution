@@ -274,3 +274,25 @@ The resulting intent is `constructed_not_submitted`. It carries an idempotency k
 - Order construction is no longer only theoretical; approved order intents can be built.
 - Broker submission, fills, position/account mutation, and reconciliation remain separate gates.
 - Missing or invalid `trade_risk_cap` still blocks construction.
+
+## D014 - Realtime monitoring runtime is execution-owned
+
+Date: 2026-05-11
+Status: Accepted
+
+### Context
+
+The platform now has two very different operating loops: manager-owned historical modeling, and live market monitoring for execution/risk context. Chentong clarified that realtime monitoring must be isolated from the historical modeling system and must not be controlled by `trading-manager`.
+
+### Decision
+
+`trading-execution` owns the realtime monitoring runtime. This includes live observe processes, provider stream/session lifecycle, subscriptions, throttling, heartbeat/reconnect/backoff, runtime health, and monitoring-specific capacity policy.
+
+`trading-manager` may consume append-only realtime receipts, coverage summaries, shadow handoff artifacts, and mature validation evidence. It must not start, stop, schedule, throttle, reconnect, or otherwise control realtime provider monitoring processes. Manager-owned historical schedulers may reserve capacity for realtime systems and back off during protected windows, but they are not the realtime control plane.
+
+### Consequences
+
+- Realtime monitors can continue operating even when historical modeling is paused, backlogged, or restarting.
+- Historical modeling cannot accidentally disable or starve live monitoring by owning its runtime loop.
+- Shared names/contracts may still be registered through `trading-manager`, but registration and receipt consumption do not imply runtime control.
+- Production model activation, order construction, broker submission, and account mutation remain separate reviewed gates.
