@@ -68,7 +68,7 @@ def build_realtime_monitor_request(
 
     observed_at = observation_time or _iso(_now())
     return {
-        "contract_type": "execution_realtime_monitor_live_observe_request_v1",
+        "contract_type": "execution_realtime_monitor_live_observe_request",
         "request_id": request_id,
         "sources": [source_id],
         "model_layers": list(model_layers),
@@ -106,7 +106,7 @@ def build_realtime_monitor_approval(
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
     return {
-        "contract_type": "realtime_live_observe_approval_v1",
+        "contract_type": "realtime_live_observe_approval",
         "approval_id": approval_id,
         "approval_scope": "realtime_market_data_observe_only",
         "approved_sources": [source_id],
@@ -138,7 +138,7 @@ def summarize_live_observe_result(result: Mapping[str, Any]) -> dict[str, Any]:
 
     capture_valid_count = sum(1 for row in captures if isinstance(row.get("capture_validation"), Mapping) and row["capture_validation"].get("valid"))
     return {
-        "contract_type": "execution_realtime_monitor_summary_v1",
+        "contract_type": "execution_realtime_monitor_summary",
         "request_id": result.get("request_id"),
         "live_observe_status": result.get("live_observe_status"),
         "provider_calls_performed": result.get("provider_calls_performed", 0),
@@ -158,7 +158,7 @@ def summarize_live_observe_result(result: Mapping[str, Any]) -> dict[str, Any]:
 
 def _safe_cycle_failure_summary(*, request_id: str, error: BaseException) -> dict[str, Any]:
     return {
-        "contract_type": "execution_realtime_monitor_summary_v1",
+        "contract_type": "execution_realtime_monitor_summary",
         "request_id": request_id,
         "live_observe_status": "failed",
         "provider_calls_performed": 0,
@@ -218,7 +218,7 @@ def run_realtime_monitor_smoke(
     )
     summary = summarize_live_observe_result(result)
     return {
-        "contract_type": "execution_realtime_monitor_smoke_receipt_v1",
+        "contract_type": "execution_realtime_monitor_smoke_receipt",
         "request": request,
         "approval": approval,
         "result": result,
@@ -285,7 +285,7 @@ def run_realtime_monitor_loop(
 
         cycle_finished_utc = _iso(_now())
         cycle_row = {
-            "contract_type": "execution_realtime_monitor_cycle_summary_v1",
+            "contract_type": "execution_realtime_monitor_cycle_summary",
             "cycle_index": index,
             "cycle_status": cycle_status,
             "cycle_started_utc": cycle_started_utc,
@@ -298,7 +298,7 @@ def run_realtime_monitor_loop(
         cycle_rows.append(cycle_row)
 
         if output_path is not None:
-            cycle_receipt = receipt or {"contract_type": "execution_realtime_monitor_failed_cycle_receipt_v1", "summary": summary}
+            cycle_receipt = receipt or {"contract_type": "execution_realtime_monitor_failed_cycle_receipt", "summary": summary}
             cycle_receipt = dict(cycle_receipt)
             cycle_receipt["cycle_summary"] = cycle_row
             receipt_path = output_path / f"cycle_{index}.json"
@@ -312,7 +312,7 @@ def run_realtime_monitor_loop(
     total_broker_calls = sum(int(row["summary"].get("broker_calls_performed") or 0) for row in cycle_rows)
     failed_cycles = [row["cycle_index"] for row in cycle_rows if row["cycle_status"] != "succeeded"]
     receipt = {
-        "contract_type": "execution_realtime_monitor_loop_receipt_v1",
+        "contract_type": "execution_realtime_monitor_loop_receipt",
         "request_prefix": request_prefix,
         "approval_prefix": approval_prefix,
         "source_id": source_id,

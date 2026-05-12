@@ -54,7 +54,7 @@ def realtime_decision_effectiveness_contract() -> dict[str, Any]:
     """Return the realtime decision-effectiveness monitoring contract."""
 
     return {
-        "contract_type": "realtime_model_decision_effectiveness_contract_v1",
+        "contract_type": "realtime_model_decision_effectiveness_contract",
         "required_decision_record_fields": [
             "decision_id",
             "model_id",
@@ -136,7 +136,7 @@ def build_realtime_decision_effectiveness(
             unknown += 1
         row_summaries.append(
             {
-                "contract_type": "realtime_model_decision_effectiveness_row_v1",
+                "contract_type": "realtime_model_decision_effectiveness_row",
                 "decision_id": record.get("decision_id"),
                 "model_id": decision_model_id,
                 "model_layer": decision_layer,
@@ -152,7 +152,7 @@ def build_realtime_decision_effectiveness(
     hit_rate = (correct / matured) if matured else None
     readiness = "ready_for_monitoring_review" if total and matured and not record_errors and not forbidden_actions_present else "blocked_missing_matured_decision_evidence"
     return {
-        "contract_type": "realtime_model_decision_effectiveness_v1",
+        "contract_type": "realtime_model_decision_effectiveness",
         "effectiveness_id": effectiveness_id
         or _stable_id(
             "rteff",
@@ -226,7 +226,7 @@ def validate_realtime_decision_effectiveness(candidate: Mapping[str, Any]) -> di
     mutation_detected = any(value for value in mutation_flags.values())
     valid = not missing_fields and not forbidden_actions_present and not mutation_detected and not candidate.get("record_errors")
     return {
-        "contract_type": "realtime_model_decision_effectiveness_validation_v1",
+        "contract_type": "realtime_model_decision_effectiveness_validation",
         "effectiveness_id": candidate.get("effectiveness_id"),
         "valid": valid,
         "missing_fields": missing_fields,

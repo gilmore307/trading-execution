@@ -2,7 +2,7 @@
 
 Validation is intentionally local and side-effect free. It checks whether a
 candidate capture row has the fields and guardrails required by the reviewed
-`realtime_capture_contract_v1` before any future persistence or promotion
+`realtime_capture_contract` before any future persistence or promotion
 workflow consumes it.
 """
 
@@ -62,7 +62,7 @@ def validate_realtime_capture(candidate: Mapping[str, Any]) -> dict[str, Any]:
         and label_mature_after_tradeable
     )
     return {
-        "contract_type": "realtime_capture_validation_v1",
+        "contract_type": "realtime_capture_validation",
         "capture_id": candidate.get("capture_id"),
         "valid": valid,
         "missing_fields": missing_fields,

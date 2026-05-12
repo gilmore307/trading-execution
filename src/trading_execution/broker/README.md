@@ -6,7 +6,7 @@ This package records broker posture without constructing orders, calling broker 
 
 Key file:
 
-- `contracts.py` — `execution_broker_interface_v1` catalog for OKX and Firstrade plus combined `execution_capability_catalog_v1`.
+- `contracts.py` — `execution_broker_interface` catalog for OKX and Firstrade plus combined `execution_capability_catalog`.
 
 Current boundary:
 

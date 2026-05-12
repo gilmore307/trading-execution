@@ -38,7 +38,7 @@ def _payload_from_args(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build realtime_feature_snapshot_v1 without external calls.")
+    parser = argparse.ArgumentParser(description="Build realtime_feature_snapshot without external calls.")
     parser.add_argument("--request-json", help="Optional JSON request payload to merge before CLI overrides.")
     parser.add_argument("--snapshot-id")
     parser.add_argument("--decision-time", required=True)

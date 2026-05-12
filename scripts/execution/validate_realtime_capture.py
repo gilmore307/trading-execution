@@ -13,7 +13,7 @@ from trading_execution.market_data import validate_realtime_capture
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Validate a realtime_capture_contract_v1 candidate row.")
+    parser = argparse.ArgumentParser(description="Validate a realtime_capture_contract candidate row.")
     parser.add_argument("capture_json", type=Path, help="Candidate capture JSON object.")
     args = parser.parse_args(argv)
     payload = json.loads(args.capture_json.read_text(encoding="utf-8"))

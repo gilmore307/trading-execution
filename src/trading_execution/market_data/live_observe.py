@@ -220,7 +220,7 @@ def build_live_observe_adapter_plan(request: Mapping[str, Any]) -> dict[str, Any
             required_gate_refs = tuple(ref for ref in gate_refs if ref != "live_stream_approval_ref")
         adapter_plans.append(
             RealtimeLiveObserveAdapterPlan(
-                contract_type="execution_realtime_live_observe_adapter_plan_v1",
+                contract_type="execution_realtime_live_observe_adapter_plan",
                 adapter_id=_stable_id("rtadapter", {"request_id": request_id, "source_id": source_id, "layers": layers, "mode": mode}),
                 request_id=request_id,
                 mode=mode,
@@ -256,7 +256,7 @@ def build_live_observe_adapter_plan(request: Mapping[str, Any]) -> dict[str, Any
         }
     )
     return {
-        "contract_type": "execution_realtime_live_observe_adapter_plan_set_v1",
+        "contract_type": "execution_realtime_live_observe_adapter_plan_set",
         "request_id": request_id,
         "mode": mode,
         "requested_sources": list(requested_sources),
@@ -310,7 +310,7 @@ def build_realtime_capture_fixture(request: Mapping[str, Any]) -> dict[str, Any]
                 )
                 captures.append(
                     {
-                        "contract_type": "realtime_capture_fixture_row_v1",
+                        "contract_type": "realtime_capture_fixture_row",
                         "capture_id": capture_id,
                         "request_id": request_id,
                         "model_layer": layer,
@@ -339,7 +339,7 @@ def build_realtime_capture_fixture(request: Mapping[str, Any]) -> dict[str, Any]
                     }
                 )
     return {
-        "contract_type": "execution_realtime_capture_fixture_set_v1",
+        "contract_type": "execution_realtime_capture_fixture_set",
         "request_id": request_id,
         "adapter_plan_set_ref": f"fixture://realtime/{request_id}/adapter_plan_set",
         "captures": captures,
@@ -361,7 +361,7 @@ def build_realtime_shadow_fixture_bundle(request: Mapping[str, Any]) -> dict[str
     feature_snapshot = build_realtime_feature_snapshot({**dict(request), "source_capture_refs": source_capture_refs})
     decision_input = build_model_decision_input_snapshot({"feature_snapshot": feature_snapshot})
     return {
-        "contract_type": "execution_realtime_shadow_fixture_bundle_v1",
+        "contract_type": "execution_realtime_shadow_fixture_bundle",
         "request_id": plan_set["request_id"],
         "mode": plan_set["mode"],
         "adapter_plan_set": plan_set,

@@ -40,7 +40,7 @@ def broker_interfaces() -> tuple[BrokerInterface, ...]:
 
     return (
         BrokerInterface(
-            contract_type="execution_broker_interface_v1",
+            contract_type="execution_broker_interface",
             broker_id="okx",
             execution_use="crypto_order_execution",
             asset_classes=("crypto_spot", "crypto_derivative"),
@@ -64,7 +64,7 @@ def broker_interfaces() -> tuple[BrokerInterface, ...]:
             ),
         ),
         BrokerInterface(
-            contract_type="execution_broker_interface_v1",
+            contract_type="execution_broker_interface",
             broker_id="firstrade",
             execution_use="us_equity_and_option_order_execution",
             asset_classes=("us_equity", "us_etf", "us_option"),
@@ -95,7 +95,7 @@ def build_execution_capability_catalog() -> dict[str, Any]:
     )
 
     return {
-        "contract_type": "execution_capability_catalog_v1",
+        "contract_type": "execution_capability_catalog",
         "realtime_data_interfaces": [interface.summary_row() for interface in realtime_data_interfaces()],
         "realtime_input_coverage_matrix": [coverage.summary_row() for coverage in realtime_input_coverage_matrix()],
         "realtime_capture_contract": realtime_capture_contract().summary_row(),

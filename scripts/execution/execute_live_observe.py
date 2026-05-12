@@ -21,7 +21,7 @@ def _read_json(path: Path) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Execute reviewed realtime live-observe provider calls.")
     parser.add_argument("--request", type=Path, required=True, help="Live observe request JSON.")
-    parser.add_argument("--approval", type=Path, required=True, help="realtime_live_observe_approval_v1 JSON.")
+    parser.add_argument("--approval", type=Path, required=True, help="realtime_live_observe_approval JSON.")
     parser.add_argument("--execute-live-observe", action="store_true", help="Actually perform approved read-only provider observations.")
     parser.add_argument("--output-path", type=Path)
     args = parser.parse_args()

@@ -1,7 +1,7 @@
 """Formal read-only realtime provider observation.
 
 The entrypoint here is intentionally narrow: it may perform provider market-data
-HTTP observations only after a valid ``realtime_live_observe_approval_v1`` and
+HTTP observations only after a valid ``realtime_live_observe_approval`` and
 an explicit execute flag. It never activates models, persists manager decisions,
 constructs orders, or mutates accounts.
 """
@@ -199,7 +199,7 @@ def execute_live_observe(
     )
     if not execute_live_observe or not validation["valid"]:
         return {
-            "contract_type": "execution_realtime_live_observe_result_v1",
+            "contract_type": "execution_realtime_live_observe_result",
             "request_id": request_id,
             "approval_validation": validation,
             "observations": [],
@@ -234,7 +234,7 @@ def execute_live_observe(
             observation_id = _stable_id("rtobs", {"request_id": request_id, "source_id": source_id, "instrument_ref": instrument_ref, "time": observation_time})
             normalized_payload_ref = f"memory://realtime-live-observe/{request_id}/{observation_id}/payload"
             observation = RealtimeLiveObservation(
-                contract_type="realtime_live_observation_v1",
+                contract_type="realtime_live_observation",
                 observation_id=observation_id,
                 request_id=request_id,
                 approval_id=str(approval.get("approval_id")),
@@ -257,7 +257,7 @@ def execute_live_observe(
             for layer in adapter_layers.get(source_id, []):
                 capture_id = _stable_id("rtcap", {"observation_id": observation_id, "layer": layer})
                 row = {
-                    "contract_type": "realtime_capture_row_v1",
+                    "contract_type": "realtime_capture_row",
                     "capture_id": capture_id,
                     "request_id": request_id,
                     "model_layer": layer,
@@ -292,7 +292,7 @@ def execute_live_observe(
     feature_snapshot = build_realtime_feature_snapshot({**dict(request_payload), "source_capture_refs": source_capture_refs}) if source_capture_refs else None
     decision_input = build_model_decision_input_snapshot({"feature_snapshot": feature_snapshot}) if feature_snapshot else None
     return {
-        "contract_type": "execution_realtime_live_observe_result_v1",
+        "contract_type": "execution_realtime_live_observe_result",
         "request_id": request_id,
         "approval_validation": validation,
         "adapter_plan_set": plan_set,

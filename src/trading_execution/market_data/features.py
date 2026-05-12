@@ -161,7 +161,7 @@ def realtime_feature_snapshot_contract() -> dict[str, Any]:
     """Return the side-effect-free realtime feature snapshot contract."""
 
     return {
-        "contract_type": "realtime_feature_snapshot_contract_v1",
+        "contract_type": "realtime_feature_snapshot_contract",
         "required_fields": [
             "snapshot_id",
             "decision_time",
@@ -189,7 +189,7 @@ def model_decision_input_snapshot_contract() -> dict[str, Any]:
     """Return the model-decision handoff contract for realtime snapshots."""
 
     return {
-        "contract_type": "execution_model_decision_input_snapshot_contract_v1",
+        "contract_type": "execution_model_decision_input_snapshot_contract",
         "required_fields": [
             "decision_input_snapshot_id",
             "decision_time",
@@ -241,7 +241,7 @@ def build_realtime_feature_snapshot(request: Mapping[str, Any]) -> dict[str, Any
         if not upstream_ref and allow_placeholder_context_refs and layer not in ("layer_01_market_regime",):
             upstream_ref = f"placeholder://upstream-context/{snapshot_id}/{layer}"
         row = RealtimeFeatureSnapshotRow(
-            contract_type="realtime_feature_snapshot_row_v1",
+            contract_type="realtime_feature_snapshot_row",
             snapshot_id=snapshot_id,
             model_layer=layer,
             model_id=coverage.model_id,
@@ -269,7 +269,7 @@ def build_realtime_feature_snapshot(request: Mapping[str, Any]) -> dict[str, Any
     ready = not missing_layers and not forbidden_actions_present and valid_role
 
     return {
-        "contract_type": "realtime_feature_snapshot_v1",
+        "contract_type": "realtime_feature_snapshot",
         "snapshot_id": snapshot_id,
         "decision_time": decision_time,
         "feature_time": feature_time,
@@ -343,7 +343,7 @@ def validate_realtime_feature_snapshot(snapshot: Mapping[str, Any]) -> dict[str,
         and not row_errors
     )
     return {
-        "contract_type": "realtime_feature_snapshot_validation_v1",
+        "contract_type": "realtime_feature_snapshot_validation",
         "snapshot_id": snapshot.get("snapshot_id"),
         "valid": valid,
         "missing_fields": missing_fields,
@@ -394,7 +394,7 @@ def build_model_decision_input_snapshot(request: Mapping[str, Any]) -> dict[str,
             continue
         layer_inputs.append(
             ModelDecisionLayerInput(
-                contract_type="execution_model_decision_layer_input_v1",
+                contract_type="execution_model_decision_layer_input",
                 decision_input_snapshot_id=decision_input_snapshot_id,
                 model_layer=layer,
                 model_id=str(row.get("model_id") or ""),
@@ -414,7 +414,7 @@ def build_model_decision_input_snapshot(request: Mapping[str, Any]) -> dict[str,
     ready = validation["valid"] and not missing_layer_inputs and not forbidden_actions_present
 
     return {
-        "contract_type": "execution_model_decision_input_snapshot_v1",
+        "contract_type": "execution_model_decision_input_snapshot",
         "decision_input_snapshot_id": decision_input_snapshot_id,
         "decision_time": decision_time,
         "instrument_ref": instrument_ref,
@@ -474,7 +474,7 @@ def validate_model_decision_input_snapshot(candidate: Mapping[str, Any]) -> dict
         and not row_errors
     )
     return {
-        "contract_type": "execution_model_decision_input_validation_v1",
+        "contract_type": "execution_model_decision_input_validation",
         "decision_input_snapshot_id": candidate.get("decision_input_snapshot_id"),
         "valid": valid,
         "missing_fields": missing_fields,

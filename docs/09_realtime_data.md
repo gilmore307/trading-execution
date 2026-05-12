@@ -36,7 +36,7 @@ This document defines the first execution-facing realtime data boundary. It does
 
 ## Model input coverage matrix
 
-Realtime coverage is tracked by `execution_realtime_input_coverage_v1` rows in `src/trading_execution/market_data/contracts.py`. These rows are requirements and gap markers; they do not enable streams.
+Realtime coverage is tracked by `execution_realtime_input_coverage` rows in `src/trading_execution/market_data/contracts.py`. These rows are requirements and gap markers; they do not enable streams.
 
 | Layer | Model output | Realtime input groups | Primary sources | Status |
 |---:|---|---|---|---|
@@ -60,20 +60,20 @@ This separation lets live monitoring continue while historical training is pause
 
 ## Realtime capture contract
 
-`realtime_capture_contract_v1` is the append-only evidence shape for realtime observation capture. Required facts include observation time, provider available time, tradeable time, source/interface, instrument ref, normalized payload ref, frozen model/config refs, model output refs, label maturity time, outcome label refs, and manager/storage handoff refs.
+`realtime_capture_contract` is the append-only evidence shape for realtime observation capture. Required facts include observation time, provider available time, tradeable time, source/interface, instrument ref, normalized payload ref, frozen model/config refs, model output refs, label maturity time, outcome label refs, and manager/storage handoff refs.
 
 The realtime monitor does not create historical test/holdout/training rows by default. Historical backfill will eventually cover the same calendar period through the historical pipeline. Realtime capture should stay light enough to support online model decision-effectiveness metrics: decision id, model/config refs, decision/output ref, evaluation horizon, matured outcome label/ref, correctness status, and aggregate accuracy/hit-rate/error metrics. The contract forbids provider-stream activation by catalog inspection, historical snapshot rewrites, model refit before reviewed snapshot boundaries, model activation, broker order construction, broker order mutation, and account mutation.
 
 ## Realtime model effectiveness metrics
 
-`realtime_model_decision_effectiveness_v1` is the accepted monitoring surface for model quality in live/shadow operation. It summarizes whether the model's decisions were correct after the relevant outcome horizon matures. These metrics may inform promotion review, drift review, trust reduction, and retraining planning, but they are not historical test-set rows and should not force the realtime monitor to run the historical dataset-processing ladder. `scripts/execution/aggregate_realtime_decision_effectiveness.py` builds this aggregate from matured decision records without provider calls, model activation, persistence, broker/order construction, or account mutation.
+`realtime_model_decision_effectiveness` is the accepted monitoring surface for model quality in live/shadow operation. It summarizes whether the model's decisions were correct after the relevant outcome horizon matures. These metrics may inform promotion review, drift review, trust reduction, and retraining planning, but they are not historical test-set rows and should not force the realtime monitor to run the historical dataset-processing ladder. `scripts/execution/aggregate_realtime_decision_effectiveness.py` builds this aggregate from matured decision records without provider calls, model activation, persistence, broker/order construction, or account mutation.
 
 ## Adapter scaffold
 
 The adapter scaffold now has two safe layers:
 
-1. generic subscription planning via `execution_realtime_subscription_plan_v1`;
-2. concrete provider/source live-observe fixture planning via `execution_realtime_live_observe_adapter_plan_v1`.
+1. generic subscription planning via `execution_realtime_subscription_plan`;
+2. concrete provider/source live-observe fixture planning via `execution_realtime_live_observe_adapter_plan`.
 
 Concrete fixture routes currently cover Alpaca equity/ETF quote/trade/bar/snapshot refs, ThetaData option quote/trade/IV/Greeks/OI refs, OKX crypto ticker/trade/candle/snapshot refs, calendar/event refs, read-only execution account/restriction context refs, and derived model context refs. These are still fixture/shadow routes: they do not open sockets or perform provider/broker calls.
 
@@ -89,11 +89,11 @@ PYTHONPATH=src python3 scripts/execution/plan_realtime_capture.py \
 PYTHONPATH=src python3 scripts/execution/validate_realtime_capture.py capture.json
 ```
 
-`dry_run` and `fixture_replay` plans are ready without provider calls. `live_observe` plans remain blocked unless a reviewed `realtime_live_observe_approval_v1` is supplied.
+`dry_run` and `fixture_replay` plans are ready without provider calls. `live_observe` plans remain blocked unless a reviewed `realtime_live_observe_approval` is supplied.
 
 ## Execution-owned realtime monitor smoke
 
-`execution_realtime_monitor_smoke_receipt_v1` is the first execution-owned runtime smoke for the 47-symbol ETF monitoring universe. It loads the reviewed Layer 1/2 ETF universe from `trading-storage/main/shared/market_regime_etf_universe.csv`, builds a bounded `realtime_live_observe_approval_v1`, and runs read-only Alpaca snapshot observations only when `--execute-live-observe` is supplied.
+`execution_realtime_monitor_smoke_receipt` is the first execution-owned runtime smoke for the 47-symbol ETF monitoring universe. It loads the reviewed Layer 1/2 ETF universe from `trading-storage/main/shared/market_regime_etf_universe.csv`, builds a bounded `realtime_live_observe_approval`, and runs read-only Alpaca snapshot observations only when `--execute-live-observe` is supplied.
 
 The smoke writes a receipt containing request, approval, result, and summary rows. The summary intentionally excludes credentials and provider payload details; it reports provider calls, observation counts, provider status counts, capture counts, and the invariant flags for broker calls, model activation, order construction, and account mutation.
 
@@ -103,13 +103,13 @@ PYTHONPATH=src python3 scripts/execution/run_realtime_monitor_smoke.py \
   --output-path storage/runtime/realtime_monitor/latest_smoke.json
 ```
 
-`execution_realtime_monitor_loop_receipt_v1` is the bounded runtime-loop receipt for supervised monitor operation. `scripts/execution/run_realtime_monitor_loop.py` runs repeated smoke cycles, writes per-cycle receipts plus `loop_receipt.json`, preserves reconnect/backoff observability through cycle status/delay fields, and keeps the same hard invariants: no model activation, no order construction/submission, no broker mutation, and no account mutation.
+`execution_realtime_monitor_loop_receipt` is the bounded runtime-loop receipt for supervised monitor operation. `scripts/execution/run_realtime_monitor_loop.py` runs repeated smoke cycles, writes per-cycle receipts plus `loop_receipt.json`, preserves reconnect/backoff observability through cycle status/delay fields, and keeps the same hard invariants: no model activation, no order construction/submission, no broker mutation, and no account mutation.
 
 This is still not a production model-decision executor. Decision-effectiveness aggregation is the lightweight quality surface for later shadow/live model review; historical dataset construction remains owned by the historical backfill/promotion pipeline.
 
 ## Formal live-observe execution
 
-The first formal realtime integration path is read-only provider observation, not trading. `src/trading_execution/market_data/live_approval.py` validates `realtime_live_observe_approval_v1`; `src/trading_execution/market_data/live_provider.py` executes approved read-only observations and emits `execution_realtime_live_observe_result_v1`.
+The first formal realtime integration path is read-only provider observation, not trading. `src/trading_execution/market_data/live_approval.py` validates `realtime_live_observe_approval`; `src/trading_execution/market_data/live_provider.py` executes approved read-only observations and emits `execution_realtime_live_observe_result`.
 
 A valid approval must bound sources, instruments, expiry, and `max_provider_calls`; set `approval_scope=realtime_market_data_observe_only`; set `execute_live_observe_allowed=true`; and keep all mutation/activation flags false:
 
@@ -160,15 +160,15 @@ The shadow fixture bundle contains adapter plans, validated capture-fixture rows
 Realtime capture is still too raw for the model stack. The accepted handoff chain is:
 
 ```text
-realtime_capture_contract_v1
-  -> realtime_feature_snapshot_v1
-  -> execution_model_decision_input_snapshot_v1
+realtime_capture_contract
+  -> realtime_feature_snapshot
+  -> execution_model_decision_input_snapshot
   -> historical-model decision stack fixture/shadow route
 ```
 
-`realtime_feature_snapshot_v1` preserves the same point-in-time timing discipline as historical features: `feature_time <= available_time <= tradeable_time`, plus historical feature parity refs, frozen model/config refs, dataset snapshot refs, source capture refs, and per-layer feature refs. It is not a new training substrate by itself.
+`realtime_feature_snapshot` preserves the same point-in-time timing discipline as historical features: `feature_time <= available_time <= tradeable_time`, plus historical feature parity refs, frozen model/config refs, dataset snapshot refs, source capture refs, and per-layer feature refs. It is not a new training substrate by itself.
 
-`execution_model_decision_input_snapshot_v1` packages all Layer 1-8 feature refs into the shape needed by the historical model decision stack. It is intentionally fixture/shadow-ready only: it does not activate a model, construct an order, mutate an account, or authorize provider streams.
+`execution_model_decision_input_snapshot` packages all Layer 1-8 feature refs into the shape needed by the historical model decision stack. It is intentionally fixture/shadow-ready only: it does not activate a model, construct an order, mutate an account, or authorize provider streams.
 
 Example:
 
@@ -192,7 +192,7 @@ This makes the bridge to historical model data decision routing explicit while k
 
 ## Implementation hook
 
-`src/trading_execution/market_data/contracts.py` owns the side-effect-free `execution_realtime_data_interface_v1`, `execution_realtime_input_coverage_v1`, and `realtime_capture_contract_v1` catalogs. `adapters.py` owns `execution_realtime_subscription_plan_v1` planning; `live_observe.py` owns concrete provider/account/event fixture adapter plans, capture-fixture rows, and execution-side realtime shadow fixture bundles; `capture.py` owns `realtime_capture_validation_v1`; `features.py` owns `realtime_feature_snapshot_v1` and `execution_model_decision_input_snapshot_v1` builders/validators.
+`src/trading_execution/market_data/contracts.py` owns the side-effect-free `execution_realtime_data_interface`, `execution_realtime_input_coverage`, and `realtime_capture_contract` catalogs. `adapters.py` owns `execution_realtime_subscription_plan` planning; `live_observe.py` owns concrete provider/account/event fixture adapter plans, capture-fixture rows, and execution-side realtime shadow fixture bundles; `capture.py` owns `realtime_capture_validation`; `features.py` owns `realtime_feature_snapshot` and `execution_model_decision_input_snapshot` builders/validators.
 
 The current implementation slice is catalog/contract/fixture handoff only. Later adapters must add:
 

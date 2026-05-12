@@ -39,31 +39,31 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
         self.assertIn("thetadata", coverage["layer_08_option_expression"].primary_realtime_sources)
         self.assertIn("option_chain_snapshot", coverage["layer_08_option_expression"].realtime_input_groups)
         for row in coverage.values():
-            self.assertEqual(row.contract_type, "execution_realtime_input_coverage_v1")
+            self.assertEqual(row.contract_type, "execution_realtime_input_coverage")
             self.assertIn("observation_time", row.required_capture_fields)
             self.assertIn("tradeable_time", row.required_capture_fields)
 
     def test_realtime_capture_contract_is_append_only_and_non_mutating(self) -> None:
         contract = realtime_capture_contract()
 
-        self.assertEqual(contract.contract_type, "realtime_capture_contract_v1")
+        self.assertEqual(contract.contract_type, "realtime_capture_contract")
         self.assertEqual(contract.accepted_dataset_roles, ("forward_holdout", "shadow_monitoring"))
         self.assertIn("frozen_model_config_ref", contract.required_fields)
         self.assertIn("label_maturity_time", contract.required_fields)
         self.assertIn("historical_snapshot_rewrite", contract.forbidden_actions)
         self.assertIn("broker_order_mutation", contract.forbidden_actions)
-        self.assertIn("ready_signal_v1", contract.manager_handoff_refs)
+        self.assertIn("ready_signal", contract.manager_handoff_refs)
 
     def test_realtime_feature_and_decision_input_contracts_cover_all_layers(self) -> None:
         feature_contract = realtime_feature_snapshot_contract()
         decision_contract = model_decision_input_snapshot_contract()
 
-        self.assertEqual(feature_contract["contract_type"], "realtime_feature_snapshot_contract_v1")
+        self.assertEqual(feature_contract["contract_type"], "realtime_feature_snapshot_contract")
         self.assertEqual(len(feature_contract["required_layer_rows"]), 8)
         self.assertIn("historical_dataset_snapshot_ref", feature_contract["required_fields"])
         self.assertEqual(
             decision_contract["contract_type"],
-            "execution_model_decision_input_snapshot_contract_v1",
+            "execution_model_decision_input_snapshot_contract",
         )
         self.assertEqual(len(decision_contract["required_layer_inputs"]), 8)
         self.assertIn("model_activation", decision_contract["forbidden_actions"])
@@ -84,16 +84,16 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
     def test_combined_catalog_has_no_side_effects_or_mutation_enabled(self) -> None:
         catalog = build_execution_capability_catalog()
 
-        self.assertEqual(catalog["contract_type"], "execution_capability_catalog_v1")
+        self.assertEqual(catalog["contract_type"], "execution_capability_catalog")
         self.assertEqual(len(catalog["realtime_input_coverage_matrix"]), 8)
-        self.assertEqual(catalog["realtime_capture_contract"]["contract_type"], "realtime_capture_contract_v1")
+        self.assertEqual(catalog["realtime_capture_contract"]["contract_type"], "realtime_capture_contract")
         self.assertEqual(
             catalog["realtime_feature_snapshot_contract"]["contract_type"],
-            "realtime_feature_snapshot_contract_v1",
+            "realtime_feature_snapshot_contract",
         )
         self.assertEqual(
             catalog["model_decision_input_snapshot_contract"]["contract_type"],
-            "execution_model_decision_input_snapshot_contract_v1",
+            "execution_model_decision_input_snapshot_contract",
         )
         self.assertFalse(catalog["order_mutation_enabled"])
         self.assertEqual(catalog["provider_calls_performed"], 0)
@@ -110,7 +110,7 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
         )
         payload = json.loads(result.stdout)
 
-        self.assertEqual(payload["contract_type"], "execution_capability_catalog_v1")
+        self.assertEqual(payload["contract_type"], "execution_capability_catalog")
         self.assertEqual(len(payload["realtime_input_coverage_matrix"]), 8)
         self.assertFalse(payload["order_mutation_enabled"])
 

@@ -33,7 +33,7 @@ def _decision_record() -> dict[str, object]:
 
 def _approval() -> dict[str, object]:
     return {
-        "contract_type": "execution_order_construction_approval_v1",
+        "contract_type": "execution_order_construction_approval",
         "approval_id": "ordapproval_unit",
         "approval_scope": "broker_order_construction_only",
         "broker_id": "okx",
@@ -72,7 +72,7 @@ class OrderConstructionTests(unittest.TestCase):
         self.assertEqual(result["broker_calls_performed"], 0)
         self.assertFalse(result["account_mutation_performed"])
         intent = result["order_intent"]
-        self.assertEqual(intent["contract_type"], "execution_broker_order_intent_v1")
+        self.assertEqual(intent["contract_type"], "execution_broker_order_intent")
         self.assertEqual(intent["intent_status"], "constructed_not_submitted")
         self.assertEqual(intent["broker_order_payload"]["instId"], "BTC-USDT")
         self.assertEqual(intent["broker_order_payload"]["ordType"], "limit")

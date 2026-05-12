@@ -15,7 +15,7 @@ from typing import Any, Mapping, Sequence
 
 from trading_execution.risk_cap import validate_trade_risk_cap
 
-ORDER_CONSTRUCTION_APPROVAL_CONTRACT = "execution_order_construction_approval_v1"
+ORDER_CONSTRUCTION_APPROVAL_CONTRACT = "execution_order_construction_approval"
 ORDER_CONSTRUCTION_SCOPE = "broker_order_construction_only"
 SUPPORTED_BROKERS = ("okx",)
 SUPPORTED_ORDER_TYPES = ("market", "limit")
@@ -165,7 +165,7 @@ def validate_order_construction_approval(
 
     valid = not missing and not invalid and not unapproved_instruments and not expired
     return OrderConstructionApprovalValidation(
-        contract_type="execution_order_construction_approval_validation_v1",
+        contract_type="execution_order_construction_approval_validation",
         approval_id=str(approval.get("approval_id")) if approval.get("approval_id") else None,
         valid=valid,
         missing_fields=tuple(missing),
@@ -221,7 +221,7 @@ def build_broker_order_intent(
     ready = approval_validation["valid"] and risk_validation["valid"] and not missing_decision_fields and not invalid_decision_fields
     if not construct_order or not ready:
         return {
-            "contract_type": "execution_broker_order_intent_result_v1",
+            "contract_type": "execution_broker_order_intent_result",
             "approval_validation": approval_validation,
             "risk_cap_validation": risk_validation,
             "missing_decision_fields": missing_decision_fields,
@@ -255,7 +255,7 @@ def build_broker_order_intent(
     )
     intent_id = _stable_id("ordintent", {"idempotency_key": idempotency_key, "approval_id": approval.get("approval_id")})
     intent = BrokerOrderIntent(
-        contract_type="execution_broker_order_intent_v1",
+        contract_type="execution_broker_order_intent",
         order_intent_id=intent_id,
         approval_id=str(approval.get("approval_id")),
         decision_record_id=str(decision_record.get("decision_record_id")),
@@ -275,7 +275,7 @@ def build_broker_order_intent(
         production_decision_activation_performed=False,
     ).summary_row()
     return {
-        "contract_type": "execution_broker_order_intent_result_v1",
+        "contract_type": "execution_broker_order_intent_result",
         "approval_validation": approval_validation,
         "risk_cap_validation": risk_validation,
         "missing_decision_fields": [],

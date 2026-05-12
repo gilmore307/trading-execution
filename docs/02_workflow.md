@@ -31,9 +31,9 @@ Upstream inputs and downstream outputs should be described by artifact reference
 
 The current slice opens execution development with side-effect-free catalogs only:
 
-- `execution_realtime_data_interface_v1` records reviewed realtime market-data interfaces for OKX, Alpaca, and ThetaData.
-- `execution_broker_interface_v1` records broker/exchange posture for OKX and Firstrade.
-- `execution_capability_catalog_v1` combines those catalogs for inspection.
+- `execution_realtime_data_interface` records reviewed realtime market-data interfaces for OKX, Alpaca, and ThetaData.
+- `execution_broker_interface` records broker/exchange posture for OKX and Firstrade.
+- `execution_capability_catalog` combines those catalogs for inspection.
 
 No order construction, order placement, broker call, provider stream, fill handling, account mutation, or model activation is enabled by this slice.
 

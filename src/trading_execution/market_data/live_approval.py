@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 
-LIVE_OBSERVE_APPROVAL_CONTRACT = "realtime_live_observe_approval_v1"
+LIVE_OBSERVE_APPROVAL_CONTRACT = "realtime_live_observe_approval"
 APPROVAL_SCOPE = "realtime_market_data_observe_only"
 APPROVED_SOURCES = (
     "alpaca",
@@ -160,7 +160,7 @@ def validate_live_observe_approval(
 
     valid = not missing and not invalid and not unknown_sources and not unapproved_sources and not unapproved_instruments and not expired
     return RealtimeLiveObserveApprovalValidation(
-        contract_type="realtime_live_observe_approval_validation_v1",
+        contract_type="realtime_live_observe_approval_validation",
         approval_id=str(approval.get("approval_id")) if approval.get("approval_id") else None,
         valid=valid,
         missing_fields=tuple(missing),

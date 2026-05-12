@@ -87,7 +87,7 @@ def realtime_data_interfaces() -> tuple[RealtimeDataInterface, ...]:
 
     return (
         RealtimeDataInterface(
-            contract_type="execution_realtime_data_interface_v1",
+            contract_type="execution_realtime_data_interface",
             source_id="okx",
             canonical_historical_source_id="okx",
             execution_use="crypto_realtime_market_data",
@@ -102,7 +102,7 @@ def realtime_data_interfaces() -> tuple[RealtimeDataInterface, ...]:
             ),
         ),
         RealtimeDataInterface(
-            contract_type="execution_realtime_data_interface_v1",
+            contract_type="execution_realtime_data_interface",
             source_id="alpaca",
             canonical_historical_source_id="alpaca",
             execution_use="equity_etf_realtime_market_data",
@@ -117,7 +117,7 @@ def realtime_data_interfaces() -> tuple[RealtimeDataInterface, ...]:
             ),
         ),
         RealtimeDataInterface(
-            contract_type="execution_realtime_data_interface_v1",
+            contract_type="execution_realtime_data_interface",
             source_id="thetadata",
             canonical_historical_source_id="thetadata",
             execution_use="option_realtime_quote_trade_stream",
@@ -163,7 +163,7 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
     validation_role = "live_inference_input_and_forward_validation_after_label_maturity"
     return (
         RealtimeModelInputCoverage(
-            contract_type="execution_realtime_input_coverage_v1",
+            contract_type="execution_realtime_input_coverage",
             model_layer="layer_01_market_regime",
             model_id="model_01_market_regime",
             model_output="market_context_state",
@@ -184,7 +184,7 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
             ),
         ),
         RealtimeModelInputCoverage(
-            contract_type="execution_realtime_input_coverage_v1",
+            contract_type="execution_realtime_input_coverage",
             model_layer="layer_02_sector_context",
             model_id="model_02_sector_context",
             model_output="sector_context_state",
@@ -201,7 +201,7 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
             boundary_note="Sector context realtime coverage starts from the reviewed Alpaca ETF universe and derived relative-strength inputs.",
         ),
         RealtimeModelInputCoverage(
-            contract_type="execution_realtime_input_coverage_v1",
+            contract_type="execution_realtime_input_coverage",
             model_layer="layer_03_target_state_vector",
             model_id="model_03_target_state_vector",
             model_output="target_context_state",
@@ -218,7 +218,7 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
             boundary_note="Target realtime rows must preserve identity-safe model features while retaining audit/routing metadata outside fitting features.",
         ),
         RealtimeModelInputCoverage(
-            contract_type="execution_realtime_input_coverage_v1",
+            contract_type="execution_realtime_input_coverage",
             model_layer="layer_04_event_overlay",
             model_id="model_04_event_overlay",
             model_output="event_context_vector",
@@ -236,7 +236,7 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
             boundary_note="Event overlay needs news/calendar/activity capture; some routes are trigger/catalog contracts before realtime adapters exist.",
         ),
         RealtimeModelInputCoverage(
-            contract_type="execution_realtime_input_coverage_v1",
+            contract_type="execution_realtime_input_coverage",
             model_layer="layer_05_alpha_confidence",
             model_id="model_05_alpha_confidence",
             model_output="alpha_confidence_vector",
@@ -249,7 +249,7 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
             boundary_note="Layer 5 does not need a distinct realtime provider feed; it needs fresh Layer 1-4 outputs and label-safe future outcomes for validation.",
         ),
         RealtimeModelInputCoverage(
-            contract_type="execution_realtime_input_coverage_v1",
+            contract_type="execution_realtime_input_coverage",
             model_layer="layer_06_position_projection",
             model_id="model_06_position_projection",
             model_output="position_projection_vector",
@@ -267,7 +267,7 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
             boundary_note="Position projection cannot be complete until broker/account state contracts exist; market-data pieces remain separate from order mutation.",
         ),
         RealtimeModelInputCoverage(
-            contract_type="execution_realtime_input_coverage_v1",
+            contract_type="execution_realtime_input_coverage",
             model_layer="layer_07_underlying_action",
             model_id="model_07_underlying_action",
             model_output="underlying_action_plan",
@@ -285,7 +285,7 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
             boundary_note="Layer 7 feasibility needs current market data plus execution/account restrictions; it still emits a plan, not an order.",
         ),
         RealtimeModelInputCoverage(
-            contract_type="execution_realtime_input_coverage_v1",
+            contract_type="execution_realtime_input_coverage",
             model_layer="layer_08_option_expression",
             model_id="model_08_option_expression",
             model_output="option_expression_plan",
@@ -310,7 +310,7 @@ def realtime_capture_contract() -> RealtimeCaptureContract:
     """Return the append-only capture contract for realtime validation evidence."""
 
     return RealtimeCaptureContract(
-        contract_type="realtime_capture_contract_v1",
+        contract_type="realtime_capture_contract",
         contract_id="execution_realtime_capture_contract",
         required_fields=(
             "capture_id",
@@ -345,7 +345,7 @@ def realtime_capture_contract() -> RealtimeCaptureContract:
         ),
         label_maturity_rule="outcome labels may attach only after the reviewed horizon has elapsed from tradeable_time",
         storage_boundary="runtime observations stay outside Git and hand off by manager/storage refs, not inline payloads",
-        manager_handoff_refs=("manager_request_v1", "run_manifest_v1", "artifact_ref_v1", "ready_signal_v1"),
+        manager_handoff_refs=("manager_request", "run_manifest", "artifact_ref", "ready_signal"),
         boundary_note=(
             "The contract defines what a future adapter must emit for validation. It performs no provider calls, "
             "does not open streams, and does not authorize broker mutation."

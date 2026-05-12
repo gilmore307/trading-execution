@@ -153,7 +153,7 @@ def build_realtime_subscription_plan(request: Mapping[str, Any]) -> dict[str, An
 
         plans.append(
             RealtimeSubscriptionPlan(
-                contract_type="execution_realtime_subscription_plan_v1",
+                contract_type="execution_realtime_subscription_plan",
                 request_id=request_id,
                 mode=mode,
                 source_id=source_id,
@@ -173,7 +173,7 @@ def build_realtime_subscription_plan(request: Mapping[str, Any]) -> dict[str, An
         )
 
     return {
-        "contract_type": "execution_realtime_subscription_plan_set_v1",
+        "contract_type": "execution_realtime_subscription_plan_set",
         "request_id": request_id,
         "mode": mode,
         "requested_sources": list(requested_sources),

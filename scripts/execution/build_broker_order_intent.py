@@ -21,7 +21,7 @@ def _read_json(path: Path) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build an approved broker order intent without broker submission.")
     parser.add_argument("--decision-record", type=Path, required=True, help="Decision record JSON with trade_risk_cap.")
-    parser.add_argument("--approval", type=Path, required=True, help="execution_order_construction_approval_v1 JSON.")
+    parser.add_argument("--approval", type=Path, required=True, help="execution_order_construction_approval JSON.")
     parser.add_argument("--construct-order", action="store_true", help="Actually construct the broker order intent payload.")
     parser.add_argument("--output-path", type=Path)
     args = parser.parse_args()

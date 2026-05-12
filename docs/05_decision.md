@@ -186,7 +186,7 @@ Realtime inputs should cover the model stack's live inference needs and later su
 
 ### Decision
 
-`trading-execution` records `execution_realtime_input_coverage_v1` rows for Layers 1-8 and a `realtime_capture_contract_v1` for append-only validation evidence. The matrix separates complete routes from partial/gap routes, especially proxy coverage for Layer 1, event routes for Layer 4, account-state routes for Layer 6, restriction/account routes for Layer 7, and ThetaData terminal requirements for Layer 8.
+`trading-execution` records `execution_realtime_input_coverage` rows for Layers 1-8 and a `realtime_capture_contract` for append-only validation evidence. The matrix separates complete routes from partial/gap routes, especially proxy coverage for Layer 1, event routes for Layer 4, account-state routes for Layer 6, restriction/account routes for Layer 7, and ThetaData terminal requirements for Layer 8.
 
 ### Consequences
 
@@ -205,7 +205,7 @@ The realtime data layer needs to become executable without collapsing safety bou
 
 ### Decision
 
-`trading-execution` adds side-effect-free realtime subscription planning and capture validation. `execution_realtime_subscription_plan_v1` supports `dry_run`, `fixture_replay`, and approval-blocked `live_observe` plan rows. `realtime_capture_validation_v1` checks candidate capture rows against `realtime_capture_contract_v1`.
+`trading-execution` adds side-effect-free realtime subscription planning and capture validation. `execution_realtime_subscription_plan` supports `dry_run`, `fixture_replay`, and approval-blocked `live_observe` plan rows. `realtime_capture_validation` checks candidate capture rows against `realtime_capture_contract`.
 
 ### Consequences
 
@@ -224,7 +224,7 @@ Fixture-only realtime paths are not sufficient for formal integration. Execution
 
 ### Decision
 
-`trading-execution` accepts `realtime_live_observe_approval_v1` as the first formal live-integration gate. With a valid approval and explicit `--execute-live-observe`, `scripts/execution/execute_live_observe.py` may perform bounded read-only market-data observations for reviewed OKX, Alpaca, and ThetaData routes and emit `execution_realtime_live_observe_result_v1`, realtime capture rows, feature snapshots, and model-input snapshots.
+`trading-execution` accepts `realtime_live_observe_approval` as the first formal live-integration gate. With a valid approval and explicit `--execute-live-observe`, `scripts/execution/execute_live_observe.py` may perform bounded read-only market-data observations for reviewed OKX, Alpaca, and ThetaData routes and emit `execution_realtime_live_observe_result`, realtime capture rows, feature snapshots, and model-input snapshots.
 
 This approval is only for realtime market-data observation. It must explicitly keep model activation, broker execution, broker order construction, and account mutation disabled.
 
@@ -232,7 +232,7 @@ This approval is only for realtime market-data observation. It must explicitly k
 
 - Formal provider observation is no longer fixture-only; approved read-only provider calls are supported.
 - A plan-only invocation still performs zero provider calls.
-- Model activation, production configuration activation, broker execution, and account mutation require separate reviewed gates. Order construction has its own separate approval gate under `execution_order_construction_approval_v1`.
+- Model activation, production configuration activation, broker execution, and account mutation require separate reviewed gates. Order construction has its own separate approval gate under `execution_order_construction_approval`.
 - Manager visibility can consume the produced artifacts, but execution does not persist manager decisions.
 
 ## D011 - Realtime feature snapshots bridge into historical-model decision inputs
@@ -246,7 +246,7 @@ Raw realtime captures are not model inputs. The model stack was designed and val
 
 ### Decision
 
-`trading-execution` owns `realtime_feature_snapshot_v1` and `execution_model_decision_input_snapshot_v1` as side-effect-free handoff envelopes. The feature snapshot converts realtime capture refs into Layer 1-8 feature refs with `feature_time`, `available_time`, `tradeable_time`, historical feature parity refs, frozen model config refs, and historical dataset snapshot refs. The decision input snapshot packages those layer refs for fixture/shadow historical-model decision routing.
+`trading-execution` owns `realtime_feature_snapshot` and `execution_model_decision_input_snapshot` as side-effect-free handoff envelopes. The feature snapshot converts realtime capture refs into Layer 1-8 feature refs with `feature_time`, `available_time`, `tradeable_time`, historical feature parity refs, frozen model config refs, and historical dataset snapshot refs. The decision input snapshot packages those layer refs for fixture/shadow historical-model decision routing.
 
 ### Consequences
 
@@ -265,7 +265,7 @@ Formal integration needs to progress beyond validating risk caps, but constructi
 
 ### Decision
 
-`trading-execution` accepts `execution_order_construction_approval_v1` as the first broker-facing order-construction gate. With a valid approval, a valid `trade_risk_cap`, and explicit `--construct-order`, `scripts/execution/build_broker_order_intent.py` may construct an OKX-shaped `execution_broker_order_intent_v1`.
+`trading-execution` accepts `execution_order_construction_approval` as the first broker-facing order-construction gate. With a valid approval, a valid `trade_risk_cap`, and explicit `--construct-order`, `scripts/execution/build_broker_order_intent.py` may construct an OKX-shaped `execution_broker_order_intent`.
 
 The resulting intent is `constructed_not_submitted`. It carries an idempotency key and broker payload, but performs zero broker calls and zero account mutation.
 

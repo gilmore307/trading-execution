@@ -38,7 +38,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(plan["contract_type"], "execution_realtime_live_observe_adapter_plan_set_v1")
+        self.assertEqual(plan["contract_type"], "execution_realtime_live_observe_adapter_plan_set")
         self.assertEqual(plan["provider_calls_performed"], 0)
         self.assertEqual(plan["broker_calls_performed"], 0)
         self.assertFalse(plan["account_mutation_performed"])
@@ -79,7 +79,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(fixture["contract_type"], "execution_realtime_capture_fixture_set_v1")
+        self.assertEqual(fixture["contract_type"], "execution_realtime_capture_fixture_set")
         self.assertGreaterEqual(len(fixture["captures"]), 2)
         for row in fixture["captures"]:
             validation = validate_realtime_capture(row)
@@ -100,7 +100,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(bundle["contract_type"], "execution_realtime_shadow_fixture_bundle_v1")
+        self.assertEqual(bundle["contract_type"], "execution_realtime_shadow_fixture_bundle")
         self.assertEqual(bundle["bundle_status"], "ready_for_model_route_plan")
         self.assertEqual(bundle["provider_calls_performed"], 0)
         self.assertFalse(bundle["broker_order_construction_performed"])
@@ -117,12 +117,12 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(plan["contract_type"], "execution_realtime_subscription_plan_set_v1")
+        self.assertEqual(plan["contract_type"], "execution_realtime_subscription_plan_set")
         self.assertEqual(plan["provider_calls_performed"], 0)
         self.assertEqual(plan["broker_calls_performed"], 0)
         self.assertEqual(len(plan["subscription_plans"]), 1)
         row = plan["subscription_plans"][0]
-        self.assertEqual(row["contract_type"], "execution_realtime_subscription_plan_v1")
+        self.assertEqual(row["contract_type"], "execution_realtime_subscription_plan")
         self.assertEqual(row["source_id"], "alpaca")
         self.assertEqual(row["model_layers"], ["layer_03_target_state_vector"])
         self.assertEqual(row["subscription_status"], "dry_run_plan_ready_no_provider_calls")
@@ -212,7 +212,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(snapshot["contract_type"], "realtime_feature_snapshot_v1")
+        self.assertEqual(snapshot["contract_type"], "realtime_feature_snapshot")
         self.assertEqual(snapshot["readiness_status"], "ready_for_fixture_or_shadow_model_decision_input")
         self.assertEqual(len(snapshot["feature_rows"]), 8)
         self.assertEqual(snapshot["provider_calls_performed"], 0)
@@ -234,7 +234,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(decision_input["contract_type"], "execution_model_decision_input_snapshot_v1")
+        self.assertEqual(decision_input["contract_type"], "execution_model_decision_input_snapshot")
         self.assertEqual(decision_input["readiness_status"], "ready_for_historical_model_decision_handoff")
         self.assertEqual(len(decision_input["layer_input_refs"]), 8)
         self.assertEqual(decision_input["provider_calls_performed"], 0)
@@ -245,7 +245,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
     def test_live_observe_approval_blocks_mutating_flags(self) -> None:
         validation = validate_live_observe_approval(
             {
-                "contract_type": "realtime_live_observe_approval_v1",
+                "contract_type": "realtime_live_observe_approval",
                 "approval_id": "rtla_unit",
                 "approval_scope": "realtime_market_data_observe_only",
                 "approved_sources": ["okx"],
@@ -296,7 +296,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                     "decision_time": "2026-05-11T13:30:00+00:00",
                 },
                 approval={
-                    "contract_type": "realtime_live_observe_approval_v1",
+                    "contract_type": "realtime_live_observe_approval",
                     "approval_id": "rtla_alpaca_endpoint_unit",
                     "approval_scope": "realtime_market_data_observe_only",
                     "approved_sources": ["alpaca"],
@@ -345,7 +345,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                 env={"ALPACA_SECRET_FILE": str(secret_path)},
             )
 
-        self.assertEqual(receipt["contract_type"], "execution_realtime_monitor_smoke_receipt_v1")
+        self.assertEqual(receipt["contract_type"], "execution_realtime_monitor_smoke_receipt")
         self.assertEqual(receipt["summary"]["provider_calls_performed"], 2)
         self.assertEqual(receipt["summary"]["observation_count"], 2)
         self.assertEqual(receipt["summary"]["provider_status_counts"], {"observed": 2})
@@ -383,7 +383,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         )
         validation = validate_realtime_decision_effectiveness(aggregate)
 
-        self.assertEqual(aggregate["contract_type"], "realtime_model_decision_effectiveness_v1")
+        self.assertEqual(aggregate["contract_type"], "realtime_model_decision_effectiveness")
         self.assertEqual(aggregate["decision_count"], 2)
         self.assertEqual(aggregate["matured_decision_count"], 2)
         self.assertEqual(aggregate["correct_decision_count"], 1)
@@ -433,7 +433,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             )
             payload = json.loads(result.stdout)
 
-            self.assertEqual(payload["contract_type"], "realtime_model_decision_effectiveness_v1")
+            self.assertEqual(payload["contract_type"], "realtime_model_decision_effectiveness")
             self.assertEqual(payload["correct_decision_count"], 1)
             self.assertTrue(output_path.exists())
 
@@ -470,7 +470,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                 env={"ALPACA_SECRET_FILE": str(secret_path)},
             )
 
-            self.assertEqual(receipt["contract_type"], "execution_realtime_monitor_loop_receipt_v1")
+            self.assertEqual(receipt["contract_type"], "execution_realtime_monitor_loop_receipt")
             self.assertEqual(receipt["loop_status"], "completed")
             self.assertEqual(receipt["cycles_completed"], 2)
             self.assertEqual(receipt["provider_calls_performed"], 4)
@@ -501,7 +501,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                 "frozen_model_config_ref": "trading-model://configs/frozen/unit",
             },
             approval={
-                "contract_type": "realtime_live_observe_approval_v1",
+                "contract_type": "realtime_live_observe_approval",
                 "approval_id": "rtla_unit",
                 "approval_scope": "realtime_market_data_observe_only",
                 "approved_sources": ["okx"],
@@ -563,7 +563,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                     "frozen_model_config_ref": "trading-model://configs/frozen/unit",
                 },
                 approval={
-                    "contract_type": "realtime_live_observe_approval_v1",
+                    "contract_type": "realtime_live_observe_approval",
                     "approval_id": "rtla_alpaca_unit",
                     "approval_scope": "realtime_market_data_observe_only",
                     "approved_sources": ["alpaca"],
@@ -598,7 +598,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             "decision_time": "2026-05-11T13:30:00+00:00",
         }
         approval_payload = {
-            "contract_type": "realtime_live_observe_approval_v1",
+            "contract_type": "realtime_live_observe_approval",
             "approval_id": "rtla_cli_unit",
             "approval_scope": "realtime_market_data_observe_only",
             "approved_sources": ["okx"],

@@ -12,14 +12,14 @@ from trading_execution.market_data import validate_model_decision_input_snapshot
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate realtime feature/model decision input JSON without side effects.")
-    parser.add_argument("snapshot_json", help="Path to realtime_feature_snapshot_v1 or execution_model_decision_input_snapshot_v1 JSON.")
+    parser.add_argument("snapshot_json", help="Path to realtime_feature_snapshot or execution_model_decision_input_snapshot JSON.")
     args = parser.parse_args()
 
     payload = json.loads(Path(args.snapshot_json).read_text(encoding="utf-8"))
     contract_type = payload.get("contract_type")
-    if contract_type == "realtime_feature_snapshot_v1":
+    if contract_type == "realtime_feature_snapshot":
         result = validate_realtime_feature_snapshot(payload)
-    elif contract_type == "execution_model_decision_input_snapshot_v1":
+    elif contract_type == "execution_model_decision_input_snapshot":
         result = validate_model_decision_input_snapshot(payload)
     else:
         raise SystemExit(f"unsupported contract_type: {contract_type!r}")
