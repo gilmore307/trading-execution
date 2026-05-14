@@ -93,7 +93,7 @@ PYTHONPATH=src python3 scripts/execution/validate_realtime_capture.py capture.js
 
 ## Execution-owned realtime monitor smoke
 
-`execution_realtime_monitor_smoke_receipt` is the first execution-owned runtime smoke for the 47-symbol ETF monitoring universe. It loads the reviewed Layer 1/2 ETF universe from `trading-storage/main/shared/market_regime_etf_universe.csv`, builds a bounded `realtime_live_observe_approval`, and runs read-only Alpaca snapshot observations only when `--execute-live-observe` is supplied.
+`execution_realtime_monitor_smoke_receipt` is the first execution-owned runtime smoke for the 44-symbol ETF monitoring universe. It loads the reviewed Layer 1/2 ETF universe from `trading-storage/main/shared/layer_1_2_market_context_etf_universe.csv`, builds a bounded `realtime_live_observe_approval`, and runs read-only Alpaca snapshot observations only when `--execute-live-observe` is supplied.
 
 The smoke writes a receipt containing request, approval, result, and summary rows. The summary intentionally excludes credentials and provider payload details; it reports provider calls, observation counts, provider status counts, capture counts, and the invariant flags for broker calls, model activation, order construction, and account mutation.
 

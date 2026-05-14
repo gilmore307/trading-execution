@@ -18,7 +18,7 @@ from typing import Any, Mapping, Sequence
 from .live_provider import Transport, execute_live_observe
 
 DEFAULT_REALTIME_MODEL_LAYERS = ("layer_01_market_regime", "layer_02_sector_context")
-DEFAULT_UNIVERSE_PATH = "/root/projects/trading-storage/main/shared/market_regime_etf_universe.csv"
+DEFAULT_UNIVERSE_PATH = "/root/projects/trading-storage/main/shared/layer_1_2_market_context_etf_universe.csv"
 
 
 def _now() -> datetime:
