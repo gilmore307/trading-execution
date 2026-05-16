@@ -27,11 +27,11 @@ _HISTORICAL_FEATURE_PARITY_REFS = {
     "layer_01_market_regime": "trading-data://src/data_feature/feature_01_market_regime",
     "layer_02_sector_context": "trading-data://src/data_feature/feature_02_sector_context",
     "layer_03_target_state_vector": "trading-data://src/data_feature/feature_03_target_state_vector",
-    "layer_08_event_risk_governor": "trading-data://src/data_feature/feature_04_event_overlay",
-    "layer_05_alpha_confidence": "trading-model://src/models/model_05_alpha_confidence/generator.py",
-    "layer_06_position_projection": "trading-model://src/models/model_06_position_projection/generator.py",
-    "layer_07_underlying_action": "trading-model://src/models/model_07_underlying_action/generator.py",
-    "layer_08_option_expression": "trading-data://src/data_feature/feature_08_option_expression",
+    "layer_08_event_risk_governor": "trading-data://src/data_feature/feature_04_event_overlay",  # legacy physical feature path
+    "layer_04_alpha_confidence": "trading-model://src/models/model_05_alpha_confidence/generator.py",  # legacy physical model path
+    "layer_05_position_projection": "trading-model://src/models/model_06_position_projection/generator.py",  # legacy physical model path
+    "layer_06_underlying_action": "trading-model://src/models/model_07_underlying_action/generator.py",  # legacy physical model path
+    "layer_07_option_expression": "trading-data://src/data_feature/feature_08_option_expression",  # legacy physical feature path
 }
 
 
