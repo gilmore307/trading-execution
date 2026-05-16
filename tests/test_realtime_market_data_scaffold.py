@@ -46,7 +46,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertIn("layer_03_target_state_vector", rows["alpaca"]["model_layers"])
         self.assertIn("layer_08_option_expression", rows["thetadata"]["model_layers"])
         self.assertIn("layer_01_market_regime", rows["okx"]["model_layers"])
-        self.assertEqual(rows["calendar_discovery"]["model_layers"], ["layer_04_event_overlay"])
+        self.assertEqual(rows["calendar_discovery"]["model_layers"], ["layer_08_event_risk_governor"])
         self.assertEqual(rows["derived_model_context"]["model_layers"], ["layer_05_alpha_confidence"])
         self.assertIn("layer_06_position_projection", rows["execution_account_state"]["model_layers"])
 

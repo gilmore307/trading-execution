@@ -219,8 +219,8 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
         ),
         RealtimeModelInputCoverage(
             contract_type="execution_realtime_input_coverage",
-            model_layer="layer_04_event_overlay",
-            model_id="model_04_event_overlay",
+            model_layer="layer_08_event_risk_governor",
+            model_id="model_08_event_risk_governor",
             model_output="event_context_vector",
             live_input_surface="current target/market event context attached to Layer 1-3 state",
             realtime_input_groups=(

@@ -27,7 +27,7 @@ _HISTORICAL_FEATURE_PARITY_REFS = {
     "layer_01_market_regime": "trading-data://src/data_feature/feature_01_market_regime",
     "layer_02_sector_context": "trading-data://src/data_feature/feature_02_sector_context",
     "layer_03_target_state_vector": "trading-data://src/data_feature/feature_03_target_state_vector",
-    "layer_04_event_overlay": "trading-data://src/data_feature/feature_04_event_overlay",
+    "layer_08_event_risk_governor": "trading-data://src/data_feature/feature_04_event_overlay",
     "layer_05_alpha_confidence": "trading-model://src/models/model_05_alpha_confidence/generator.py",
     "layer_06_position_projection": "trading-model://src/models/model_06_position_projection/generator.py",
     "layer_07_underlying_action": "trading-model://src/models/model_07_underlying_action/generator.py",
