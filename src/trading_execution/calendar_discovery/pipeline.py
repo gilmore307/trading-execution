@@ -58,6 +58,23 @@ CALENDAR_FIELDS = [
     "source_url",
     "raw_summary",
 ]
+EARNINGS_BASELINE_FIELDS = [
+    "baseline_id",
+    "source_event_id",
+    "symbol",
+    "event_date",
+    "release_time",
+    "baseline_type",
+    "baseline_value",
+    "estimate_count",
+    "source_name",
+    "source_ref",
+    "captured_at",
+    "as_of_time",
+    "baseline_capture_mode",
+    "baseline_acceptance_status",
+    "excluded_source_fields",
+]
 
 
 @dataclass(frozen=True)
@@ -470,7 +487,93 @@ def save(context: BundleContext, clean_result: StepResult) -> StepResult:
         writer.writeheader()
         writer.writerows(rows)
     os.replace(tmp_path, path)
-    return StepResult("succeeded", [str(path)], dict(clean_result.row_counts), warnings=list(clean_result.warnings), details={"format": "csv", "atomic_write": True})
+    references = [str(path)]
+    row_counts = dict(clean_result.row_counts)
+    warnings = list(clean_result.warnings)
+    params = dict(context.task_key.get("params") or {})
+    if params.get("baseline_capture_mode") == "future_pre_event_eps_consensus_snapshot":
+        baseline_rows, baseline_warnings = build_nasdaq_eps_baseline_rows(context, rows)
+        baseline_path = context.saved_dir / "earnings_guidance_expectation_baseline.csv"
+        baseline_tmp_path = baseline_path.with_suffix(baseline_path.suffix + ".tmp")
+        with baseline_tmp_path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=EARNINGS_BASELINE_FIELDS, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(baseline_rows)
+        os.replace(baseline_tmp_path, baseline_path)
+        references.append(str(baseline_path))
+        row_counts["earnings_guidance_expectation_baseline"] = len(baseline_rows)
+        warnings.extend(baseline_warnings)
+    return StepResult("succeeded", references, row_counts, warnings=warnings, details={"format": "csv", "atomic_write": True})
+
+
+def _present(value: Any) -> bool:
+    return value not in (None, "", "N/A", "n/a", "--")
+
+
+def _parse_iso_datetime(value: str) -> datetime | None:
+    text = value.strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
+
+
+def build_nasdaq_eps_baseline_rows(context: BundleContext, rows: list[dict[str, str]]) -> tuple[list[dict[str, str]], list[str]]:
+    """Build clean pre-event EPS-consensus baseline rows from Nasdaq calendar rows."""
+    manifest_path = context.run_dir / "request_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
+    captured_at = str(manifest.get("fetched_at_utc") or context.metadata.get("started_at") or "")
+    captured_dt = _parse_iso_datetime(captured_at)
+    baseline_rows: list[dict[str, str]] = []
+    warnings: list[str] = []
+    for row in rows:
+        if row.get("calendar_source") != "nasdaq_earnings_calendar":
+            continue
+        try:
+            raw = json.loads(row.get("raw_summary") or "{}")
+        except json.JSONDecodeError:
+            warnings.append(f"baseline skipped {row.get('event_id')}: raw_summary is not JSON")
+            continue
+        symbol = str(raw.get("symbol") or "").upper()
+        eps_forecast = str(raw.get("epsForecast") or "").strip()
+        has_actual_or_surprise = _present(raw.get("eps")) or _present(raw.get("surprise"))
+        release_dt = _parse_iso_datetime(str(row.get("release_time") or ""))
+        if not symbol or not _present(eps_forecast):
+            continue
+        if has_actual_or_surprise:
+            warnings.append(f"baseline skipped {row.get('event_id')}: source row contains actual EPS or surprise fields")
+            continue
+        if captured_dt is None or release_dt is None or captured_dt >= release_dt.astimezone(UTC):
+            warnings.append(f"baseline skipped {row.get('event_id')}: capture clock is not before release_time")
+            continue
+        baseline_id = hashlib.sha1(f"nasdaq_eps|{row.get('event_id')}|{captured_at}|{eps_forecast}".encode("utf-8")).hexdigest()[:16]
+        baseline_rows.append(
+            {
+                "baseline_id": f"eg_eps_{baseline_id}",
+                "source_event_id": str(row.get("event_id") or ""),
+                "symbol": symbol,
+                "event_date": str(row.get("event_date") or ""),
+                "release_time": str(row.get("release_time") or ""),
+                "baseline_type": "eps_consensus",
+                "baseline_value": eps_forecast,
+                "estimate_count": str(raw.get("noOfEsts") or ""),
+                "source_name": "nasdaq_earnings_calendar",
+                "source_ref": str(row.get("source_url") or manifest.get("source_url") or ""),
+                "captured_at": captured_at,
+                "as_of_time": captured_at,
+                "baseline_capture_mode": "future_pre_event_eps_consensus_snapshot",
+                "baseline_acceptance_status": "candidate_pre_event_eps_consensus_snapshot",
+                "excluded_source_fields": "eps;surprise",
+            }
+        )
+    return baseline_rows, warnings
 
 
 def write_receipt(context: BundleContext, *, status: str, fetch_result: StepResult | None = None, clean_result: StepResult | None = None, save_result: StepResult | None = None, error: BaseException | None = None) -> StepResult:

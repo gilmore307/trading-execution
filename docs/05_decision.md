@@ -318,3 +318,25 @@ Realtime capture must not create historical train/test/holdout rows by default a
 - Historical data/model pipelines remain responsible for reviewed historical dataset snapshots and splits.
 - Manager may consume aggregate decision-effectiveness metrics for promotion, drift, trust, or retraining review.
 - Metrics do not authorize model activation, order construction, broker submission, or account mutation.
+
+## D017 - Nasdaq EPS baseline capture excludes post-event result fields
+
+Date: 2026-05-15
+Status: Accepted
+
+### Context
+
+`trading-manager` can prepare future Nasdaq earnings-calendar snapshot task keys for EPS-consensus baseline capture. Execution owns the calendar discovery runtime that performs the bounded provider fetch when separately dispatched.
+
+### Decision
+
+When `calendar_discovery` runs with `baseline_capture_mode = future_pre_event_eps_consensus_snapshot`, it may emit `saved/earnings_guidance_expectation_baseline.csv` using only clean Nasdaq `epsForecast` rows captured before `release_time`.
+
+Rows containing actual EPS (`eps`) or `surprise` are skipped and warned. Captures without a point-in-time clock before `release_time` are also skipped.
+
+### Consequences
+
+- The route creates EPS-consensus baseline evidence only.
+- It does not infer beat/miss, guidance raise/cut, signed direction, alpha, or model activation.
+- Revenue consensus and guidance expectation baselines remain separate gaps.
+- Broker/order/account mutation remains unavailable and unrelated to this route.

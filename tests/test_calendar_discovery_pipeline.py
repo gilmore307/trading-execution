@@ -128,6 +128,82 @@ class CalendarDiscoveryPipelineTests(unittest.TestCase):
             self.assertEqual(result.status, "succeeded")
             self.assertEqual(result.row_counts["release_calendar"], 1)
 
+    def test_run_saves_future_nasdaq_eps_baseline_snapshot(self):
+        body = json.dumps(
+            {
+                "data": {
+                    "asOf": "Mon, Apr 27, 2099",
+                    "rows": [
+                        {
+                            "symbol": "CDNS",
+                            "name": "Cadence Design Systems, Inc.",
+                            "time": "time-after-hours",
+                            "epsForecast": "$1.22",
+                            "noOfEsts": "8",
+                        }
+                    ],
+                }
+            }
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            task_key = {
+                "task_id": "calendar_discovery_task_nasdaq_baseline",
+                "bundle": "calendar_discovery",
+                "params": {
+                    "calendar_source": "nasdaq_earnings_calendar",
+                    "date": "2099-04-27",
+                    "baseline_capture_mode": "future_pre_event_eps_consensus_snapshot",
+                },
+                "output_root": str(Path(tmp) / "calendar_discovery_task_nasdaq_baseline"),
+            }
+            result = run(task_key, run_id="calendar_discovery_run_nasdaq_baseline", client=FakeCalendarClient(body, "application/json"))
+            self.assertEqual(result.status, "succeeded")
+            self.assertEqual(result.row_counts["release_calendar"], 1)
+            self.assertEqual(result.row_counts["earnings_guidance_expectation_baseline"], 1)
+            saved = Path(task_key["output_root"]) / "runs" / "calendar_discovery_run_nasdaq_baseline" / "saved" / "earnings_guidance_expectation_baseline.csv"
+            with saved.open(newline="") as handle:
+                row = next(csv.DictReader(handle))
+            self.assertEqual(row["symbol"], "CDNS")
+            self.assertEqual(row["baseline_type"], "eps_consensus")
+            self.assertEqual(row["baseline_value"], "$1.22")
+            self.assertEqual(row["estimate_count"], "8")
+            self.assertEqual(row["baseline_acceptance_status"], "candidate_pre_event_eps_consensus_snapshot")
+            self.assertEqual(row["excluded_source_fields"], "eps;surprise")
+
+    def test_nasdaq_eps_baseline_excludes_actual_and_surprise_rows(self):
+        body = json.dumps(
+            {
+                "data": {
+                    "asOf": "Mon, Apr 27, 2099",
+                    "rows": [
+                        {
+                            "symbol": "CDNS",
+                            "name": "Cadence Design Systems, Inc.",
+                            "time": "time-after-hours",
+                            "epsForecast": "$1.22",
+                            "eps": "$1.30",
+                            "surprise": "6.56",
+                        }
+                    ],
+                }
+            }
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            task_key = {
+                "task_id": "calendar_discovery_task_nasdaq_baseline_contaminated",
+                "bundle": "calendar_discovery",
+                "params": {
+                    "calendar_source": "nasdaq_earnings_calendar",
+                    "date": "2099-04-27",
+                    "baseline_capture_mode": "future_pre_event_eps_consensus_snapshot",
+                },
+                "output_root": str(Path(tmp) / "calendar_discovery_task_nasdaq_baseline_contaminated"),
+            }
+            result = run(task_key, run_id="calendar_discovery_run_nasdaq_baseline_contaminated", client=FakeCalendarClient(body, "application/json"))
+            self.assertEqual(result.status, "succeeded")
+            self.assertEqual(result.row_counts["earnings_guidance_expectation_baseline"], 0)
+            self.assertTrue(any("actual EPS or surprise" in warning for warning in result.warnings))
+
 
 if __name__ == "__main__":
     unittest.main()

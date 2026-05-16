@@ -44,3 +44,22 @@ These items are intentionally outside the current promote-first model phase and 
 - Added accepted `trade_risk_cap` pre-order invariant and broker-agnostic validator. Missing or invalid caps force `reject_order` before order construction/placement.
 - Created initial `trading-execution` docs spine and repository boundary.
 - Added initial `.gitignore` for local environments, generated outputs, logs, and secrets.
+
+## Nasdaq EPS baseline snapshot route
+
+Execution now supports the manager-prepared Nasdaq future earnings EPS-consensus baseline snapshot mode inside `calendar_discovery`.
+
+When a task key sets:
+
+```json
+{
+  "params": {
+    "calendar_source": "nasdaq_earnings_calendar",
+    "baseline_capture_mode": "future_pre_event_eps_consensus_snapshot"
+  }
+}
+```
+
+`calendar_discovery` still writes `saved/release_calendar.csv` and additionally writes `saved/earnings_guidance_expectation_baseline.csv` containing only clean pre-event EPS forecast rows. Rows are skipped if source data contains actual EPS or surprise fields, or if the capture clock is not before `release_time`.
+
+This route does not activate models, construct orders, place orders, mutate broker/account state, or decide beat/miss. It is an EPS-consensus baseline capture route only; revenue consensus and guidance expectation baselines remain outside this execution slice.

@@ -56,3 +56,7 @@ python3 -m compileall -q src scripts
 - `trading-manager` owns control-plane orchestration and lifecycle routing.
 
 Any new global helper, reusable template, shared field, status, type, config key, or vocabulary discovered here must be routed back to `trading-manager` before other repositories depend on it.
+
+### Nasdaq EPS baseline snapshots
+
+`calendar_discovery` can emit a side-effect-free `saved/earnings_guidance_expectation_baseline.csv` when manager-prepared future Nasdaq earnings-calendar tasks set `baseline_capture_mode = future_pre_event_eps_consensus_snapshot`. The output uses pre-event `epsForecast` rows only and excludes actual EPS / surprise fields.
