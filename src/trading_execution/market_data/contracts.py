@@ -219,8 +219,8 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
         ),
         RealtimeModelInputCoverage(
             contract_type="execution_realtime_input_coverage",
-            model_layer="layer_04_alpha_confidence",
-            model_id="model_04_alpha_confidence",
+            model_layer="layer_05_alpha_confidence",
+            model_id="model_05_alpha_confidence",
             model_output="alpha_confidence_vector",
             live_input_surface="current Layer 1-3 state stack plus Layer 8 event-risk context",
             realtime_input_groups=("market_sector_target_event_context_refs", "freshness_and_quality_diagnostics"),
@@ -232,8 +232,8 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
         ),
         RealtimeModelInputCoverage(
             contract_type="execution_realtime_input_coverage",
-            model_layer="layer_05_position_projection",
-            model_id="model_05_position_projection",
+            model_layer="layer_06_position_projection",
+            model_id="model_06_position_projection",
             model_output="position_projection_vector",
             live_input_surface="current/pending position, exposure, cost, and risk-budget context plus Layer 4 alpha",
             realtime_input_groups=(
@@ -250,8 +250,8 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
         ),
         RealtimeModelInputCoverage(
             contract_type="execution_realtime_input_coverage",
-            model_layer="layer_06_underlying_action",
-            model_id="model_06_underlying_action",
+            model_layer="layer_07_underlying_action",
+            model_id="model_07_underlying_action",
             model_output="underlying_action_plan",
             live_input_surface="current underlying action feasibility context plus Layer 5 projection",
             realtime_input_groups=(
@@ -268,8 +268,8 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
         ),
         RealtimeModelInputCoverage(
             contract_type="execution_realtime_input_coverage",
-            model_layer="layer_07_option_expression",
-            model_id="model_07_option_expression",
+            model_layer="layer_08_option_expression",
+            model_id="model_08_option_expression",
             model_output="option_expression_plan",
             live_input_surface="current option-chain/expression feasibility context plus Layer 6 thesis",
             realtime_input_groups=(
@@ -287,8 +287,8 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
         ),
         RealtimeModelInputCoverage(
             contract_type="execution_realtime_input_coverage",
-            model_layer="layer_08_event_risk_governor",
-            model_id="model_08_event_risk_governor",
+            model_layer="layer_09_event_risk_governor",
+            model_id="model_09_event_risk_governor",
             model_output="event_context_vector",
             live_input_surface="current target/market event context attached to Layer 1-3 state",
             realtime_input_groups=(
