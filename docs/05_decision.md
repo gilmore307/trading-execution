@@ -1,4 +1,4 @@
-# Decision
+# Decisions
 
 
 ## D001 - Execution consumes promoted decisions only
@@ -106,7 +106,7 @@ Status: Accepted
 
 ### Decision
 
-Close the current execution-preparation phase. `docs/05_execution_acceptance.md` is the authoritative closeout receipt.
+Close the current execution-preparation phase. `docs/11_execution_acceptance.md` is the authoritative closeout receipt.
 
 No active execution-preparation tasks remain. Future execution work is deferred until a concrete reviewed decision/handoff consumer requires it: broker/order-construction, paper/live mode boundaries, order/fill/position/reconciliation artifacts, manager/storage integration, and broker-specific credential/adapter safeguards.
 

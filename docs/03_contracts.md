@@ -1,4 +1,4 @@
-# Acceptance
+# Contracts
 
 ## Acceptance Summary
 
@@ -60,7 +60,7 @@ Every accepted change should provide:
 - storage impact;
 - test/verification output;
 - confirmation that no generated outputs, logs, notebooks, credentials, or secrets were committed;
-- unresolved gaps routed to `docs/80_task.md`.
+- unresolved gaps routed to `docs/04_task.md`.
 
 ## Rejection Reasons
 

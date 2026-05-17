@@ -1,4 +1,4 @@
-# Task
+# Tasks
 
 ## Active Tasks
 
@@ -38,7 +38,7 @@ These items are intentionally outside the current promote-first model phase and 
 - Accepted the first interface split: realtime market data may share canonical providers with historical data, but it uses distinct realtime transports; broker mutation is a separate authority from market-data access.
 - Accepted OKX as crypto execution venue candidate because an official API exists; live mutation remains disabled.
 - Deferred Firstrade equity/options automation because no official trading API is accepted.
-- Closed the prior execution-preparation phase in `docs/05_execution_acceptance.md`: repository boundary, calendar-discovery ownership, mandatory pre-order `trade_risk_cap` invariant, broker-agnostic risk-cap validator, and package/source/test layout are accepted. No broker adapter, order construction, order placement, fill handling, account mutation, model activation, provider call, or manager dispatch is enabled by this closeout.
+- Closed the prior execution-preparation phase in `docs/11_execution_acceptance.md`: repository boundary, calendar-discovery ownership, mandatory pre-order `trade_risk_cap` invariant, broker-agnostic risk-cap validator, and package/source/test layout are accepted. No broker adapter, order construction, order placement, fill handling, account mutation, model activation, provider call, or manager dispatch is enabled by this closeout.
 - Added component-facing validation entrypoint `scripts/execution/validate_trade_risk_cap.py` and tests. This provides the integration route for unified decision records before any future broker/paper order-construction path.
 - Accepted current package/source/test layout and default verification commands: `PYTHONPATH=src python3 -m unittest discover -s tests` and `python3 -m compileall -q src scripts`.
 - Added accepted `trade_risk_cap` pre-order invariant and broker-agnostic validator. Missing or invalid caps force `reject_order` before order construction/placement.

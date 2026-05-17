@@ -1,4 +1,12 @@
-# Workflow
+# Architecture
+
+## Module Map
+
+| Docs band | Implementation surface | Purpose |
+|---|---|---|
+| `10_*` | `src/trading_execution/risk_cap/` | Trade risk-cap and execution acceptance boundary. |
+| `20_*` | `src/trading_execution/market_data/`, `scripts/execution/` | Realtime market-data observation interfaces. |
+| `30_*` | `src/trading_execution/broker/` | Broker interface contracts and non-mutation gates. |
 
 ## Purpose
 
