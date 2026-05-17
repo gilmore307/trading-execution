@@ -43,9 +43,9 @@ The shared Python environment is anchored by `trading-manager` at:
 
 Current system-level dependencies:
 
-- `trading-manager/docs/07_helpers.md` for shared helper policy;
-- `trading-manager/docs/08_registry.md` for registry operating rules;
-- `trading-manager/docs/09_templates.md` and `trading-manager/templates/` for reusable drafting surfaces;
+- `trading-manager/docs/11_helpers.md` for shared helper policy;
+- `trading-manager/docs/12_registry.md` for registry operating rules;
+- `trading-manager/docs/13_templates.md` and `trading-manager/templates/` for reusable drafting surfaces;
 - `trading-manager/requirements.txt` for reviewed shared Python dependencies;
 - related component repositories through accepted contracts, not internal implementation details.
 
