@@ -104,7 +104,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertEqual(bundle["bundle_status"], "ready_for_model_route_plan")
         self.assertEqual(bundle["provider_calls_performed"], 0)
         self.assertFalse(bundle["broker_order_construction_performed"])
-        self.assertEqual(len(bundle["decision_input_snapshot"]["layer_input_refs"]), 8)
+        self.assertEqual(len(bundle["decision_input_snapshot"]["layer_input_refs"]), 9)
 
     def test_build_realtime_subscription_plan_for_alpaca_target_layer(self) -> None:
         plan = build_realtime_subscription_plan(
@@ -214,7 +214,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
 
         self.assertEqual(snapshot["contract_type"], "realtime_feature_snapshot")
         self.assertEqual(snapshot["readiness_status"], "ready_for_fixture_or_shadow_model_decision_input")
-        self.assertEqual(len(snapshot["feature_rows"]), 8)
+        self.assertEqual(len(snapshot["feature_rows"]), 9)
         self.assertEqual(snapshot["provider_calls_performed"], 0)
         self.assertFalse(snapshot["model_activation_performed"])
         validation = validate_realtime_feature_snapshot(snapshot)
@@ -236,7 +236,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
 
         self.assertEqual(decision_input["contract_type"], "execution_model_decision_input_snapshot")
         self.assertEqual(decision_input["readiness_status"], "ready_for_historical_model_decision_handoff")
-        self.assertEqual(len(decision_input["layer_input_refs"]), 8)
+        self.assertEqual(len(decision_input["layer_input_refs"]), 9)
         self.assertEqual(decision_input["provider_calls_performed"], 0)
         self.assertFalse(decision_input["broker_order_construction_performed"])
         validation = validate_model_decision_input_snapshot(decision_input)
@@ -717,7 +717,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             feature_snapshot = json.loads(feature_result.stdout)
             feature_path.write_text(json.dumps(feature_snapshot), encoding="utf-8")
             self.assertEqual(feature_snapshot["provider_calls_performed"], 0)
-            self.assertEqual(len(feature_snapshot["feature_rows"]), 8)
+            self.assertEqual(len(feature_snapshot["feature_rows"]), 9)
 
             decision_result = subprocess.run(
                 [sys.executable, "scripts/execution/build_realtime_model_input.py", "--feature-snapshot", str(feature_path)],

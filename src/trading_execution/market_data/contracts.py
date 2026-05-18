@@ -219,6 +219,19 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
         ),
         RealtimeModelInputCoverage(
             contract_type="execution_realtime_input_coverage",
+            model_layer="layer_04_event_failure_risk",
+            model_id="model_04_event_failure_risk",
+            model_output="event_failure_risk_vector",
+            live_input_surface="reviewed event/strategy-failure conditioning refs plus current upstream state",
+            realtime_input_groups=("event_failure_risk_conditioning_refs", "freshness_and_quality_diagnostics"),
+            primary_realtime_sources=("derived_governance_context",),
+            required_capture_fields=common + ("upstream_context_ref", "model_output_ref"),
+            coverage_status="derived_context_contract_defined_no_direct_provider_route",
+            validation_role=validation_role,
+            boundary_note="Layer 4 event-failure-risk conditioning is reviewed model/governance context, not a raw realtime event-feed route.",
+        ),
+        RealtimeModelInputCoverage(
+            contract_type="execution_realtime_input_coverage",
             model_layer="layer_05_alpha_confidence",
             model_id="model_05_alpha_confidence",
             model_output="alpha_confidence_vector",
@@ -290,7 +303,7 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
             model_layer="layer_09_event_risk_governor",
             model_id="model_09_event_risk_governor",
             model_output="event_context_vector",
-            live_input_surface="current target/market event context attached to Layer 1-3 state",
+            live_input_surface="current target/market event context attached to the Layer 7 direct-underlying thesis",
             realtime_input_groups=(
                 "equity_news_and_event_arrivals",
                 "earnings_and_macro_calendar_triggers",
@@ -301,7 +314,7 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
             required_capture_fields=common + ("event_time", "event_source_ref", "upstream_context_ref"),
             coverage_status="partial_route_defined_event_adapter_review_required",
             validation_role=validation_role,
-            boundary_note="EventRiskGovernor needs news/calendar/activity capture; some routes are trigger/catalog contracts before realtime adapters exist.",
+            boundary_note="EventRiskGovernor needs news/calendar/activity capture as Layer 9 risk-governance context over the Layer 7 thesis; some routes are trigger/catalog contracts before realtime adapters exist.",
         ),
     )
 

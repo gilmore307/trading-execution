@@ -186,7 +186,7 @@ Realtime inputs should cover the model stack's live inference needs and later su
 
 ### Decision
 
-`trading-execution` records `execution_realtime_input_coverage` rows for Layers 1-8 and a `realtime_capture_contract` for append-only validation evidence. The matrix separates complete routes from partial/gap routes, especially proxy coverage for Layer 1, event routes for Layer 4, account-state routes for Layer 6, restriction/account routes for Layer 7, and ThetaData terminal requirements for Layer 8.
+`trading-execution` records `execution_realtime_input_coverage` rows for Layers 1-9 and a `realtime_capture_contract` for append-only validation evidence. The matrix separates complete routes from partial/gap routes, especially proxy coverage for Layer 1, event-failure-risk conditioning for Layer 4, event adapter coverage for Layer 9, account-state routes for Layer 6, restriction/account routes for Layer 7, and ThetaData terminal requirements for Layer 8.
 
 ### Consequences
 

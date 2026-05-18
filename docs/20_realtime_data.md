@@ -43,11 +43,12 @@ Realtime coverage is tracked by `execution_realtime_input_coverage` rows in `src
 | 1 | `market_context_state` | market/ETF quotes, bars, liquidity; volatility/rates/credit/dollar/commodity proxies; crypto risk-appetite proxies | Alpaca, OKX | Partial route defined; proxy/feed gap review still required |
 | 2 | `sector_context_state` | sector/industry ETF quotes, bars, liquidity, relative strength, breadth/dispersion proxies | Alpaca | Route defined; adapter not started |
 | 3 | `target_context_state` | target quote/trade/bar/snapshot, liquidity/spread, Layer 1/2 context refs | Alpaca, OKX | Route defined; adapter not started |
-| 4 | `event_context_vector` | news/event arrivals, earnings/macro triggers, abnormal equity activity, option activity events | Alpaca, ThetaData, calendar discovery | Partial route defined; event adapter review required |
+| 4 | `event_failure_risk_vector` | reviewed event/strategy-failure conditioning refs and freshness/quality diagnostics | derived governance/model context | Contract defined; no direct provider route |
 | 5 | `alpha_confidence_vector` | current Layer 1-4 state stack and freshness/quality diagnostics | derived model context | Contract defined; no direct provider route |
 | 6 | `position_projection_vector` | current/pending position, exposure, risk budget, current cost/liquidity context | execution account state, Alpaca, OKX, ThetaData | Context contract only; broker/account route deferred |
 | 7 | `underlying_action_plan` | underlying quote/liquidity/spread, restrictions/halt/borrow state, Layer 6 projection ref | Alpaca, OKX, execution account state | Partial route defined; restriction/account route deferred |
 | 8 | `option_expression_plan` | underlying quote, option-chain snapshot, option quote/trade stream, IV/Greeks, OI/latest interest | ThetaData, Alpaca | Route defined; adapter not started; terminal required |
+| 9 | `event_context_vector` / `event_risk_intervention` | news/event arrivals, earnings/macro triggers, abnormal equity activity, option activity events attached to the Layer 7 thesis | Alpaca, ThetaData, calendar discovery | Partial route defined; event adapter review required |
 
 The matrix intentionally exposes gaps. A partial row is not a failure; it prevents us from pretending that realtime coverage is complete before a provider, account-state, or restriction route is accepted.
 

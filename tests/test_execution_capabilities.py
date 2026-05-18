@@ -29,7 +29,7 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
     def test_realtime_input_coverage_matrix_covers_all_model_layers(self) -> None:
         coverage = {row.model_layer: row for row in realtime_input_coverage_matrix()}
 
-        self.assertEqual(len(coverage), 8)
+        self.assertEqual(len(coverage), 9)
         self.assertEqual(coverage["layer_01_market_regime"].model_id, "model_01_market_regime")
         self.assertIn("alpaca", coverage["layer_01_market_regime"].primary_realtime_sources)
         self.assertIn("okx", coverage["layer_01_market_regime"].primary_realtime_sources)
@@ -59,13 +59,13 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
         decision_contract = model_decision_input_snapshot_contract()
 
         self.assertEqual(feature_contract["contract_type"], "realtime_feature_snapshot_contract")
-        self.assertEqual(len(feature_contract["required_layer_rows"]), 8)
+        self.assertEqual(len(feature_contract["required_layer_rows"]), 9)
         self.assertIn("historical_dataset_snapshot_ref", feature_contract["required_fields"])
         self.assertEqual(
             decision_contract["contract_type"],
             "execution_model_decision_input_snapshot_contract",
         )
-        self.assertEqual(len(decision_contract["required_layer_inputs"]), 8)
+        self.assertEqual(len(decision_contract["required_layer_inputs"]), 9)
         self.assertIn("model_activation", decision_contract["forbidden_actions"])
 
     def test_broker_catalog_accepts_okx_but_defers_firstrade(self) -> None:
@@ -85,7 +85,7 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
         catalog = build_execution_capability_catalog()
 
         self.assertEqual(catalog["contract_type"], "execution_capability_catalog")
-        self.assertEqual(len(catalog["realtime_input_coverage_matrix"]), 8)
+        self.assertEqual(len(catalog["realtime_input_coverage_matrix"]), 9)
         self.assertEqual(catalog["realtime_capture_contract"]["contract_type"], "realtime_capture_contract")
         self.assertEqual(
             catalog["realtime_feature_snapshot_contract"]["contract_type"],
@@ -111,7 +111,7 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
         payload = json.loads(result.stdout)
 
         self.assertEqual(payload["contract_type"], "execution_capability_catalog")
-        self.assertEqual(len(payload["realtime_input_coverage_matrix"]), 8)
+        self.assertEqual(len(payload["realtime_input_coverage_matrix"]), 9)
         self.assertFalse(payload["order_mutation_enabled"])
 
 

@@ -27,11 +27,12 @@ _HISTORICAL_FEATURE_PARITY_REFS = {
     "layer_01_market_regime": "trading-data://src/data_feature/feature_01_market_regime",
     "layer_02_sector_context": "trading-data://src/data_feature/feature_02_sector_context",
     "layer_03_target_state_vector": "trading-data://src/data_feature/feature_03_target_state_vector",
-    "layer_09_event_risk_governor": "trading-data://src/data_feature/feature_09_event_risk_governor",  # current feature path
+    "layer_04_event_failure_risk": "trading-model://src/models/model_04_event_failure_risk/generator.py",  # current model path
     "layer_05_alpha_confidence": "trading-model://src/models/model_05_alpha_confidence/generator.py",  # current model path
     "layer_06_position_projection": "trading-model://src/models/model_06_position_projection/generator.py",  # current model path
     "layer_07_underlying_action": "trading-model://src/models/model_07_underlying_action/generator.py",  # current model path
     "layer_08_option_expression": "trading-data://src/data_feature/feature_08_option_expression",  # current feature path
+    "layer_09_event_risk_governor": "trading-data://src/data_feature/feature_09_event_risk_governor",  # current feature path
 }
 
 
