@@ -47,6 +47,7 @@ from .live_observe import (
 )
 from .live_provider import RealtimeLiveObservation, execute_live_observe
 from .realtime_monitor import (
+    DEFAULT_MONITOR_UNIVERSE_MODEL_LAYERS,
     DEFAULT_REALTIME_MODEL_LAYERS,
     DEFAULT_UNIVERSE_PATH,
     build_realtime_monitor_approval,
@@ -64,6 +65,7 @@ __all__ = [
     "RealtimeCaptureContract",
     "RealtimeDataInterface",
     "LIVE_OBSERVE_APPROVAL_CONTRACT",
+    "DEFAULT_MONITOR_UNIVERSE_MODEL_LAYERS",
     "DEFAULT_REALTIME_MODEL_LAYERS",
     "DEFAULT_UNIVERSE_PATH",
     "LIVE_OBSERVE_SOURCES",

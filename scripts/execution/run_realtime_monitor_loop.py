@@ -16,6 +16,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--approval-prefix", required=True)
     parser.add_argument("--universe-path", default=None)
     parser.add_argument("--source-id", default="alpaca")
+    parser.add_argument("--universe-model-layer", action="append", dest="universe_model_layers")
     parser.add_argument("--model-layer", action="append", dest="model_layers")
     parser.add_argument("--max-symbols", type=int, default=None)
     parser.add_argument("--cycles", type=int, default=1)
@@ -31,6 +32,7 @@ def main() -> int:
         "request_prefix": args.request_prefix,
         "approval_prefix": args.approval_prefix,
         "source_id": args.source_id,
+        "universe_model_layers": tuple(args.universe_model_layers) if args.universe_model_layers else None,
         "model_layers": tuple(args.model_layers) if args.model_layers else None,
         "max_symbols": args.max_symbols,
         "cycles": args.cycles,
@@ -40,6 +42,8 @@ def main() -> int:
     }
     if args.universe_path:
         kwargs["universe_path"] = args.universe_path
+    if kwargs["universe_model_layers"] is None:
+        del kwargs["universe_model_layers"]
     if kwargs["model_layers"] is None:
         del kwargs["model_layers"]
     receipt = run_realtime_monitor_loop(**kwargs)

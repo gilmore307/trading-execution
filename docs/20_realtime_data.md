@@ -94,7 +94,7 @@ PYTHONPATH=src python3 scripts/execution/validate_realtime_capture.py capture.js
 
 ## Execution-owned realtime monitor smoke
 
-`execution_realtime_monitor_smoke_receipt` is the first execution-owned runtime smoke for the 44-symbol ETF monitoring universe. It loads the reviewed Layer 1/2 ETF universe from `trading-storage/main/shared/layer_01_02_market_context_etf_universe.csv`, builds a bounded `realtime_live_observe_approval`, and runs read-only Alpaca snapshot observations only when `--execute-live-observe` is supplied.
+`execution_realtime_monitor_smoke_receipt` is the first execution-owned runtime smoke for the 44-symbol ETF monitoring universe. It loads the reviewed Layer 1/2 ETF universe from `trading-storage/main/shared/layer_01_02_market_context_etf_universe.csv`, builds a bounded `realtime_live_observe_approval`, and runs read-only Alpaca snapshot observations only when `--execute-live-observe` is supplied. The universe filter remains Layer 1/2 by default, while the downstream realtime feature/model-decision handoff envelope defaults to the complete Layer 1-9 model input coverage matrix.
 
 The smoke writes a receipt containing request, approval, result, and summary rows. The summary intentionally excludes credentials and provider payload details; it reports provider calls, observation counts, provider status counts, capture counts, and the invariant flags for broker calls, model activation, order construction, and account mutation.
 
@@ -104,7 +104,7 @@ PYTHONPATH=src python3 scripts/execution/run_realtime_monitor_smoke.py \
   --output-path storage/runtime/realtime_monitor/latest_smoke.json
 ```
 
-`execution_realtime_monitor_loop_receipt` is the bounded runtime-loop receipt for supervised monitor operation. `scripts/execution/run_realtime_monitor_loop.py` runs repeated smoke cycles, writes per-cycle receipts plus `loop_receipt.json`, preserves reconnect/backoff observability through cycle status/delay fields, and keeps the same hard invariants: no model activation, no order construction/submission, no broker mutation, and no account mutation.
+`execution_realtime_monitor_loop_receipt` is the bounded runtime-loop receipt for supervised monitor operation. `scripts/execution/run_realtime_monitor_loop.py` runs repeated smoke cycles, writes per-cycle receipts plus `loop_receipt.json`, preserves reconnect/backoff observability through cycle status/delay fields, and keeps the same hard invariants: no model activation, no order construction/submission, no broker mutation, and no account mutation. Use `--universe-model-layer` to change which rows from the universe CSV are observed, and `--model-layer` only when intentionally narrowing the downstream handoff envelope.
 
 This is still not a production model-decision executor. Decision-effectiveness aggregation is the lightweight quality surface for later shadow/live model review; historical dataset construction remains owned by the historical backfill/promotion pipeline.
 

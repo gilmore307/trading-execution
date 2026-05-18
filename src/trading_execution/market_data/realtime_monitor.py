@@ -15,9 +15,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from .features import MODEL_LAYER_ORDER
 from .live_provider import Transport, execute_live_observe
 
-DEFAULT_REALTIME_MODEL_LAYERS = ("layer_01_market_regime", "layer_02_sector_context")
+DEFAULT_MONITOR_UNIVERSE_MODEL_LAYERS = ("layer_01_market_regime", "layer_02_sector_context")
+DEFAULT_REALTIME_MODEL_LAYERS = MODEL_LAYER_ORDER
 DEFAULT_UNIVERSE_PATH = "/root/projects/trading-storage/main/shared/layer_01_02_market_context_etf_universe.csv"
 
 
@@ -32,7 +34,7 @@ def _iso(value: datetime) -> str:
 def load_etf_universe(
     universe_path: str | Path = DEFAULT_UNIVERSE_PATH,
     *,
-    model_layers: Sequence[str] | None = DEFAULT_REALTIME_MODEL_LAYERS,
+    model_layers: Sequence[str] | None = DEFAULT_MONITOR_UNIVERSE_MODEL_LAYERS,
     max_symbols: int | None = None,
 ) -> list[str]:
     """Load ETF symbols for realtime observe while preserving file order."""
@@ -189,6 +191,7 @@ def run_realtime_monitor_smoke(
     approval_id: str,
     universe_path: str | Path = DEFAULT_UNIVERSE_PATH,
     source_id: str = "alpaca",
+    universe_model_layers: Sequence[str] | None = DEFAULT_MONITOR_UNIVERSE_MODEL_LAYERS,
     model_layers: Sequence[str] = DEFAULT_REALTIME_MODEL_LAYERS,
     max_symbols: int | None = None,
     execute: bool = False,
@@ -197,7 +200,7 @@ def run_realtime_monitor_smoke(
 ) -> dict[str, Any]:
     """Run or plan a bounded read-only realtime monitor smoke."""
 
-    symbols = load_etf_universe(universe_path, model_layers=model_layers, max_symbols=max_symbols)
+    symbols = load_etf_universe(universe_path, model_layers=universe_model_layers, max_symbols=max_symbols)
     request = build_realtime_monitor_request(
         request_id=request_id,
         symbols=symbols,
@@ -232,6 +235,7 @@ def run_realtime_monitor_loop(
     approval_prefix: str,
     universe_path: str | Path = DEFAULT_UNIVERSE_PATH,
     source_id: str = "alpaca",
+    universe_model_layers: Sequence[str] | None = DEFAULT_MONITOR_UNIVERSE_MODEL_LAYERS,
     model_layers: Sequence[str] = DEFAULT_REALTIME_MODEL_LAYERS,
     max_symbols: int | None = None,
     cycles: int = 1,
@@ -271,6 +275,7 @@ def run_realtime_monitor_loop(
                 approval_id=approval_id,
                 universe_path=universe_path,
                 source_id=source_id,
+                universe_model_layers=universe_model_layers,
                 model_layers=model_layers,
                 max_symbols=max_symbols,
                 execute=execute,
@@ -316,6 +321,7 @@ def run_realtime_monitor_loop(
         "request_prefix": request_prefix,
         "approval_prefix": approval_prefix,
         "source_id": source_id,
+        "universe_model_layers": list(universe_model_layers or []),
         "model_layers": list(model_layers),
         "cycles_requested": cycles,
         "cycles_completed": len(cycle_rows),
@@ -343,6 +349,7 @@ def run_realtime_monitor_loop(
 
 
 __all__ = [
+    "DEFAULT_MONITOR_UNIVERSE_MODEL_LAYERS",
     "DEFAULT_REALTIME_MODEL_LAYERS",
     "DEFAULT_UNIVERSE_PATH",
     "build_realtime_monitor_approval",

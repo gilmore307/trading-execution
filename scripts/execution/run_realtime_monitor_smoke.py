@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from trading_execution.market_data.realtime_monitor import (
+    DEFAULT_MONITOR_UNIVERSE_MODEL_LAYERS,
     DEFAULT_REALTIME_MODEL_LAYERS,
     DEFAULT_UNIVERSE_PATH,
     run_realtime_monitor_smoke,
@@ -25,6 +26,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run a bounded read-only realtime monitor smoke.")
     parser.add_argument("--universe-path", type=Path, default=Path(DEFAULT_UNIVERSE_PATH))
     parser.add_argument("--source", default="alpaca", choices=("alpaca", "okx", "thetadata"))
+    parser.add_argument(
+        "--universe-model-layer",
+        action="append",
+        dest="universe_model_layers",
+        help="Universe CSV model_layer to include; repeatable. Defaults to Layer 1/2 ETF monitor universe.",
+    )
     parser.add_argument("--model-layer", action="append", dest="model_layers", help="Model layer to include; repeatable.")
     parser.add_argument("--max-symbols", type=int, help="Limit symbols for a small smoke.")
     parser.add_argument("--request-id", default=None)
@@ -40,6 +47,7 @@ def main() -> int:
         approval_id=approval_id,
         universe_path=args.universe_path,
         source_id=args.source,
+        universe_model_layers=tuple(args.universe_model_layers or DEFAULT_MONITOR_UNIVERSE_MODEL_LAYERS),
         model_layers=tuple(args.model_layers or DEFAULT_REALTIME_MODEL_LAYERS),
         max_symbols=args.max_symbols,
         execute=args.execute_live_observe,
