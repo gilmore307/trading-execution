@@ -23,9 +23,12 @@ from .market_data import (
     validate_realtime_feature_snapshot,
 )
 from .model_lifecycle import (
+    ACTIVE_MODEL_CONFIG_WRITE_CONTRACT,
     SHADOW_CYCLE_SELECTION_CONTRACT,
     RuntimeSelectionValidation,
+    build_active_model_config_write,
     build_shadow_cycle_selection,
+    validate_active_model_config_write,
     validate_shadow_cycle_selection,
 )
 
@@ -40,12 +43,14 @@ __all__ = [
     "RealtimeModelInputCoverage",
     "RealtimeSubscriptionPlan",
     "RuntimeSelectionValidation",
+    "ACTIVE_MODEL_CONFIG_WRITE_CONTRACT",
     "SHADOW_CYCLE_SELECTION_CONTRACT",
     "broker_interfaces",
     "build_execution_capability_catalog",
     "build_model_decision_input_snapshot",
     "build_realtime_feature_snapshot",
     "build_realtime_subscription_plan",
+    "build_active_model_config_write",
     "build_shadow_cycle_selection",
     "model_decision_input_snapshot_contract",
     "realtime_capture_contract",
@@ -55,5 +60,6 @@ __all__ = [
     "validate_model_decision_input_snapshot",
     "validate_realtime_capture",
     "validate_realtime_feature_snapshot",
+    "validate_active_model_config_write",
     "validate_shadow_cycle_selection",
 ]

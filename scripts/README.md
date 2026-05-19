@@ -22,3 +22,4 @@ The command exits non-zero when the `trade_risk_cap` is missing or invalid. It d
 ## Runtime model lifecycle
 
 - `execution/build_shadow_cycle_selection.py` builds an `execution_shadow_cycle_selection` record from ranked market-hours active/shadow review rows. The record recommends active, realtime-candidate, shadow-only, and eliminate-candidate roster roles without writing active pointers, constructing orders, calling brokers, or mutating accounts.
+- `execution/build_active_model_config_write.py` builds an `execution_active_model_config_write` record from a valid shadow-cycle selection. It records the active pointer write, expected previous active ref, new active config ref, rollback ref, and write window without constructing orders, calling brokers, or mutating accounts.

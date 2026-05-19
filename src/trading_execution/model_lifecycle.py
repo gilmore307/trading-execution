@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import Any, Mapping, Sequence
 
 SHADOW_CYCLE_SELECTION_CONTRACT = "execution_shadow_cycle_selection"
+ACTIVE_MODEL_CONFIG_WRITE_CONTRACT = "execution_active_model_config_write"
 REQUIRED_REVIEW_FIELDS = (
     "candidate_model_ref",
     "promotion_readiness_ref",
@@ -177,9 +178,105 @@ def validate_shadow_cycle_selection(payload: Mapping[str, Any]) -> RuntimeSelect
     )
 
 
+def build_active_model_config_write(
+    *,
+    shadow_cycle_selection: Mapping[str, Any],
+    expected_previous_active_model_ref: str,
+    new_active_config_ref: str,
+    rollback_ref: str,
+    write_window_ref: str,
+    write_id: str | None = None,
+    written_at_utc: str | None = None,
+) -> dict[str, Any]:
+    """Build an audited active-model pointer write record from a valid selection."""
+
+    selection_validation = validate_shadow_cycle_selection(shadow_cycle_selection)
+    if selection_validation.validation_status != "passed":
+        raise ValueError("; ".join(selection_validation.errors))
+    selected_active = str(shadow_cycle_selection["selected_active_model_ref"])
+    previous_active = str(shadow_cycle_selection["previous_active_model_ref"])
+    if expected_previous_active_model_ref != previous_active:
+        raise ValueError("expected_previous_active_model_ref must match selection previous_active_model_ref")
+    for field, value in {
+        "new_active_config_ref": new_active_config_ref,
+        "rollback_ref": rollback_ref,
+        "write_window_ref": write_window_ref,
+    }.items():
+        if not value:
+            raise ValueError(f"{field} is required")
+    written = written_at_utc or _now_utc()
+    record = {
+        "contract_type": ACTIVE_MODEL_CONFIG_WRITE_CONTRACT,
+        "active_model_config_write_id": write_id
+        or _stable_id(
+            "activewrite",
+            shadow_cycle_selection["selection_id"],
+            previous_active,
+            selected_active,
+            new_active_config_ref,
+            rollback_ref,
+        ),
+        "shadow_cycle_selection_ref": shadow_cycle_selection["selection_id"],
+        "previous_active_model_ref": previous_active,
+        "selected_active_model_ref": selected_active,
+        "expected_previous_active_model_ref": expected_previous_active_model_ref,
+        "new_active_config_ref": new_active_config_ref,
+        "rollback_ref": rollback_ref,
+        "write_window_ref": write_window_ref,
+        "written_at_utc": written,
+        "active_pointer_write_performed": True,
+        "rollback_available": True,
+        "broker_order_construction_performed": False,
+        "broker_execution_performed": False,
+        "account_mutation_performed": False,
+    }
+    validation = validate_active_model_config_write(record)
+    if validation.validation_status != "passed":
+        raise ValueError("; ".join(validation.errors))
+    return record
+
+
+def validate_active_model_config_write(payload: Mapping[str, Any]) -> RuntimeSelectionValidation:
+    errors: list[str] = []
+    required = (
+        "contract_type",
+        "active_model_config_write_id",
+        "shadow_cycle_selection_ref",
+        "previous_active_model_ref",
+        "selected_active_model_ref",
+        "expected_previous_active_model_ref",
+        "new_active_config_ref",
+        "rollback_ref",
+        "write_window_ref",
+        "written_at_utc",
+    )
+    for field in required:
+        if payload.get(field) in (None, ""):
+            errors.append(f"{field} is required")
+    if payload.get("contract_type") != ACTIVE_MODEL_CONFIG_WRITE_CONTRACT:
+        errors.append(f"contract_type must be {ACTIVE_MODEL_CONFIG_WRITE_CONTRACT}")
+    if payload.get("expected_previous_active_model_ref") != payload.get("previous_active_model_ref"):
+        errors.append("expected_previous_active_model_ref must match previous_active_model_ref")
+    if payload.get("active_pointer_write_performed") is not True:
+        errors.append("active_pointer_write_performed must be true")
+    if payload.get("rollback_available") is not True:
+        errors.append("rollback_available must be true")
+    for field in ("broker_order_construction_performed", "broker_execution_performed", "account_mutation_performed"):
+        if payload.get(field) is not False:
+            errors.append(f"{field} must be false")
+    return RuntimeSelectionValidation(
+        contract_type="execution_active_model_config_write_validation",
+        validation_status="passed" if not errors else "failed",
+        errors=tuple(errors),
+    )
+
+
 __all__ = [
     "SHADOW_CYCLE_SELECTION_CONTRACT",
+    "ACTIVE_MODEL_CONFIG_WRITE_CONTRACT",
     "RuntimeSelectionValidation",
+    "build_active_model_config_write",
     "build_shadow_cycle_selection",
+    "validate_active_model_config_write",
     "validate_shadow_cycle_selection",
 ]

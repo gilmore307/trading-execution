@@ -5,7 +5,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from trading_execution.model_lifecycle import build_shadow_cycle_selection, validate_shadow_cycle_selection
+from trading_execution.model_lifecycle import (
+    build_active_model_config_write,
+    build_shadow_cycle_selection,
+    validate_active_model_config_write,
+    validate_shadow_cycle_selection,
+)
 
 
 class ModelLifecycleTests(unittest.TestCase):
@@ -74,6 +79,46 @@ class ModelLifecycleTests(unittest.TestCase):
                 ],
             )
 
+    def test_active_model_config_write_requires_matching_previous_active(self) -> None:
+        selection = build_shadow_cycle_selection(
+            cycle_ref="cycle://2026-06",
+            current_active_model_ref="model://incumbent",
+            candidate_reviews=[
+                {
+                    "candidate_model_ref": "model://winner",
+                    "promotion_readiness_ref": "ready://winner",
+                    "overall_rank": 1,
+                    "review_status": "active_candidate",
+                }
+            ],
+        )
+
+        record = build_active_model_config_write(
+            shadow_cycle_selection=selection,
+            expected_previous_active_model_ref="model://incumbent",
+            new_active_config_ref="storage://active/winner",
+            rollback_ref="storage://active/incumbent",
+            write_window_ref="window://closed-market",
+        )
+
+        self.assertEqual(record["contract_type"], "execution_active_model_config_write")
+        self.assertEqual(record["selected_active_model_ref"], "model://winner")
+        self.assertTrue(record["active_pointer_write_performed"])
+        self.assertTrue(record["rollback_available"])
+        self.assertFalse(record["broker_order_construction_performed"])
+        self.assertFalse(record["broker_execution_performed"])
+        self.assertFalse(record["account_mutation_performed"])
+        self.assertEqual(validate_active_model_config_write(record).validation_status, "passed")
+
+        with self.assertRaisesRegex(ValueError, "must match"):
+            build_active_model_config_write(
+                shadow_cycle_selection=selection,
+                expected_previous_active_model_ref="model://other",
+                new_active_config_ref="storage://active/winner",
+                rollback_ref="storage://active/incumbent",
+                write_window_ref="window://closed-market",
+            )
+
     def test_cli_builds_shadow_cycle_selection(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "reviews.jsonl"
@@ -116,6 +161,45 @@ class ModelLifecycleTests(unittest.TestCase):
         payload = json.loads(completed.stdout)
         self.assertEqual(payload["selected_active_model_ref"], "model://incumbent")
         self.assertFalse(payload["active_model_switch_recommended"])
+
+    def test_cli_builds_active_model_config_write(self) -> None:
+        selection = build_shadow_cycle_selection(
+            cycle_ref="cycle://2026-06",
+            current_active_model_ref="model://incumbent",
+            candidate_reviews=[
+                {
+                    "candidate_model_ref": "model://winner",
+                    "promotion_readiness_ref": "ready://winner",
+                    "overall_rank": 1,
+                    "review_status": "active_candidate",
+                }
+            ],
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            selection_path = Path(directory) / "selection.json"
+            selection_path.write_text(json.dumps(selection), encoding="utf-8")
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/execution/build_active_model_config_write.py",
+                    "--shadow-cycle-selection-json",
+                    str(selection_path),
+                    "--expected-previous-active-model-ref",
+                    "model://incumbent",
+                    "--new-active-config-ref",
+                    "storage://active/winner",
+                    "--rollback-ref",
+                    "storage://active/incumbent",
+                    "--write-window-ref",
+                    "window://closed-market",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["contract_type"], "execution_active_model_config_write")
+        self.assertTrue(payload["active_pointer_write_performed"])
 
 
 if __name__ == "__main__":

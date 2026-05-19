@@ -30,7 +30,22 @@ Running many realtime strategies can compete with the active model for runtime c
 - eliminate candidates and reason evidence;
 - whether an active switch is recommended.
 
-The contract records selection only. It does not write active config pointers, construct orders, submit broker calls, or mutate accounts. Pointer mutation remains a later explicit execution runtime gate.
+The contract records selection only. It does not write active config pointers, construct orders, submit broker calls, or mutate accounts.
+
+## Active Pointer Write Gate
+
+`execution_active_model_config_write` is the separate execution-owned pointer mutation record. It may be built only after a valid `execution_shadow_cycle_selection`.
+
+Required checks:
+
+- selection id is present and valid;
+- selected active model is still the intended winner;
+- expected previous active model matches the selection's previous active model;
+- new active config ref is present;
+- rollback ref is present;
+- write window ref is present, normally a closed-market or explicitly accepted switch window.
+
+This record is the audit surface for changing the active model config pointer. It still does not construct orders, submit broker calls, or mutate accounts.
 
 ## Elimination
 
