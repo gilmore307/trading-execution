@@ -32,6 +32,8 @@ Running many realtime strategies can compete with the active model for runtime c
 
 The contract records selection only. It does not write active config pointers, construct orders, submit broker calls, or mutate accounts.
 
+If an agent is used to review the cycle, it must use the fixed `runtime-model-lifecycle-review` skill. The comparison packet must be blinded: the agent sees anonymous model labels and does not know which label is current active, newly promoted, old, incumbent, champion, challenger, or latest. Execution code maps labels back to model refs only after the review.
+
 ## Active Pointer Write Gate
 
 `execution_active_model_config_write` is the separate execution-owned pointer mutation record. It may be built only after a valid `execution_shadow_cycle_selection`.
