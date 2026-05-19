@@ -35,6 +35,7 @@ Implementation changes are acceptable only when they:
 - avoid external side effects in default tests unless explicitly guarded;
 - use accepted contracts for cross-repository handoffs;
 - reject missing or invalid `trade_risk_cap` payloads before any order construction, paper execution, live execution, or broker/account mutation;
+- keep runtime active/shadow model selection separate from offline promotion eligibility and from broker/account mutation;
 - route new shared names through `trading-manager/scripts/`.
 
 ## Verification Commands
@@ -74,3 +75,4 @@ A change must be rejected or returned if it:
 - claims acceptance without test or inspection evidence.
 - constructs or places an order when `trade_risk_cap` is missing, malformed, unsupported, stale, or impossible to enforce.
 - duplicates global contract definitions locally instead of referencing trading-manager.
+- treats an offline benchmark promotion decision as automatic active model switching.

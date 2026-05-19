@@ -11,7 +11,7 @@ The trading platform needs `trading-execution` to have a clear owner boundary be
 
 ### Decision
 
-Execution must not independently choose strategies, train models, or bypass manager-controlled promotion.
+Execution must not independently choose offline strategies, train models, or bypass evaluation-owned promotion readiness.
 
 ### Rationale
 
@@ -340,3 +340,11 @@ Rows containing actual EPS (`eps`) or `surprise` are skipped and warned. Capture
 - It does not infer beat/miss, guidance raise/cut, signed direction, alpha, or model activation.
 - Revenue consensus and guidance expectation baselines remain separate gaps.
 - Broker/order/account mutation remains unavailable and unrelated to this route.
+## D011 - Runtime Activation Belongs To Execution
+
+Date: 2026-05-19
+Status: Accepted
+
+`trading-evaluation` owns offline benchmark promotion eligibility and promotion readiness. `trading-execution` owns runtime active model selection after a market-hours shadow cycle compares the active model with promoted-but-not-active shadow candidates. The best overall candidate becomes active, ranks 2-4 remain realtime candidates, and weak candidates enter eliminate-candidate review when there is sufficient reason evidence.
+
+Active model selection is not broker execution. Selection records do not construct orders, submit broker calls, or mutate accounts.

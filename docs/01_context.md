@@ -2,7 +2,7 @@
 
 ## Why This Repository Exists
 
-The trading platform is split across multiple repositories so each major responsibility has a clear owner. `trading-execution` exists because consumes externally promoted decisions and owns broker/exchange execution workflows, orders, positions, reconciliation, execution artifacts, and safety controls.
+The trading platform is split across multiple repositories so each major responsibility has a clear owner. `trading-execution` exists because it consumes externally promoted/readiness decisions and owns runtime model selection, broker/exchange execution workflows, orders, positions, reconciliation, execution artifacts, and safety controls.
 
 ## Related Systems
 
@@ -14,7 +14,8 @@ The trading platform is split across multiple repositories so each major respons
 | `trading-storage` | Owns durable storage layout, retention, archive, backup, restore, and artifact placement rules. |
 | `trading-strategy` | Produces strategy research and backtest artifacts. |
 | `trading-model` | Produces offline model/state research outputs and verdicts. |
-| `trading-execution` | Consumes promoted decisions for paper/live execution. |
+| `trading-evaluation` | Emits offline promotion eligibility and promotion readiness records. |
+| `trading-execution` | Runs active models and promoted shadow candidates, then selects active/realtime/eliminate rosters from live/shadow evidence. |
 | `trading-dashboard` | Presents already-produced outputs and evidence. |
 
 ## Expected External Interfaces

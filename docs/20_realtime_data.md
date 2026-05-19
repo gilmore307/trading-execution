@@ -69,6 +69,8 @@ The realtime monitor does not create historical test/holdout/training rows by de
 
 `realtime_model_decision_effectiveness` is the accepted monitoring surface for model quality in live/shadow operation. It summarizes whether the model's decisions were correct after the relevant outcome horizon matures. These metrics may inform promotion review, drift review, trust reduction, and retraining planning, but they are not historical test-set rows and should not force the realtime monitor to run the historical dataset-processing ladder. `scripts/execution/aggregate_realtime_decision_effectiveness.py` builds this aggregate from matured decision records without provider calls, model activation, persistence, broker/order construction, or account mutation.
 
+After a market-hours cycle matures, runtime roster selection is handled by `execution_shadow_cycle_selection` in `docs/40_runtime_model_lifecycle.md`. Decision-effectiveness metrics feed that review, but the realtime monitor itself still does not switch active pointers.
+
 ## Adapter scaffold
 
 The adapter scaffold now has two safe layers:

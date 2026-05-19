@@ -11,7 +11,7 @@ The accepted `trade_risk_cap` validator remains mandatory for future execution-f
 ## Historical-Training Todo Status
 
 - No execution tasks are required for no-broker historical training or the current promote-first model phase.
-- Realtime data/monitoring is parked until a model has an approved/promotable version.
+- Realtime data/monitoring is parked until a model has an approved/promotable version, except for accepted runtime lifecycle contract scaffolding.
 - Broker/order/fill/account work remains blocked until explicit execution acceptance.
 
 ## Not Current Historical-Training Scope
@@ -35,6 +35,7 @@ These items are intentionally outside the current promote-first model phase and 
 - Added the first formal realtime provider-observe path: `realtime_live_observe_approval` plus `scripts/execution/execute_live_observe.py` can perform bounded read-only OKX/Alpaca/ThetaData market-data observations after explicit approval and execute flag.
 - Added the first formal order-construction path: `execution_order_construction_approval` plus `scripts/execution/build_broker_order_intent.py --construct-order` builds an OKX-shaped order intent after `trade_risk_cap` validation; broker submission and account mutation remain separate gates.
 - Added side-effect-free realtime feature and model-decision input scaffold: `realtime_feature_snapshot`, `execution_model_decision_input_snapshot`, builders, validators, CLIs, and fixture/shadow tests. These prepare direct handoff into historical-model decision routing without activating models.
+- Added execution-owned runtime lifecycle boundary: active model remains trading authority, promoted-but-not-active models run as shadow candidates, mature market-hours evidence selects the next active model, ranks 2-4 stay realtime candidates, and repeated elimination evidence can retire weak candidates.
 - Added side-effect-free execution capability catalogs: `execution_realtime_data_interface`, `execution_broker_interface`, and `execution_capability_catalog`.
 - Accepted the first interface split: realtime market data may share canonical providers with historical data, but it uses distinct realtime transports; broker mutation is a separate authority from market-data access.
 - Accepted OKX as crypto execution venue candidate because an official API exists; live mutation remains disabled.

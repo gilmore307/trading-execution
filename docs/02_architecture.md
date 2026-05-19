@@ -7,6 +7,7 @@
 | `10_*` | `src/trading_execution/risk_cap/` | Trade risk-cap and execution acceptance boundary. |
 | `20_*` | `src/trading_execution/market_data/`, `scripts/execution/` | Realtime market-data observation interfaces. |
 | `30_*` | `src/trading_execution/broker/` | Broker interface contracts and non-mutation gates. |
+| `40_*` | `src/trading_execution/model_lifecycle.py` | Active/shadow runtime model roster selection. |
 
 ## Purpose
 
@@ -15,14 +16,15 @@ This file defines the intended component workflow for `trading-execution`.
 ## Primary Flow
 
 ```text
-promoted decision -> realtime context snapshot -> execution plan -> safety checks -> paper/live adapter -> orders/fills/positions -> reconcile -> manifest/alert
+promotion readiness -> active/shadow model roster -> realtime context snapshot -> execution plan -> safety checks -> paper/live adapter -> orders/fills/positions -> reconcile -> manifest/alert
 ```
 
 ## Operating Principles
 
 - Execution is safety-sensitive and must distinguish dry-run, paper, and live behavior.
 - Live external actions require explicit safeguards and should not be hidden inside generic tests.
-- Execution consumes promoted decisions; it must not train models or choose strategies by itself.
+- Execution consumes promotion readiness records; it must not train models or judge offline benchmark promotion.
+- Execution owns runtime active/shadow roster selection after live/shadow evidence matures.
 - Realtime data acquisition for execution is a separate interface layer from historical backfill even when the provider/source is the same.
 - Broker/exchange mutation is separate from market-data observation; market-data access must never imply order-placement authority.
 - Shared fields, statuses, type values, helpers, and reusable templates must come from `trading-manager`.
@@ -43,7 +45,7 @@ The current slice opens execution development with side-effect-free catalogs onl
 - `execution_broker_interface` records broker/exchange posture for OKX and Firstrade.
 - `execution_capability_catalog` combines those catalogs for inspection.
 
-No order construction, order placement, broker call, provider stream, fill handling, account mutation, or model activation is enabled by this slice.
+No order construction, order placement, broker call, provider stream, fill handling, account mutation, or active model pointer write is enabled by this slice.
 
 ## Not Current Historical-Training Scope
 

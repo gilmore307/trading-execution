@@ -4,7 +4,7 @@
 
 `trading-execution` is the live and paper execution runtime repository for the trading system.
 
-It consumes externally promoted decisions and owns broker/exchange execution workflows, orders, positions, reconciliation, execution artifacts, and safety controls.
+It consumes externally promoted/readiness decisions and owns runtime model selection, broker/exchange execution workflows, orders, positions, reconciliation, execution artifacts, and safety controls.
 
 This repository exists to keep that responsibility explicit, testable, and separate from neighboring trading repositories.
 
@@ -16,12 +16,13 @@ This repository exists to keep that responsibility explicit, testable, and separ
 - order, fill, position, reconciliation, and execution artifact handling.
 - execution safety checks, mandatory trade-risk-cap validation, and dry-run/paper/live mode boundaries.
 - execution-local tests and simulation fixtures.
+- execution-owned active/shadow model roster selection after market-hours shadow evidence matures.
 
 ## Out of Scope
 
-- strategy selection or model training.
+- offline strategy selection or model training.
 - historical market data fetching as source of truth.
-- cross-repository promotion decisions.
+- offline benchmark promotion decisions.
 - dashboard rendering.
 - shared storage policy.
 - secrets, API keys, or brokerage credentials in Git.
@@ -39,7 +40,8 @@ The repository should prefer explicit interfaces, fixture-backed tests, and narr
 - Component-local implementation belongs here only when it matches this repository's role.
 - Global contracts, registry entries, shared helpers, and reusable templates belong in `trading-manager`.
 - Durable storage layout and retention belong in `trading-storage` unless this repository is defining that storage contract.
-- Scheduling, retries, lifecycle routing, and promotion decisions belong in the `trading-manager` control plane unless explicitly delegated by contract.
+- Scheduling, retries, and lifecycle routing belong in the `trading-manager` control plane unless explicitly delegated by contract.
+- Offline benchmark promotion belongs in `trading-evaluation`; runtime active/shadow roster selection belongs here after execution shadow evidence matures.
 - Generated artifacts and runtime outputs are not source files.
 - Secrets and credentials must stay outside the repository.
 - Shared helpers, templates, fields, statuses, and type values discovered here must be recorded through `trading-manager` before cross-repository use.
