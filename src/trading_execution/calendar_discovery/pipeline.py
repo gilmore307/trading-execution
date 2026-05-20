@@ -21,6 +21,7 @@ from urllib.parse import urlparse
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from trading_execution.storage_paths import resolve_output_root
 
 ET = ZoneInfo("America/New_York")
 UTC = timezone.utc
@@ -167,7 +168,7 @@ def _required(mapping: dict[str, Any], key: str) -> Any:
 def build_context(task_key: dict[str, Any], run_id: str) -> BundleContext:
     if task_key.get("bundle") != BUNDLE:
         raise CalendarDiscoveryError(f"task_key.bundle must be {BUNDLE}")
-    output_root = Path(str(task_key.get("output_root") or f"storage/{task_key.get('task_id', BUNDLE + '_task')}"))
+    output_root = resolve_output_root(str(task_key.get("output_root") or ""), default_task_id=str(task_key.get("task_id") or BUNDLE + "_task"))
     run_dir = output_root / "runs" / run_id
     return BundleContext(task_key, run_dir, run_dir / "cleaned", run_dir / "saved", output_root / "completion_receipt.json", {"run_id": run_id, "started_at": _now_utc()})
 
