@@ -20,7 +20,7 @@ def trading_storage_root() -> Path:
 
 
 def execution_storage_root() -> Path:
-    return _path_from_env("TRADING_EXECUTION_STORAGE_ROOT", trading_storage_root() / "storage" / "execution_artifacts")
+    return _path_from_env("TRADING_EXECUTION_STORAGE_ROOT", trading_storage_root() / "storage" / "04_execution_artifacts")
 
 
 def resolve_output_root(output_root: str | None, *, default_task_id: str) -> Path:

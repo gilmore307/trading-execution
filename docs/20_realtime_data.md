@@ -103,7 +103,7 @@ The smoke writes a receipt containing request, approval, result, and summary row
 ```bash
 PYTHONPATH=src python3 scripts/execution/run_realtime_monitor_smoke.py \
   --execute-live-observe \
-  --output-path /root/projects/trading-storage/storage/execution_artifacts/runtime/realtime_monitor/latest_smoke.json
+  --output-path /root/projects/trading-storage/storage/04_execution_artifacts/runtime/realtime_monitor/latest_smoke.json
 ```
 
 `execution_realtime_monitor_loop_receipt` is the bounded runtime-loop receipt for supervised monitor operation. `scripts/execution/run_realtime_monitor_loop.py` runs repeated smoke cycles, writes per-cycle receipts plus `loop_receipt.json`, preserves reconnect/backoff observability through cycle status/delay fields, and keeps the same hard invariants: no model activation, no order construction/submission, no broker mutation, and no account mutation. Use `--universe-model-layer` to change which rows from the universe CSV are observed, and `--model-layer` only when intentionally narrowing the downstream handoff envelope.
