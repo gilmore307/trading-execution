@@ -22,7 +22,7 @@ Documentation changes are acceptable when they:
 - update the narrowest authoritative file;
 - preserve separation between scope, context, workflow, acceptance, task, decision, and memory;
 - route global helper, template, field, status, type, and shared vocabulary changes to `trading-manager`;
-- mark unresolved contract/storage/runtime questions as open gaps;
+- mark unresolved contract and runtime-storage questions as open gaps;
 - avoid pretending implementation choices are settled before evidence exists.
 
 ### For Implementation Changes

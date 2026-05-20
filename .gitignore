@@ -34,5 +34,4 @@ credentials/
 .vscode/
 .idea/
 
-# Runtime receipts
-storage/runtime/
+# Component-local storage is not an active runtime root.
