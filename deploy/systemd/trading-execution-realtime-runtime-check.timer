@@ -1,0 +1,13 @@
+[Unit]
+Description=Periodic execution realtime trading runtime readiness refresh
+Documentation=file:/root/projects/trading-execution/docs/40_runtime_model_lifecycle.md
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=60s
+AccuracySec=5s
+Persistent=true
+Unit=trading-execution-realtime-runtime-check.service
+
+[Install]
+WantedBy=timers.target

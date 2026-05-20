@@ -49,6 +49,35 @@ Required checks:
 
 This record is the audit surface for changing the active model config pointer. It still does not construct orders, submit broker calls, or mutate accounts.
 
+## Realtime Runtime Readiness
+
+`execution_realtime_trading_runtime_status` is the execution-owned readiness surface for an always-on realtime trading process.
+
+The runtime checks the active model pointer at:
+
+```text
+storage/04_execution_artifacts/runtime/active_model/latest_active_model_config_write.json
+```
+
+Current states:
+
+- `waiting_for_promoted_model` when no active pointer exists;
+- `blocked_invalid_active_model_pointer` when the pointer file is malformed or fails `execution_active_model_config_write` validation;
+- `ready_for_active_model_pointer_requires_activation_gate` when a valid pointer exists but model activation has not been enabled for the runtime;
+- `ready_for_model_inference_requires_order_construction_gate` when model activation is allowed but order-intent construction is still gated;
+- `ready_for_order_intent_construction_not_submission` when order-intent construction can be attempted after a decision record, risk cap, and construction approval;
+- `blocked_broker_submit_interface_not_implemented` if a caller asks for broker execution before a reviewed submit adapter exists.
+
+This status connects realtime monitor receipts, Trading Economics recent refresh receipts, model-decision input snapshots, active-pointer writes, risk-cap validation, and order-intent construction. It does not perform provider calls, model calls, broker calls, order submission, or account mutation.
+
+The checked-in host timer is:
+
+```text
+deploy/systemd/trading-execution-realtime-runtime-check.timer
+```
+
+It refreshes the status artifact every minute and is safe to run before model promotion because the missing-pointer state is explicit.
+
 ## Elimination
 
 Elimination is evidence-based and not purely quantitative. Acceptable reasons can include repeated unstable tail loss, repeated poor live/shadow decision effectiveness, excessive turnover/cost sensitivity, operational incompatibility, or clear degradation versus the active model. A single weak cycle normally marks a candidate for elimination review; repeated cycles can retire it.

@@ -2,29 +2,28 @@
 
 ## Active Tasks
 
-- None for the current promote-first model phase.
+- Keep the execution realtime trading runtime check available while the first promoted model is still pending.
 
-Execution-side realtime data and monitoring scaffolds are accepted but parked until at least one model has an approved/promotable version. Do not continue realtime monitor hardening, realtime feed expansion, live/shadow integration, or execution adapter work during the current focus window unless explicitly reopened.
+Execution-side realtime data and monitoring scaffolds are accepted and connected to a runtime readiness surface. The runtime may run continuously, but no active model pointer means `waiting_for_promoted_model`. It must not activate models, construct orders, submit broker calls, or mutate accounts without the separate accepted gates.
 
 The accepted `trade_risk_cap` validator remains mandatory for future execution-facing decision records but must not be treated as permission to construct or place orders.
 
 ## Historical-Training Todo Status
 
 - No execution tasks are required for no-broker historical training or the current promote-first model phase.
-- Realtime data/monitoring is parked until a model has an approved/promotable version, except for accepted runtime lifecycle contract scaffolding.
+- Realtime data/monitoring and runtime readiness may stay online before a promoted model exists; the runtime must wait on a valid active model config pointer.
 - Broker/order/fill/account work remains blocked until explicit execution acceptance.
 
 ## Not Current Historical-Training Scope
 
 These items are intentionally outside the current promote-first model phase and must not be treated as active execution work items:
 
-- realtime data/monitoring hardening or feed expansion;
-- live/shadow integration expansion;
+- broker submit adapters;
 - broker adapters;
-- order construction or placement;
+- order placement;
 - paper/live mode enablement;
 - fill, position, reconciliation, or account mutation artifacts;
-- execution-owned storage/request/manifest wiring beyond the accepted risk-cap validation boundary.
+- execution-owned storage/request/manifest wiring beyond accepted monitor, active-pointer, risk-cap, and order-intent boundaries.
 
 ## Recently Accepted
 
@@ -32,6 +31,8 @@ These items are intentionally outside the current promote-first model phase and 
 - Added concrete realtime live-observe fixture scaffolds for Alpaca, ThetaData, OKX, calendar/event refs, read-only execution account/restriction context refs, and derived model context refs.
 - Completed the realtime monitor handoff envelope: monitor universe filtering stays scoped to Layer 1/2 ETF rows by default, while smoke/loop receipts now default downstream `realtime_feature_snapshot` and `execution_model_decision_input_snapshot` coverage to the complete Layer 1-9 matrix without model activation, broker calls, order construction, or account mutation.
 - Added the first execution-owned realtime monitor smoke and bounded loop: `scripts/execution/run_realtime_monitor_smoke.py` loads the reviewed 44-symbol Layer 1/2 ETF universe and can perform bounded read-only Alpaca snapshot observations after explicit approval and execute flag; `scripts/execution/run_realtime_monitor_loop.py` repeats that smoke under execution-owned runtime control and writes per-cycle plus loop receipts.
+- Added the execution realtime trading runtime readiness surface: `scripts/execution/run_realtime_trading_runtime_check.py` reports whether the system is waiting for a promoted active model pointer, ready for activation review, ready for order-intent construction, or blocked by a broker-submit gate. The check performs no provider, model, broker, order-submit, or account mutation work.
+- Added systemd templates for periodically refreshing the realtime trading runtime readiness artifact without activating models or submitting orders.
 - Added the first formal realtime provider-observe path: `realtime_live_observe_approval` plus `scripts/execution/execute_live_observe.py` can perform bounded read-only OKX/Alpaca/ThetaData market-data observations after explicit approval and execute flag.
 - Added the first formal order-construction path: `execution_order_construction_approval` plus `scripts/execution/build_broker_order_intent.py --construct-order` builds an OKX-shaped order intent after `trade_risk_cap` validation; broker submission and account mutation remain separate gates.
 - Added side-effect-free realtime feature and model-decision input scaffold: `realtime_feature_snapshot`, `execution_model_decision_input_snapshot`, builders, validators, CLIs, and fixture/shadow tests. These prepare direct handoff into historical-model decision routing without activating models.

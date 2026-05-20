@@ -10,6 +10,9 @@ This closeout covers the execution-owned surfaces needed before the next compone
 - calendar-discovery ownership for future realtime acquisition triggers;
 - mandatory pre-order `trade_risk_cap` invariant;
 - broker-agnostic risk-cap validation helper;
+- realtime monitor loop;
+- active model pointer status check;
+- order-intent construction boundary;
 - package/source/test layout for future execution runtime work.
 
 ## Accepted Execution-Owned Shape
@@ -32,6 +35,15 @@ src/trading_execution/risk_cap.py
 scripts/execution/validate_trade_risk_cap.py
 ```
 
+The current always-on readiness helper is:
+
+```text
+src/trading_execution/runtime/orchestrator.py
+scripts/execution/run_realtime_trading_runtime_check.py
+```
+
+It reports `waiting_for_promoted_model` until a valid `execution_active_model_config_write` pointer exists. After a pointer exists, it can report readiness for model activation and order-intent construction gates, but broker submission remains closed.
+
 ## Boundaries Preserved
 
 This closeout does not enable or claim:
@@ -39,7 +51,7 @@ This closeout does not enable or claim:
 - broker adapter implementation;
 - paper or live order placement;
 - fills, positions, reconciliation, or account mutation;
-- model promotion or production activation;
+- model promotion or ungated production activation;
 - provider data calls;
 - manager dispatch;
 - dashboard-triggered actions.
