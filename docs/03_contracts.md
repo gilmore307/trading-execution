@@ -38,6 +38,39 @@ Implementation changes are acceptable only when they:
 - keep runtime active/shadow model selection separate from offline promotion eligibility and from broker/account mutation;
 - route new shared names through `trading-manager/scripts/`.
 
+## Runtime Component Contracts
+
+The live and Replay runtime component graph is accepted as the execution-owned
+decision surface. `trading-evaluation` may orchestrate Replay runs and judge
+results, but it must call this graph instead of duplicating trading decisions.
+
+First-batch contracts:
+
+- `target_allocation_snapshot`
+- `entry_decision`
+- `position_lifecycle_decision`
+- `execution_order_intent`
+
+Second-batch contracts:
+
+- `option_reexpression_decision`
+- `failure_explanation_packet`
+- `simulated_fill_event`
+
+Graph/catalog contracts:
+
+- `execution_runtime_component`
+- `execution_runtime_component_graph`
+- `execution_runtime_component_graph_validation`
+
+The first-batch contracts are sufficient to build the initial dry-run lifecycle:
+select target/risk, decide entry, manage an existing position, and emit a
+broker-neutral order intent. The second-batch contracts add option roll review,
+post-failure Layer 10 explanation, and Replay fill simulation.
+
+Layer 10 is only called by `failure_explanation_component` after observed model
+or trade failure. Normal entry decisions use Layer 4 for forward event risk.
+
 ## Verification Commands
 
 Current checks:

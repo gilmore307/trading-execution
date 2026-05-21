@@ -8,6 +8,7 @@
 | `20_*` | `src/trading_execution/market_data/`, `scripts/execution/` | Realtime market-data observation interfaces. |
 | `30_*` | `src/trading_execution/broker/` | Broker interface contracts and non-mutation gates. |
 | `40_*` | `src/trading_execution/model_lifecycle.py` | Active/shadow runtime model roster selection. |
+| `50_*` | `src/trading_execution/runtime/components.py` | Live/replay runtime component graph and trading lifecycle contracts. |
 
 ## Purpose
 
@@ -19,11 +20,32 @@ This file defines the intended component workflow for `trading-execution`.
 promotion readiness -> active/shadow model roster -> realtime context snapshot -> execution plan -> safety checks -> paper/live adapter -> orders/fills/positions -> reconcile -> manifest/alert
 ```
 
+The trading runtime is component-centric, not layer-centric. Training may remain
+organized by model layer, but live trading and Replay run the same task-level
+component graph:
+
+```text
+clock + market adapter + account adapter + frozen model bundle
+  -> Opportunity & Risk Allocation Engine
+  -> Entry Decision Engine
+  -> Position Lifecycle Controller
+  -> Option Re-Expression Review
+  -> Failure Explanation Component when observed failure exists
+  -> Order Intent Builder
+  -> Execution Gate / Adapter
+```
+
+Live mode uses live clock, realtime market data, live account snapshots, and a
+broker execution gate. Replay uses historical clock, historical market snapshots,
+a simulated account, and a fill simulator. The components and decision contracts
+must remain identical across both modes.
+
 ## Operating Principles
 
 - Execution is safety-sensitive and must distinguish dry-run, paper, and live behavior.
 - Live external actions require explicit safeguards and should not be hidden inside generic tests.
 - Execution consumes promotion readiness records; it must not train models or judge offline replay promotion.
+- Evaluation-owned Replay calls the execution runtime component graph rather than reimplementing trading decisions.
 - Execution owns runtime active/shadow roster selection after live/shadow evidence matures.
 - Realtime data acquisition for execution is a separate interface layer from historical backfill even when the provider/source is the same.
 - Broker/exchange mutation is separate from market-data observation; market-data access must never imply order-placement authority.
@@ -36,6 +58,14 @@ promotion readiness -> active/shadow model roster -> realtime context snapshot -
 `trading-execution` collaborates with other trading repositories through explicit contracts, not direct mutation of their local state.
 
 Upstream inputs and downstream outputs should be described by artifact references, manifests, ready signals, requests, or accepted storage contracts.
+
+`trading-evaluation` owns Replay contracts, datasets, settlement, metrics, and
+promotion readiness. It does not own the trading decision logic used during
+Replay. The accepted route is:
+
+```text
+trading-evaluation replay runner -> trading-execution runtime component graph -> replay decision/fill logs -> trading-evaluation settlement
+```
 
 ## Current Execution Slice
 

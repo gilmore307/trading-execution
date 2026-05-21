@@ -1,5 +1,33 @@
 # Decisions
 
+## D011 - Live and Replay share the runtime component graph
+
+Date: 2026-05-21
+Status: Accepted
+
+Live trading and Replay use the same execution-owned runtime component graph.
+They differ only by adapters: live clock/market/account/broker gate versus
+historical clock/market snapshot/simulated account/fill simulator.
+
+`trading-evaluation` owns Replay contracts, datasets, settlement, metrics, and
+promotion readiness. It does not own the trading decisions made during Replay;
+it calls the `trading-execution` runtime component graph and then evaluates the
+resulting decision, order-intent, fill, account, and position logs.
+
+The accepted runtime components are:
+
+- `opportunity_risk_allocation_engine`
+- `entry_decision_engine`
+- `position_lifecycle_controller`
+- `option_reexpression_review`
+- `failure_explanation_component`
+- `order_intent_builder`
+- `execution_gate_adapter`
+
+Layer 10 remains an independent model, but it is not a normal pre-entry input.
+It is called only by `failure_explanation_component` after observed model or
+trade failure to connect the failure evidence to possible event causes and
+produce Layer 4 feedback candidates.
 
 ## D001 - Execution consumes promoted decisions only
 

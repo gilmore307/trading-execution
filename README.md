@@ -28,11 +28,12 @@ docs/
   04_task.md
   05_decision.md
   06_memory.md
-  07_trade_risk_cap.md
-  08_execution_closeout.md
+  10_trade_risk_cap.md
+  11_execution_acceptance.md
   20_realtime_data.md
   30_broker_interfaces.md
   40_runtime_model_lifecycle.md
+  50_runtime_components.md
 ```
 
 ## Verification
@@ -48,6 +49,7 @@ python3 -m compileall -q src scripts
 - `trading_execution.risk_cap` owns broker-agnostic pre-order validation for mandatory `trade_risk_cap` payloads. Missing or invalid caps force order rejection before paper/live mutation.
 - `trading_execution.market_data` owns the side-effect-free realtime data interface catalog, model input coverage matrix, adapter subscription planner, concrete live-observe fixture adapter plans, capture fixture builder, capture validator, realtime feature snapshot builder, and model-decision input handoff envelope. Realtime acquisition may use the same canonical data providers as historical backfill, but through distinct realtime transports such as WebSocket streams or realtime HTTP snapshots.
 - `trading_execution.model_lifecycle` owns the execution-side post-shadow-cycle model roster selection contract. It records active, realtime-candidate, shadow-only, and eliminate-candidate recommendations without writing active pointers, constructing orders, submitting broker calls, or mutating accounts.
+- `trading_execution.runtime.components` owns the live/Replay shared runtime component graph. The graph is task-centric: opportunity/risk allocation, entry, position lifecycle, option re-expression, failure explanation, order intent, and execution gate/adapters.
 - `trading_execution.broker` owns the side-effect-free broker/exchange interface catalog. OKX is accepted for crypto adapter scaffolding with live mutation disabled; Firstrade equity/options execution is deferred because no official trading API is accepted.
 - `docs/11_execution_acceptance.md` records the prior execution-preparation closeout; `docs/20_realtime_data.md` and `docs/30_broker_interfaces.md` open the next execution design slice without enabling broker adapters, order construction, order placement, fills, positions, or account mutation.
 
