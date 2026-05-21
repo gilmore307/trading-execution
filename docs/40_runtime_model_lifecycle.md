@@ -70,13 +70,19 @@ Current states:
 
 This status connects realtime monitor receipts, Trading Economics recent refresh receipts, model-decision input snapshots, active-pointer writes, risk-cap validation, and order-intent construction. It does not perform provider calls, model calls, broker calls, order submission, or account mutation.
 
-The checked-in host timer is:
+The checked-in host watcher is:
 
 ```text
-deploy/systemd/trading-execution-realtime-runtime-check.timer
+deploy/systemd/trading-execution-realtime-runtime-check.path
 ```
 
-It refreshes the status artifact every minute and is safe to run before model promotion because the missing-pointer state is explicit.
+It refreshes the status artifact when the active model pointer changes. Dashboard clients should consume the storage-hosted read-model WebSocket route:
+
+```text
+/ws/read-models/execution_realtime_trading_runtime_status/latest
+```
+
+The old minute timer is not the primary runtime status channel.
 
 ## Elimination
 

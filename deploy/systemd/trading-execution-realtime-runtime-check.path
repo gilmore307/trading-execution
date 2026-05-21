@@ -1,0 +1,11 @@
+[Unit]
+Description=Watch execution active model pointer for realtime runtime readiness refresh
+Documentation=file:/root/projects/trading-execution/docs/40_runtime_model_lifecycle.md
+
+[Path]
+PathChanged=/root/projects/trading-storage/storage/04_execution_artifacts/runtime/active_model
+PathModified=/root/projects/trading-storage/storage/04_execution_artifacts/runtime/active_model/latest_active_model_config_write.json
+Unit=trading-execution-realtime-runtime-check.service
+
+[Install]
+WantedBy=multi-user.target

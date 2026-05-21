@@ -10,10 +10,14 @@ WorkingDirectory=/root/projects/trading-execution
 Environment=PYTHONPATH=/root/projects/trading-execution/src
 Environment=TRADING_EXECUTION_RUNTIME_OUTPUT_DIR=/root/projects/trading-storage/storage/04_execution_artifacts/runtime/realtime_trading_runtime
 Environment=TRADING_EXECUTION_ACTIVE_MODEL_CONFIG_PATH=/root/projects/trading-storage/storage/04_execution_artifacts/runtime/active_model/latest_active_model_config_write.json
+Environment=TRADING_STORAGE_ROOT=/root/projects/trading-storage/storage
 EnvironmentFile=-/etc/default/trading-execution-realtime-runtime-check
 ExecStart=/usr/bin/python3 /root/projects/trading-execution/scripts/execution/run_realtime_trading_runtime_check.py \
   --active-model-config-path ${TRADING_EXECUTION_ACTIVE_MODEL_CONFIG_PATH} \
   --output-dir ${TRADING_EXECUTION_RUNTIME_OUTPUT_DIR}
+ExecStartPost=/usr/bin/env PYTHONPATH=/root/projects/trading-storage/src python3 /root/projects/trading-storage/scripts/dashboard/refresh_execution_runtime_status_read_model.py \
+  --storage-root ${TRADING_STORAGE_ROOT} \
+  --status-path ${TRADING_EXECUTION_RUNTIME_OUTPUT_DIR}/runtime_status.json
 NoNewPrivileges=true
 PrivateTmp=true
 
