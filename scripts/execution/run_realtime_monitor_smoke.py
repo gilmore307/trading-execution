@@ -32,7 +32,12 @@ def main() -> int:
         dest="universe_model_layers",
         help="Universe CSV model_layer to include; repeatable. Defaults to Layer 1/2 ETF monitor universe.",
     )
-    parser.add_argument("--model-layer", action="append", dest="model_layers", help="Model layer to include; repeatable.")
+    parser.add_argument(
+        "--model-layer",
+        action="append",
+        dest="model_layers",
+        help="Downstream realtime feature/model-decision handoff layer to include; repeatable. Defaults to full Layer 1-10 coverage.",
+    )
     parser.add_argument("--max-symbols", type=int, help="Limit symbols for a small smoke.")
     parser.add_argument("--request-id", default=None)
     parser.add_argument("--approval-id", default=None)

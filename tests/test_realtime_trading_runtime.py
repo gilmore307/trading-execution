@@ -24,6 +24,10 @@ class RealtimeTradingRuntimeTests(unittest.TestCase):
         self.assertFalse(status["allowed_actions"]["model_activation_allowed"])
         self.assertFalse(status["allowed_actions"]["broker_order_construction_allowed"])
         self.assertFalse(status["allowed_actions"]["broker_execution_allowed"])
+        self.assertTrue(status["interfaces_available"]["model_decision_input_snapshot"])
+        self.assertFalse(status["interfaces_connected"]["model_decision_input_snapshot"])
+        self.assertFalse(status["interfaces_connected"]["active_model_config_write"])
+        self.assertFalse(status["interfaces_connected"]["trade_risk_cap_validation"])
         self.assertEqual(status["provider_calls_performed"], 0)
         self.assertEqual(status["broker_calls_performed"], 0)
 
@@ -52,6 +56,9 @@ class RealtimeTradingRuntimeTests(unittest.TestCase):
             pointer_path.write_text(json.dumps(active_write), encoding="utf-8")
             status = build_realtime_trading_runtime_status(
                 active_model_config_path=pointer_path,
+                model_decision_input_snapshot_ref="decision-input://latest",
+                trade_risk_cap_validation_ref="risk-cap://latest",
+                order_construction_approval_ref="approval://latest",
                 allow_model_activation=True,
                 allow_order_construction=True,
             )
@@ -61,6 +68,10 @@ class RealtimeTradingRuntimeTests(unittest.TestCase):
         self.assertTrue(status["allowed_actions"]["model_activation_allowed"])
         self.assertTrue(status["allowed_actions"]["broker_order_construction_allowed"])
         self.assertFalse(status["allowed_actions"]["broker_execution_allowed"])
+        self.assertTrue(status["interfaces_connected"]["active_model_config_write"])
+        self.assertTrue(status["interfaces_connected"]["model_decision_input_snapshot"])
+        self.assertTrue(status["interfaces_connected"]["trade_risk_cap_validation"])
+        self.assertTrue(status["interfaces_connected"]["broker_order_intent_construction"])
         self.assertFalse(status["interfaces_connected"]["broker_submit_adapter"])
 
     def test_runtime_cli_writes_status(self) -> None:

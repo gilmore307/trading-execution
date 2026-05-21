@@ -17,7 +17,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--universe-path", default=None)
     parser.add_argument("--source-id", default="alpaca")
     parser.add_argument("--universe-model-layer", action="append", dest="universe_model_layers")
-    parser.add_argument("--model-layer", action="append", dest="model_layers")
+    parser.add_argument(
+        "--model-layer",
+        action="append",
+        dest="model_layers",
+        help="Downstream realtime feature/model-decision handoff layer to include; repeatable. Defaults to full Layer 1-10 coverage.",
+    )
     parser.add_argument("--max-symbols", type=int, default=None)
     parser.add_argument("--cycles", type=int, default=1)
     parser.add_argument("--interval-seconds", type=float, default=0.0)

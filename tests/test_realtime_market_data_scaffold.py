@@ -200,6 +200,64 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertIn("broker_order_mutation", result["forbidden_actions_present"])
         self.assertIn("observation_time", result["missing_fields"])
 
+    def test_validate_realtime_capture_rejects_inverted_timing(self) -> None:
+        candidate = {
+            "capture_id": "rtcap_bad_time",
+            "observation_time": "2026-05-11T13:30:03+00:00",
+            "provider_available_time": "2026-05-11T13:30:02+00:00",
+            "tradeable_time": "2026-05-11T13:30:01+00:00",
+            "source_id": "alpaca",
+            "realtime_interface": "alpaca_market_data_websocket",
+            "asset_class": "us_equity",
+            "instrument_ref": "AAPL",
+            "normalized_payload_ref": "memory://normalized/aapl",
+            "frozen_model_config_ref": "trading-model://configs/model_03/unit",
+            "model_output_ref": "trading-model://outputs/model_03/unit",
+            "dataset_snapshot_ref": "trading-model://snapshots/unit",
+            "dataset_role": "forward_holdout",
+            "label_maturity_time": "2026-05-12T13:30:02+00:00",
+            "outcome_label_ref": "trading-model://labels/unit",
+            "ingestion_commit_ref": "git://trading-execution/unit",
+            "run_manifest_ref": "manifest://unit",
+            "artifact_ref": "artifact://unit",
+            "ready_signal_ref": "ready://unit",
+            "requested_actions": [],
+        }
+
+        result = validate_realtime_capture(candidate)
+
+        self.assertFalse(result["valid"])
+        self.assertFalse(result["no_future_leakage_timing"])
+
+    def test_validate_realtime_capture_normalizes_naive_time_to_utc(self) -> None:
+        candidate = {
+            "capture_id": "rtcap_naive_time",
+            "observation_time": "2026-05-11T13:30:00",
+            "provider_available_time": "2026-05-11T13:30:01+00:00",
+            "tradeable_time": "2026-05-11T13:30:02+00:00",
+            "source_id": "alpaca",
+            "realtime_interface": "alpaca_market_data_websocket",
+            "asset_class": "us_equity",
+            "instrument_ref": "AAPL",
+            "normalized_payload_ref": "memory://normalized/aapl",
+            "frozen_model_config_ref": "trading-model://configs/model_03/unit",
+            "model_output_ref": "trading-model://outputs/model_03/unit",
+            "dataset_snapshot_ref": "trading-model://snapshots/unit",
+            "dataset_role": "forward_holdout",
+            "label_maturity_time": "2026-05-12T13:30:02+00:00",
+            "outcome_label_ref": "trading-model://labels/unit",
+            "ingestion_commit_ref": "git://trading-execution/unit",
+            "run_manifest_ref": "manifest://unit",
+            "artifact_ref": "artifact://unit",
+            "ready_signal_ref": "ready://unit",
+            "requested_actions": [],
+        }
+
+        result = validate_realtime_capture(candidate)
+
+        self.assertTrue(result["valid"], result)
+        self.assertTrue(result["no_future_leakage_timing"])
+
     def test_build_realtime_feature_snapshot_covers_all_model_layers(self) -> None:
         snapshot = build_realtime_feature_snapshot(
             {
@@ -333,7 +391,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             )
             secret_path = Path(temp_dir) / "alpaca.json"
             secret_path.write_text(
-                json.dumps({"api_key": "unit_api_key", "secret_key": "unit_secret_key", "endpoint": "https://unit-data.alpaca.example"}),
+                json.dumps({"api_key": "unit_api_key", "secret_key": "unit_secret_key", "endpoint": "https://data.alpaca.markets"}),
                 encoding="utf-8",
             )
             self.assertEqual(load_etf_universe(universe_path), ["SPY", "XLK"])
@@ -459,7 +517,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             )
             secret_path = temp_path / "alpaca.json"
             secret_path.write_text(
-                json.dumps({"api_key": "unit_api_key", "secret_key": "unit_secret_key", "endpoint": "https://unit-data.alpaca.example"}),
+                json.dumps({"api_key": "unit_api_key", "secret_key": "unit_secret_key", "endpoint": "https://data.alpaca.markets"}),
                 encoding="utf-8",
             )
             output_dir = temp_path / "rtmon"
@@ -588,7 +646,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                     {
                         "api_key": "unit_api_key",
                         "secret_key": "unit_secret_key",
-                        "endpoint": "https://data.alpaca.unit.example",
+                        "endpoint": "https://data.alpaca.markets",
                     }
                 ),
                 encoding="utf-8",
@@ -627,9 +685,48 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertEqual(result["provider_calls_performed"], 1)
         self.assertEqual(calls[0][1]["APCA-API-KEY-ID"], "unit_api_key")
         self.assertEqual(calls[0][1]["APCA-API-SECRET-KEY"], "unit_secret_key")
-        self.assertTrue(calls[0][0].startswith("https://data.alpaca.unit.example/v2/stocks/SPY/snapshot"))
+        self.assertTrue(calls[0][0].startswith("https://data.alpaca.markets/v2/stocks/SPY/snapshot"))
         self.assertEqual(result["broker_calls_performed"], 0)
         self.assertFalse(result["model_activation_performed"])
+
+    def test_execute_live_observe_blocks_unapproved_provider_endpoint_before_auth(self) -> None:
+        calls: list[tuple[str, dict[str, str]]] = []
+
+        def fake_transport(url: str, headers: dict[str, str]) -> dict[str, object]:
+            calls.append((url, headers))
+            return {"symbol": "SPY"}
+
+        result = execute_live_observe(
+            {
+                "request_id": "rtlive_bad_endpoint_unit",
+                "sources": ["alpaca"],
+                "instrument_refs": ["SPY"],
+                "alpaca_data_base_url": "https://example.com",
+                "decision_time": "2026-05-11T13:30:00+00:00",
+            },
+            approval={
+                "contract_type": "realtime_live_observe_approval",
+                "approval_id": "rtla_bad_endpoint_unit",
+                "approval_scope": "realtime_market_data_observe_only",
+                "approved_sources": ["alpaca"],
+                "approved_instrument_refs": ["SPY"],
+                "approved_at_utc": "2026-05-11T13:00:00+00:00",
+                "expires_at_utc": "2099-05-11T14:00:00+00:00",
+                "max_provider_calls": 1,
+                "execute_live_observe_allowed": True,
+                "model_activation_allowed": False,
+                "broker_execution_allowed": False,
+                "broker_order_construction_allowed": False,
+                "account_mutation_allowed": False,
+            },
+            execute_live_observe=True,
+            transport=fake_transport,
+            env={"APCA_API_KEY_ID": "unit_api_key", "APCA_API_SECRET_KEY": "unit_secret_key"},
+        )
+
+        self.assertEqual(result["live_observe_status"], "blocked_invalid_provider_endpoint")
+        self.assertEqual(result["provider_calls_performed"], 0)
+        self.assertEqual(calls, [])
 
     def test_execute_live_observe_cli_plan_only_does_not_call_provider(self) -> None:
         request_payload = {

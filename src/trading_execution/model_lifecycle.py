@@ -18,6 +18,7 @@ REQUIRED_REVIEW_FIELDS = (
 )
 ELIMINATION_STATUSES = {"eliminate_candidate", "eliminate"}
 PASSING_STATUSES = {"active_candidate", "realtime_candidate", "shadow_continue", "incumbent_active"}
+ACCEPTED_REVIEW_STATUSES = PASSING_STATUSES | ELIMINATION_STATUSES
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,11 @@ def _stable_id(prefix: str, *parts: object) -> str:
     return f"{prefix}_{hashlib.sha256(payload.encode('utf-8')).hexdigest()[:16]}"
 
 
+def _sha256_payload(payload: Mapping[str, Any]) -> str:
+    serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
 def _coerce_reviews(candidate_reviews: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     if isinstance(candidate_reviews, (str, bytes, bytearray)) or not isinstance(candidate_reviews, Sequence):
         raise ValueError("candidate_reviews must be a sequence of objects")
@@ -62,6 +68,46 @@ def _coerce_reviews(candidate_reviews: Sequence[Mapping[str, Any]]) -> list[dict
             raise ValueError(f"candidate_reviews[{index}].overall_rank must be an integer") from exc
         reviews.append(normalized)
     return reviews
+
+
+def _review_rows_by_ref(rows: Sequence[Mapping[str, Any]], errors: list[str]) -> dict[str, Mapping[str, Any]]:
+    by_ref: dict[str, Mapping[str, Any]] = {}
+    ranks: set[int] = set()
+    for index, row in enumerate(rows):
+        if not isinstance(row, Mapping):
+            errors.append(f"candidate_review_rows[{index}] must be an object")
+            continue
+        for field in REQUIRED_REVIEW_FIELDS:
+            if row.get(field) in (None, "", [], {}):
+                errors.append(f"candidate_review_rows[{index}].{field} is required")
+        ref = str(row.get("candidate_model_ref") or "").strip()
+        if ref:
+            if ref in by_ref:
+                errors.append(f"candidate_review_rows duplicate candidate_model_ref: {ref}")
+            by_ref[ref] = row
+        try:
+            rank = int(row.get("overall_rank"))
+        except (TypeError, ValueError):
+            errors.append(f"candidate_review_rows[{index}].overall_rank must be an integer")
+            continue
+        if rank < 1:
+            errors.append(f"candidate_review_rows[{index}].overall_rank must be positive")
+        if rank in ranks:
+            errors.append(f"candidate_review_rows duplicate overall_rank: {rank}")
+        ranks.add(rank)
+        status = str(row.get("review_status") or "").lower()
+        if status not in ACCEPTED_REVIEW_STATUSES:
+            errors.append(f"candidate_review_rows[{index}].review_status is not accepted")
+        if status in ELIMINATION_STATUSES and not (row.get("elimination_reason") or row.get("elimination_reason_refs")):
+            errors.append(f"candidate_review_rows[{index}] eliminate candidate requires reason evidence")
+    return by_ref
+
+
+def _review_rank(row: Mapping[str, Any]) -> int:
+    try:
+        return int(row.get("overall_rank"))
+    except (TypeError, ValueError):
+        return 0
 
 
 def build_shadow_cycle_selection(
@@ -135,6 +181,12 @@ def build_shadow_cycle_selection(
 
 def validate_shadow_cycle_selection(payload: Mapping[str, Any]) -> RuntimeSelectionValidation:
     errors: list[str] = []
+    if not isinstance(payload, Mapping):
+        return RuntimeSelectionValidation(
+            contract_type="execution_shadow_cycle_selection_validation",
+            validation_status="failed",
+            errors=("payload must be an object",),
+        )
     required = (
         "contract_type",
         "selection_id",
@@ -153,7 +205,12 @@ def validate_shadow_cycle_selection(payload: Mapping[str, Any]) -> RuntimeSelect
             errors.append(f"{field} is required")
     if payload.get("contract_type") != SHADOW_CYCLE_SELECTION_CONTRACT:
         errors.append(f"contract_type must be {SHADOW_CYCLE_SELECTION_CONTRACT}")
-    if int(payload.get("cycle_duration_days") or 0) < 1:
+    try:
+        cycle_duration_days = int(payload.get("cycle_duration_days") or 0)
+    except (TypeError, ValueError):
+        cycle_duration_days = 0
+        errors.append("cycle_duration_days must be positive")
+    if cycle_duration_days < 1 and "cycle_duration_days must be positive" not in errors:
         errors.append("cycle_duration_days must be positive")
     realtime_refs = payload.get("realtime_candidate_refs")
     if not isinstance(realtime_refs, list):
@@ -163,6 +220,47 @@ def validate_shadow_cycle_selection(payload: Mapping[str, Any]) -> RuntimeSelect
     for field in ("shadow_only_candidate_refs", "eliminate_candidate_refs", "candidate_review_rows"):
         if not isinstance(payload.get(field), list):
             errors.append(f"{field} must be a list")
+    reviews = payload.get("candidate_review_rows")
+    review_rows = reviews if isinstance(reviews, list) else []
+    if not review_rows:
+        errors.append("candidate_review_rows must be non-empty")
+    rows_by_ref = _review_rows_by_ref(review_rows, errors)
+    selected_ref = str(payload.get("selected_active_model_ref") or "")
+    eligible_rows = [
+        row
+        for row in review_rows
+        if isinstance(row, Mapping)
+        and str(row.get("review_status") or "").lower() in PASSING_STATUSES
+        and str(row.get("candidate_model_ref") or "")
+    ]
+    eligible_rows.sort(key=lambda row: (_review_rank(row), str(row.get("candidate_model_ref") or "")))
+    expected_selected = str(eligible_rows[0].get("candidate_model_ref")) if eligible_rows else ""
+    if eligible_rows and selected_ref != expected_selected:
+        errors.append("selected_active_model_ref must match the top-ranked non-eliminated review row")
+    elif not eligible_rows:
+        errors.append("at least one non-eliminated runtime candidate is required")
+    realtime_list = realtime_refs if isinstance(realtime_refs, list) else []
+    shadow_list = payload.get("shadow_only_candidate_refs") if isinstance(payload.get("shadow_only_candidate_refs"), list) else []
+    eliminate_list = payload.get("eliminate_candidate_refs") if isinstance(payload.get("eliminate_candidate_refs"), list) else []
+    expected_realtime = [str(row["candidate_model_ref"]) for row in eligible_rows[1:4]]
+    expected_shadow = [str(row["candidate_model_ref"]) for row in eligible_rows[4:]]
+    expected_eliminate = [
+        str(row["candidate_model_ref"])
+        for row in review_rows
+        if isinstance(row, Mapping) and str(row.get("review_status") or "").lower() in ELIMINATION_STATUSES
+    ]
+    if realtime_list != expected_realtime:
+        errors.append("realtime_candidate_refs must match ranks 2-4 from eligible review rows")
+    if shadow_list != expected_shadow:
+        errors.append("shadow_only_candidate_refs must match eligible review rows after rank 4")
+    if eliminate_list != expected_eliminate:
+        errors.append("eliminate_candidate_refs must match eliminated review rows")
+    roster_refs = [selected_ref, *map(str, realtime_list), *map(str, shadow_list), *map(str, eliminate_list)]
+    if len([ref for ref in roster_refs if ref]) != len(set(ref for ref in roster_refs if ref)):
+        errors.append("roster model refs must be unique across active, realtime, shadow, and eliminate sets")
+    unknown_roster_refs = sorted(set(ref for ref in roster_refs if ref) - set(rows_by_ref))
+    if unknown_roster_refs:
+        errors.append(f"roster refs missing candidate review rows: {', '.join(unknown_roster_refs)}")
     for field in (
         "active_model_config_write_performed",
         "broker_order_construction_performed",
@@ -217,6 +315,8 @@ def build_active_model_config_write(
             rollback_ref,
         ),
         "shadow_cycle_selection_ref": shadow_cycle_selection["selection_id"],
+        "shadow_cycle_selection_digest": _sha256_payload(shadow_cycle_selection),
+        "shadow_cycle_selection": dict(shadow_cycle_selection),
         "previous_active_model_ref": previous_active,
         "selected_active_model_ref": selected_active,
         "expected_previous_active_model_ref": expected_previous_active_model_ref,
@@ -238,10 +338,18 @@ def build_active_model_config_write(
 
 def validate_active_model_config_write(payload: Mapping[str, Any]) -> RuntimeSelectionValidation:
     errors: list[str] = []
+    if not isinstance(payload, Mapping):
+        return RuntimeSelectionValidation(
+            contract_type="execution_active_model_config_write_validation",
+            validation_status="failed",
+            errors=("payload must be an object",),
+        )
     required = (
         "contract_type",
         "active_model_config_write_id",
         "shadow_cycle_selection_ref",
+        "shadow_cycle_selection_digest",
+        "shadow_cycle_selection",
         "previous_active_model_ref",
         "selected_active_model_ref",
         "expected_previous_active_model_ref",
@@ -255,6 +363,21 @@ def validate_active_model_config_write(payload: Mapping[str, Any]) -> RuntimeSel
             errors.append(f"{field} is required")
     if payload.get("contract_type") != ACTIVE_MODEL_CONFIG_WRITE_CONTRACT:
         errors.append(f"contract_type must be {ACTIVE_MODEL_CONFIG_WRITE_CONTRACT}")
+    embedded_selection = payload.get("shadow_cycle_selection")
+    if not isinstance(embedded_selection, Mapping):
+        errors.append("shadow_cycle_selection must be embedded for pointer validation")
+    else:
+        selection_validation = validate_shadow_cycle_selection(embedded_selection)
+        if selection_validation.validation_status != "passed":
+            errors.extend(f"shadow_cycle_selection.{error}" for error in selection_validation.errors)
+        if payload.get("shadow_cycle_selection_ref") != embedded_selection.get("selection_id"):
+            errors.append("shadow_cycle_selection_ref must match embedded selection_id")
+        if payload.get("previous_active_model_ref") != embedded_selection.get("previous_active_model_ref"):
+            errors.append("previous_active_model_ref must match embedded selection previous_active_model_ref")
+        if payload.get("selected_active_model_ref") != embedded_selection.get("selected_active_model_ref"):
+            errors.append("selected_active_model_ref must match embedded selection selected_active_model_ref")
+        if payload.get("shadow_cycle_selection_digest") != _sha256_payload(embedded_selection):
+            errors.append("shadow_cycle_selection_digest must match embedded selection payload")
     if payload.get("expected_previous_active_model_ref") != payload.get("previous_active_model_ref"):
         errors.append("expected_previous_active_model_ref must match previous_active_model_ref")
     if payload.get("active_pointer_write_performed") is not True:

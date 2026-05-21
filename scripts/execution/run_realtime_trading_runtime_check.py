@@ -15,6 +15,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--active-model-config-path", default=str(DEFAULT_ACTIVE_MODEL_CONFIG_PATH))
     parser.add_argument("--realtime-monitor-loop-ref", default=None)
     parser.add_argument("--te-calendar-refresh-ref", default=None)
+    parser.add_argument("--model-decision-input-snapshot-ref", default=None)
+    parser.add_argument("--trade-risk-cap-validation-ref", default=None)
+    parser.add_argument("--order-construction-approval-ref", default=None)
     parser.add_argument("--allow-model-activation", action="store_true")
     parser.add_argument("--allow-order-construction", action="store_true")
     parser.add_argument("--allow-broker-execution", action="store_true")
@@ -29,6 +32,9 @@ def main() -> int:
         active_model_config_path=Path(args.active_model_config_path),
         realtime_monitor_loop_ref=args.realtime_monitor_loop_ref,
         te_calendar_refresh_ref=args.te_calendar_refresh_ref,
+        model_decision_input_snapshot_ref=args.model_decision_input_snapshot_ref,
+        trade_risk_cap_validation_ref=args.trade_risk_cap_validation_ref,
+        order_construction_approval_ref=args.order_construction_approval_ref,
         allow_model_activation=args.allow_model_activation,
         allow_order_construction=args.allow_order_construction,
         allow_broker_execution=args.allow_broker_execution,

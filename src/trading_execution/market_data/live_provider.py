@@ -23,6 +23,9 @@ from .live_approval import validate_live_observe_approval
 from .live_observe import _CAPTURE_INTERFACE_BY_SOURCE, _SOURCE_ASSET_CLASS, build_live_observe_adapter_plan
 
 Transport = Callable[[str, Mapping[str, str]], Mapping[str, Any]]
+ALLOWED_ALPACA_DATA_HOSTS = frozenset({"data.alpaca.markets"})
+ALLOWED_OKX_HOSTS = frozenset({"www.okx.com", "okx.com"})
+ALLOWED_THETADATA_HOSTS = frozenset({"127.0.0.1", "localhost"})
 
 
 @dataclass(frozen=True)
@@ -140,13 +143,27 @@ def _optional_secret_text(value: Any) -> str | None:
     return stripped or None
 
 
+def _validated_url(url: str, *, allowed_hosts: frozenset[str], provider_name: str, require_https: bool = True) -> str:
+    parsed = parse.urlparse(url)
+    if require_https and parsed.scheme != "https":
+        raise ValueError(f"{provider_name} endpoint must use https")
+    if not require_https and parsed.scheme not in {"http", "https"}:
+        raise ValueError(f"{provider_name} endpoint must use http or https")
+    host = (parsed.hostname or "").lower()
+    if host not in allowed_hosts:
+        raise ValueError(f"{provider_name} endpoint host is not approved: {host or '<missing>'}")
+    return url
+
+
 def _alpaca_data_base_url(request_payload: Mapping[str, Any], env: Mapping[str, str]) -> str:
     explicit = request_payload.get("alpaca_data_base_url") or env.get("ALPACA_DATA_BASE_URL") or env.get("APCA_DATA_BASE_URL")
     if explicit:
-        return str(explicit).rstrip("/")
+        return _validated_url(str(explicit).rstrip("/"), allowed_hosts=ALLOWED_ALPACA_DATA_HOSTS, provider_name="Alpaca data")
     _key, _secret, endpoint = _alpaca_secret_values(env)
-    if endpoint and "data.alpaca" in endpoint:
-        return endpoint.rstrip("/")
+    if endpoint:
+        candidate = endpoint.rstrip("/")
+        if parse.urlparse(candidate).hostname == "data.alpaca.markets":
+            return _validated_url(candidate, allowed_hosts=ALLOWED_ALPACA_DATA_HOSTS, provider_name="Alpaca data")
     return "https://data.alpaca.markets"
 
 
@@ -154,7 +171,12 @@ def _provider_request(source_id: str, instrument_ref: str, request_payload: Mapp
     if source_id == "okx":
         inst_id = request_payload.get("okx_inst_id") or instrument_ref
         query = parse.urlencode({"instId": inst_id})
-        return f"https://www.okx.com/api/v5/market/ticker?{query}", {
+        endpoint = _validated_url(
+            f"https://www.okx.com/api/v5/market/ticker?{query}",
+            allowed_hosts=ALLOWED_OKX_HOSTS,
+            provider_name="OKX market data",
+        )
+        return endpoint, {
             "Accept": "application/json",
             "User-Agent": "Mozilla/5.0 OpenClaw formal-live-observe/1.0",
         }
@@ -168,8 +190,32 @@ def _provider_request(source_id: str, instrument_ref: str, request_payload: Mapp
         template = request_payload.get("thetadata_url_template")
         if not template:
             raise ValueError("ThetaData live observe requires reviewed thetadata_url_template in the request payload")
-        return str(template).format(symbol=parse.quote(instrument_ref, safe=""), instrument_ref=parse.quote(instrument_ref, safe="")), {}
+        endpoint = str(template).format(symbol=parse.quote(instrument_ref, safe=""), instrument_ref=parse.quote(instrument_ref, safe=""))
+        return _validated_url(endpoint, allowed_hosts=ALLOWED_THETADATA_HOSTS, provider_name="ThetaData", require_https=False), {}
     raise ValueError(f"source {source_id} does not have a direct provider HTTP observe route")
+
+
+def _blocked_result(request_id: str, validation: Mapping[str, Any], reason: str) -> dict[str, Any]:
+    augmented_validation = dict(validation)
+    invalid_fields = set(augmented_validation.get("invalid_fields") or [])
+    invalid_fields.add(reason)
+    augmented_validation["invalid_fields"] = sorted(invalid_fields)
+    augmented_validation["valid"] = False
+    return {
+        "contract_type": "execution_realtime_live_observe_result",
+        "request_id": request_id,
+        "approval_validation": augmented_validation,
+        "observations": [],
+        "captures": [],
+        "feature_snapshot": None,
+        "decision_input_snapshot": None,
+        "provider_calls_performed": 0,
+        "broker_calls_performed": 0,
+        "model_activation_performed": False,
+        "broker_order_construction_performed": False,
+        "account_mutation_performed": False,
+        "live_observe_status": "blocked_invalid_provider_endpoint",
+    }
 
 
 def execute_live_observe(
@@ -224,69 +270,75 @@ def execute_live_observe(
     provider_calls = 0
     plan_set = build_live_observe_adapter_plan({**dict(request_payload), "mode": "live_observe", "allow_live_streams": True, "live_stream_approval_ref": approval.get("approval_id")})
     adapter_layers = {str(row["source_id"]): list(row.get("model_layers") or []) for row in plan_set.get("adapter_plans", []) if isinstance(row, Mapping)}
+    try:
+        provider_requests = [
+            (source_id, instrument_ref, *_provider_request(source_id, instrument_ref, request_payload, env))
+            for source_id in provider_sources
+            for instrument_ref in instruments
+        ]
+    except ValueError as exc:
+        return _blocked_result(request_id, validation, str(exc))
 
-    for source_id in provider_sources:
-        for instrument_ref in instruments:
-            endpoint, headers = _provider_request(source_id, instrument_ref, request_payload, env)
-            payload = transport(endpoint, headers)
-            provider_calls += 1
-            provider_status = "observed" if not payload.get("error") else "provider_error"
-            observation_id = _stable_id("rtobs", {"request_id": request_id, "source_id": source_id, "instrument_ref": instrument_ref, "time": observation_time})
-            normalized_payload_ref = f"memory://realtime-live-observe/{request_id}/{observation_id}/payload"
-            observation = RealtimeLiveObservation(
-                contract_type="realtime_live_observation",
-                observation_id=observation_id,
-                request_id=request_id,
-                approval_id=str(approval.get("approval_id")),
-                source_id=source_id,
-                instrument_ref=instrument_ref,
-                observation_time=observation_time,
-                provider_available_time=provider_available_time,
-                tradeable_time=tradeable_time,
-                provider_endpoint=endpoint.split("?")[0],
-                provider_status=provider_status,
-                normalized_payload_ref=normalized_payload_ref,
-                normalized_payload={"source_id": source_id, "instrument_ref": instrument_ref, "payload": payload},
-                provider_calls_performed=1,
-                broker_calls_performed=0,
-                model_activation_performed=False,
-                broker_order_construction_performed=False,
-                account_mutation_performed=False,
-            ).summary_row()
-            observations.append(observation)
-            for layer in adapter_layers.get(source_id, []):
-                capture_id = _stable_id("rtcap", {"observation_id": observation_id, "layer": layer})
-                row = {
-                    "contract_type": "realtime_capture_row",
-                    "capture_id": capture_id,
-                    "request_id": request_id,
-                    "model_layer": layer,
-                    "observation_time": observation_time,
-                    "provider_available_time": provider_available_time,
-                    "tradeable_time": tradeable_time,
-                    "source_id": source_id,
-                    "realtime_interface": _CAPTURE_INTERFACE_BY_SOURCE.get(source_id, f"{source_id}.live_observe"),
-                    "asset_class": _SOURCE_ASSET_CLASS.get(source_id, "unspecified"),
-                    "instrument_ref": instrument_ref,
-                    "normalized_payload_ref": normalized_payload_ref,
-                    "frozen_model_config_ref": str(request_payload.get("frozen_model_config_ref") or "trading-model://frozen-model-config/review-required"),
-                    "model_output_ref": f"shadow://realtime-live-observe/{request_id}/{instrument_ref}/{layer}/model_output_ref_pending",
-                    "dataset_snapshot_ref": str(request_payload.get("historical_dataset_snapshot_ref") or request_payload.get("dataset_snapshot_ref") or "trading-model://historical-dataset-snapshot/review-required"),
-                    "dataset_role": str(request_payload.get("dataset_role") or "shadow_monitoring"),
-                    "label_maturity_time": str(request_payload.get("label_maturity_time") or _plus_seconds(tradeable_time, int(request_payload.get("label_horizon_seconds") or 3600))),
-                    "outcome_label_ref": f"label://realtime-live-observe/{request_id}/{instrument_ref}/{layer}/pending_maturity",
-                    "ingestion_commit_ref": str(request_payload.get("ingestion_commit_ref") or "git://trading-execution/live-observe-runtime"),
-                    "run_manifest_ref": f"artifact://trading-execution/{request_id}/run_manifest",
-                    "artifact_ref": f"artifact://trading-execution/{request_id}/{capture_id}",
-                    "ready_signal_ref": f"ready://trading-execution/{request_id}/{capture_id}",
-                    "requested_actions": [],
-                    "provider_calls_performed": 1,
-                    "broker_calls_performed": 0,
-                    "model_activation_performed": False,
-                    "account_mutation_performed": False,
-                }
-                row["capture_validation"] = validate_realtime_capture(row)
-                captures.append(row)
+    for source_id, instrument_ref, endpoint, headers in provider_requests:
+        payload = transport(endpoint, headers)
+        provider_calls += 1
+        provider_status = "observed" if not payload.get("error") else "provider_error"
+        observation_id = _stable_id("rtobs", {"request_id": request_id, "source_id": source_id, "instrument_ref": instrument_ref, "time": observation_time})
+        normalized_payload_ref = f"memory://realtime-live-observe/{request_id}/{observation_id}/payload"
+        observation = RealtimeLiveObservation(
+            contract_type="realtime_live_observation",
+            observation_id=observation_id,
+            request_id=request_id,
+            approval_id=str(approval.get("approval_id")),
+            source_id=source_id,
+            instrument_ref=instrument_ref,
+            observation_time=observation_time,
+            provider_available_time=provider_available_time,
+            tradeable_time=tradeable_time,
+            provider_endpoint=endpoint.split("?")[0],
+            provider_status=provider_status,
+            normalized_payload_ref=normalized_payload_ref,
+            normalized_payload={"source_id": source_id, "instrument_ref": instrument_ref, "payload": payload},
+            provider_calls_performed=1,
+            broker_calls_performed=0,
+            model_activation_performed=False,
+            broker_order_construction_performed=False,
+            account_mutation_performed=False,
+        ).summary_row()
+        observations.append(observation)
+        for layer in adapter_layers.get(source_id, []):
+            capture_id = _stable_id("rtcap", {"observation_id": observation_id, "layer": layer})
+            row = {
+                "contract_type": "realtime_capture_row",
+                "capture_id": capture_id,
+                "request_id": request_id,
+                "model_layer": layer,
+                "observation_time": observation_time,
+                "provider_available_time": provider_available_time,
+                "tradeable_time": tradeable_time,
+                "source_id": source_id,
+                "realtime_interface": _CAPTURE_INTERFACE_BY_SOURCE.get(source_id, f"{source_id}.live_observe"),
+                "asset_class": _SOURCE_ASSET_CLASS.get(source_id, "unspecified"),
+                "instrument_ref": instrument_ref,
+                "normalized_payload_ref": normalized_payload_ref,
+                "frozen_model_config_ref": str(request_payload.get("frozen_model_config_ref") or "trading-model://frozen-model-config/review-required"),
+                "model_output_ref": f"shadow://realtime-live-observe/{request_id}/{instrument_ref}/{layer}/model_output_ref_pending",
+                "dataset_snapshot_ref": str(request_payload.get("historical_dataset_snapshot_ref") or request_payload.get("dataset_snapshot_ref") or "trading-model://historical-dataset-snapshot/review-required"),
+                "dataset_role": str(request_payload.get("dataset_role") or "shadow_monitoring"),
+                "label_maturity_time": str(request_payload.get("label_maturity_time") or _plus_seconds(tradeable_time, int(request_payload.get("label_horizon_seconds") or 3600))),
+                "outcome_label_ref": f"label://realtime-live-observe/{request_id}/{instrument_ref}/{layer}/pending_maturity",
+                "ingestion_commit_ref": str(request_payload.get("ingestion_commit_ref") or "git://trading-execution/live-observe-runtime"),
+                "run_manifest_ref": f"artifact://trading-execution/{request_id}/run_manifest",
+                "artifact_ref": f"artifact://trading-execution/{request_id}/{capture_id}",
+                "ready_signal_ref": f"ready://trading-execution/{request_id}/{capture_id}",
+                "requested_actions": [],
+                "provider_calls_performed": 1,
+                "broker_calls_performed": 0,
+                "model_activation_performed": False,
+                "account_mutation_performed": False,
+            }
+            row["capture_validation"] = validate_realtime_capture(row)
+            captures.append(row)
 
     source_capture_refs = [row["capture_id"] for row in captures]
     feature_snapshot = build_realtime_feature_snapshot({**dict(request_payload), "source_capture_refs": source_capture_refs}) if source_capture_refs else None

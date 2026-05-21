@@ -186,7 +186,7 @@ Realtime inputs should cover the model stack's live inference needs and later su
 
 ### Decision
 
-`trading-execution` records `execution_realtime_input_coverage` rows for Layers 1-9 and a `realtime_capture_contract` for append-only validation evidence. The matrix separates complete routes from partial/gap routes, especially proxy coverage for Layer 1, event-failure-risk conditioning for Layer 4, event adapter coverage for Layer 9, account-state routes for Layer 6, restriction/account routes for Layer 7, and ThetaData terminal requirements for Layer 8.
+`trading-execution` records `execution_realtime_input_coverage` rows for Layers 1-10 and a `realtime_capture_contract` for append-only validation evidence. The matrix separates complete routes from partial/gap routes, especially proxy coverage for Layer 1, event-failure-risk conditioning for Layer 4, account-state routes for Layers 6-7, restriction/account routes for Layer 8, ThetaData terminal requirements for Layer 9, and event adapter coverage for Layer 10.
 
 ### Consequences
 
@@ -246,7 +246,7 @@ Raw realtime captures are not model inputs. The model stack was designed and val
 
 ### Decision
 
-`trading-execution` owns `realtime_feature_snapshot` and `execution_model_decision_input_snapshot` as side-effect-free handoff envelopes. The feature snapshot converts realtime capture refs into Layer 1-8 feature refs with `feature_time`, `available_time`, `tradeable_time`, historical feature parity refs, frozen model config refs, and historical dataset snapshot refs. The decision input snapshot packages those layer refs for fixture/shadow historical-model decision routing.
+`trading-execution` owns `realtime_feature_snapshot` and `execution_model_decision_input_snapshot` as side-effect-free handoff envelopes. The feature snapshot converts realtime capture refs into Layer 1-10 feature refs with `feature_time`, `available_time`, `tradeable_time`, historical feature parity refs, frozen model config refs, and historical dataset snapshot refs. The decision input snapshot packages those layer refs for fixture/shadow historical-model decision routing.
 
 ### Consequences
 

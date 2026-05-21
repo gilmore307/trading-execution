@@ -97,7 +97,7 @@ PYTHONPATH=src python3 scripts/execution/validate_realtime_capture.py capture.js
 
 ## Execution-owned realtime monitor smoke
 
-`execution_realtime_monitor_smoke_receipt` is the first execution-owned runtime smoke for the 44-symbol ETF monitoring universe. It loads the reviewed Layer 1/2 ETF universe from `trading-storage/main/shared/layer_01_02_market_context_etf_universe.csv`, builds a bounded `realtime_live_observe_approval`, and runs read-only Alpaca snapshot observations only when `--execute-live-observe` is supplied. The universe filter remains Layer 1/2 by default, while the downstream realtime feature/model-decision handoff envelope defaults to the complete Layer 1-9 model input coverage matrix.
+`execution_realtime_monitor_smoke_receipt` is the first execution-owned runtime smoke for the 44-symbol ETF monitoring universe. It loads the reviewed Layer 1/2 ETF universe from `trading-storage/main/shared/layer_01_02_market_context_etf_universe.csv`, builds a bounded `realtime_live_observe_approval`, and runs read-only Alpaca snapshot observations only when `--execute-live-observe` is supplied. The universe filter remains Layer 1/2 by default, while the downstream realtime feature/model-decision handoff envelope defaults to the complete Layer 1-10 model input coverage matrix.
 
 The smoke writes a receipt containing request, approval, result, and summary rows. The summary intentionally excludes credentials and provider payload details; it reports provider calls, observation counts, provider status counts, capture counts, and the invariant flags for broker calls, model activation, order construction, and account mutation.
 
@@ -136,8 +136,8 @@ PYTHONPATH=src python3 scripts/execution/execute_live_observe.py \
 Supported direct provider observe routes in this first formal slice:
 
 - OKX public REST ticker snapshot for approved crypto instruments.
-- Alpaca equity snapshot using `APCA_API_KEY_ID` / `APCA_API_SECRET_KEY` environment variables when injected by a service, or the registered source secret JSON at `/root/secrets/alpaca.json` for local OpenClaw-managed runs. Unless `alpaca_data_base_url` / `ALPACA_DATA_BASE_URL` is explicitly supplied, realtime observe defaults to `https://data.alpaca.markets` so broker/trading endpoints in shared secrets are not mistaken for market-data endpoints.
-- ThetaData reviewed URL-template HTTP probe when the request supplies `thetadata_url_template`.
+- Alpaca equity snapshot using `APCA_API_KEY_ID` / `APCA_API_SECRET_KEY` environment variables when injected by a service, or the registered source secret JSON at `/root/secrets/alpaca.json` for local OpenClaw-managed runs. Alpaca credentials are attached only to the approved market-data host `https://data.alpaca.markets`; broker/trading endpoints or arbitrary request/env overrides are blocked before any provider call.
+- ThetaData reviewed URL-template HTTP probe when the request supplies `thetadata_url_template`; direct probes are limited to local Theta Terminal hosts.
 
 The result may contain provider market-data calls and realtime capture rows, then package feature/model-input snapshots for downstream shadow routing. It still does not activate models, persist manager decisions, construct orders, execute broker calls, or mutate accounts.
 
@@ -174,7 +174,7 @@ realtime_capture_contract
 
 `realtime_feature_snapshot` preserves the same point-in-time timing discipline as historical features: `feature_time <= available_time <= tradeable_time`, plus historical feature parity refs, frozen model/config refs, dataset snapshot refs, source capture refs, and per-layer feature refs. It is not a new training substrate by itself.
 
-`execution_model_decision_input_snapshot` packages all Layer 1-8 feature refs into the shape needed by the historical model decision stack. It is intentionally fixture/shadow-ready only: it does not activate a model, construct an order, mutate an account, or authorize provider streams.
+`execution_model_decision_input_snapshot` packages all Layer 1-10 feature refs into the shape needed by the historical model decision stack. It is intentionally fixture/shadow-ready only: it does not activate a model, construct an order, mutate an account, or authorize provider streams.
 
 Example:
 

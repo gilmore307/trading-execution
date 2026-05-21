@@ -8,7 +8,7 @@ workflow consumes it.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from .contracts import realtime_capture_contract
@@ -19,9 +19,12 @@ def _parse_time(value: Any) -> datetime | None:
         return None
     normalized = value.strip().replace("Z", "+00:00")
     try:
-        return datetime.fromisoformat(normalized)
+        parsed = datetime.fromisoformat(normalized)
     except ValueError:
         return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 def validate_realtime_capture(candidate: Mapping[str, Any]) -> dict[str, Any]:
@@ -53,6 +56,13 @@ def validate_realtime_capture(candidate: Mapping[str, Any]) -> dict[str, Any]:
     label_mature_after_tradeable = bool(
         tradeable_time is not None and label_maturity_time is not None and label_maturity_time >= tradeable_time
     )
+    no_future_leakage_timing = bool(
+        observation_time is not None
+        and provider_available_time is not None
+        and tradeable_time is not None
+        and label_maturity_time is not None
+        and observation_time <= provider_available_time <= tradeable_time <= label_maturity_time
+    )
 
     valid = (
         not missing_fields
@@ -60,6 +70,7 @@ def validate_realtime_capture(candidate: Mapping[str, Any]) -> dict[str, Any]:
         and not forbidden_actions_present
         and not invalid_time_fields
         and label_mature_after_tradeable
+        and no_future_leakage_timing
     )
     return {
         "contract_type": "realtime_capture_validation",
@@ -71,6 +82,7 @@ def validate_realtime_capture(candidate: Mapping[str, Any]) -> dict[str, Any]:
         "forbidden_actions_present": forbidden_actions_present,
         "invalid_time_fields": invalid_time_fields,
         "label_mature_after_tradeable": label_mature_after_tradeable,
+        "no_future_leakage_timing": no_future_leakage_timing,
         "provider_calls_performed": 0,
         "broker_calls_performed": 0,
         "model_activation_performed": False,

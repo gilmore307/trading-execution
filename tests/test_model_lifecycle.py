@@ -103,6 +103,8 @@ class ModelLifecycleTests(unittest.TestCase):
 
         self.assertEqual(record["contract_type"], "execution_active_model_config_write")
         self.assertEqual(record["selected_active_model_ref"], "model://winner")
+        self.assertEqual(record["shadow_cycle_selection_ref"], selection["selection_id"])
+        self.assertEqual(record["shadow_cycle_selection"], selection)
         self.assertTrue(record["active_pointer_write_performed"])
         self.assertTrue(record["rollback_available"])
         self.assertFalse(record["broker_order_construction_performed"])
@@ -118,6 +120,90 @@ class ModelLifecycleTests(unittest.TestCase):
                 rollback_ref="storage://active/incumbent",
                 write_window_ref="window://closed-market",
             )
+
+    def test_shadow_cycle_selection_rejects_forged_empty_review_payload(self) -> None:
+        result = validate_shadow_cycle_selection(
+            {
+                "contract_type": "execution_shadow_cycle_selection",
+                "selection_id": "selection://forged",
+                "cycle_ref": "cycle://2026-06",
+                "cycle_duration_days": 30,
+                "generated_at_utc": "2026-06-30T21:00:00Z",
+                "previous_active_model_ref": "model://incumbent",
+                "selected_active_model_ref": "model://not-reviewed",
+                "realtime_candidate_refs": [],
+                "shadow_only_candidate_refs": [],
+                "eliminate_candidate_refs": [],
+                "candidate_review_rows": [],
+                "active_model_config_write_performed": False,
+                "broker_order_construction_performed": False,
+                "broker_execution_performed": False,
+                "account_mutation_performed": False,
+            }
+        )
+
+        self.assertEqual(result.validation_status, "failed")
+        self.assertIn("candidate_review_rows must be non-empty", result.errors)
+
+    def test_shadow_cycle_selection_rejects_invalid_cycle_duration_without_raising(self) -> None:
+        result = validate_shadow_cycle_selection(
+            {
+                "contract_type": "execution_shadow_cycle_selection",
+                "selection_id": "selection://forged",
+                "cycle_ref": "cycle://2026-06",
+                "cycle_duration_days": "not-int",
+                "generated_at_utc": "2026-06-30T21:00:00Z",
+                "previous_active_model_ref": "model://incumbent",
+                "selected_active_model_ref": "model://not-reviewed",
+                "realtime_candidate_refs": [],
+                "shadow_only_candidate_refs": [],
+                "eliminate_candidate_refs": [],
+                "candidate_review_rows": [],
+                "active_model_config_write_performed": False,
+                "broker_order_construction_performed": False,
+                "broker_execution_performed": False,
+                "account_mutation_performed": False,
+            }
+        )
+
+        self.assertEqual(result.validation_status, "failed")
+        self.assertIn("cycle_duration_days must be positive", result.errors)
+
+    def test_lifecycle_validators_reject_non_object_payloads_without_raising(self) -> None:
+        for payload in (None, [], "bad"):
+            with self.subTest(payload=type(payload).__name__):
+                selection_result = validate_shadow_cycle_selection(payload)  # type: ignore[arg-type]
+                active_result = validate_active_model_config_write(payload)  # type: ignore[arg-type]
+
+            self.assertEqual(selection_result.validation_status, "failed")
+            self.assertEqual(selection_result.errors, ("payload must be an object",))
+            self.assertEqual(active_result.validation_status, "failed")
+            self.assertEqual(active_result.errors, ("payload must be an object",))
+
+    def test_active_model_config_write_rejects_missing_embedded_selection(self) -> None:
+        result = validate_active_model_config_write(
+            {
+                "contract_type": "execution_active_model_config_write",
+                "active_model_config_write_id": "activewrite_forged",
+                "shadow_cycle_selection_ref": "selection://missing",
+                "shadow_cycle_selection_digest": "0" * 64,
+                "previous_active_model_ref": "model://incumbent",
+                "selected_active_model_ref": "model://not-reviewed",
+                "expected_previous_active_model_ref": "model://incumbent",
+                "new_active_config_ref": "storage://active/forged",
+                "rollback_ref": "storage://active/incumbent",
+                "write_window_ref": "window://closed-market",
+                "written_at_utc": "2026-06-30T21:00:00Z",
+                "active_pointer_write_performed": True,
+                "rollback_available": True,
+                "broker_order_construction_performed": False,
+                "broker_execution_performed": False,
+                "account_mutation_performed": False,
+            }
+        )
+
+        self.assertEqual(result.validation_status, "failed")
+        self.assertIn("shadow_cycle_selection must be embedded for pointer validation", result.errors)
 
     def test_cli_builds_shadow_cycle_selection(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

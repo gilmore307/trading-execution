@@ -41,6 +41,7 @@ If an agent is used to review the cycle, it must use the fixed `runtime-model-li
 Required checks:
 
 - selection id is present and valid;
+- embedded shadow-cycle selection payload validates and its digest matches the write record;
 - selected active model is still the intended winner;
 - expected previous active model matches the selection's previous active model;
 - new active config ref is present;
@@ -69,6 +70,8 @@ Current states:
 - `blocked_broker_submit_interface_not_implemented` if a caller asks for broker execution before a reviewed submit adapter exists.
 
 This status connects realtime monitor receipts, Trading Economics recent refresh receipts, model-decision input snapshots, active-pointer writes, risk-cap validation, and order-intent construction. It does not perform provider calls, model calls, broker calls, order submission, or account mutation.
+
+The status reports implemented capability separately from connected runtime inputs. A capability can be available in code while `interfaces_connected` remains false until the current status run is given a valid active pointer or the relevant realtime monitor, model-input, risk-cap, order-approval, or calendar refresh ref.
 
 The checked-in host watcher is:
 
