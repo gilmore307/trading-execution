@@ -75,4 +75,4 @@ A change must be rejected or returned if it:
 - claims acceptance without test or inspection evidence.
 - constructs or places an order when `trade_risk_cap` is missing, malformed, unsupported, stale, or impossible to enforce.
 - duplicates global contract definitions locally instead of referencing trading-manager.
-- treats an offline benchmark promotion decision as automatic active model switching.
+- treats an offline replay promotion decision as automatic active model switching.

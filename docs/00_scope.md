@@ -22,7 +22,7 @@ This repository exists to keep that responsibility explicit, testable, and separ
 
 - offline strategy selection or model training.
 - historical market data fetching as source of truth.
-- offline benchmark promotion decisions.
+- offline replay promotion decisions.
 - dashboard rendering.
 - shared storage policy.
 - secrets, API keys, or brokerage credentials in Git.
@@ -41,7 +41,7 @@ The repository should prefer explicit interfaces, fixture-backed tests, and narr
 - Global contracts, registry entries, shared helpers, and reusable templates belong in `trading-manager`.
 - Durable storage layout and retention belong in `trading-storage` unless this repository is defining that storage contract.
 - Scheduling, retries, and lifecycle routing belong in the `trading-manager` control plane unless explicitly delegated by contract.
-- Offline benchmark promotion belongs in `trading-evaluation`; runtime active/shadow roster selection belongs here after execution shadow evidence matures.
+- Offline replay promotion belongs in `trading-evaluation`; runtime active/shadow roster selection belongs here after execution shadow evidence matures.
 - Generated artifacts and runtime outputs are not source files.
 - Secrets and credentials must stay outside the repository.
 - Shared helpers, templates, fields, statuses, and type values discovered here must be recorded through `trading-manager` before cross-repository use.

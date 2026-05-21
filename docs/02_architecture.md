@@ -23,7 +23,7 @@ promotion readiness -> active/shadow model roster -> realtime context snapshot -
 
 - Execution is safety-sensitive and must distinguish dry-run, paper, and live behavior.
 - Live external actions require explicit safeguards and should not be hidden inside generic tests.
-- Execution consumes promotion readiness records; it must not train models or judge offline benchmark promotion.
+- Execution consumes promotion readiness records; it must not train models or judge offline replay promotion.
 - Execution owns runtime active/shadow roster selection after live/shadow evidence matures.
 - Realtime data acquisition for execution is a separate interface layer from historical backfill even when the provider/source is the same.
 - Broker/exchange mutation is separate from market-data observation; market-data access must never imply order-placement authority.

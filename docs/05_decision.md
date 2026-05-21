@@ -345,6 +345,6 @@ Rows containing actual EPS (`eps`) or `surprise` are skipped and warned. Capture
 Date: 2026-05-19
 Status: Accepted
 
-`trading-evaluation` owns offline benchmark promotion eligibility and promotion readiness. `trading-execution` owns runtime active model selection after a market-hours shadow cycle compares the active model with promoted-but-not-active shadow candidates. The best overall candidate becomes active, ranks 2-4 remain realtime candidates, and weak candidates enter eliminate-candidate review when there is sufficient reason evidence.
+`trading-evaluation` owns offline replay promotion eligibility and promotion readiness. `trading-execution` owns runtime active model selection after a market-hours shadow cycle compares the active model with promoted-but-not-active shadow candidates. The best overall candidate becomes active, ranks 2-4 remain realtime candidates, and weak candidates enter eliminate-candidate review when there is sufficient reason evidence.
 
 Active model selection is not broker execution. Selection records do not construct orders, submit broker calls, or mutate accounts.
