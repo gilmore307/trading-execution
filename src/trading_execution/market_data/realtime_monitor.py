@@ -180,6 +180,15 @@ def _safe_cycle_failure_summary(*, request_id: str, error: BaseException) -> dic
     }
 
 
+def _monitor_cycle_status(live_observe_status: object) -> str:
+    status = str(live_observe_status or "")
+    if status == "observed":
+        return "succeeded"
+    if status in {"planned", "ready_requires_execute_live_observe_flag"}:
+        return "planned"
+    return "failed"
+
+
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -283,7 +292,7 @@ def run_realtime_monitor_loop(
                 env=env,
             )
             summary = dict(receipt["summary"])
-            cycle_status = "succeeded" if summary.get("live_observe_status") in {"observed", "planned"} else "failed"
+            cycle_status = _monitor_cycle_status(summary.get("live_observe_status"))
         except Exception as error:  # Defensive runtime isolation for daemon-style loops.
             summary = _safe_cycle_failure_summary(request_id=request_id, error=error)
             cycle_status = "failed"
@@ -315,7 +324,7 @@ def run_realtime_monitor_loop(
 
     total_provider_calls = sum(int(row["summary"].get("provider_calls_performed") or 0) for row in cycle_rows)
     total_broker_calls = sum(int(row["summary"].get("broker_calls_performed") or 0) for row in cycle_rows)
-    failed_cycles = [row["cycle_index"] for row in cycle_rows if row["cycle_status"] != "succeeded"]
+    failed_cycles = [row["cycle_index"] for row in cycle_rows if row["cycle_status"] == "failed"]
     receipt = {
         "contract_type": "execution_realtime_monitor_loop_receipt",
         "request_prefix": request_prefix,

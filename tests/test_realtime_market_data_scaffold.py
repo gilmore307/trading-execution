@@ -490,6 +490,39 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertEqual(len(calls), 4)
 
 
+    def test_realtime_monitor_loop_plan_only_is_planned_not_failed(self) -> None:
+        def fail_transport(_url: str, _headers: dict[str, str]) -> dict[str, object]:
+            raise AssertionError("plan-only loop must not call providers")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            universe_path = temp_path / "universe.csv"
+            universe_path.write_text(
+                "symbol,model_layer\nSPY,layer_01_market_regime\n",
+                encoding="utf-8",
+            )
+            output_dir = temp_path / "rtmon"
+            receipt = run_realtime_monitor_loop(
+                request_prefix="rtmon_loop_plan_unit",
+                approval_prefix="rtla_loop_plan_unit",
+                universe_path=universe_path,
+                cycles=1,
+                execute=False,
+                output_dir=output_dir,
+                transport=fail_transport,
+            )
+
+            self.assertEqual(receipt["loop_status"], "completed")
+            self.assertEqual(receipt["failed_cycle_indexes"], [])
+            self.assertEqual(receipt["provider_calls_performed"], 0)
+            self.assertEqual(receipt["cycle_summaries"][0]["cycle_status"], "planned")
+            self.assertEqual(
+                receipt["cycle_summaries"][0]["summary"]["live_observe_status"],
+                "ready_requires_execute_live_observe_flag",
+            )
+            self.assertTrue((output_dir / "loop_receipt.json").exists())
+
+
     def test_execute_live_observe_uses_approved_read_only_provider_call(self) -> None:
         calls: list[tuple[str, dict[str, str]]] = []
 

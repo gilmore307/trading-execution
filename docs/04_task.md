@@ -4,7 +4,7 @@
 
 - Keep the execution realtime trading runtime check available while the first promoted model is still pending.
 
-Execution-side realtime data and monitoring scaffolds are accepted and connected to a runtime readiness surface. The runtime may run continuously, but no active model pointer means `waiting_for_promoted_model`. It must not activate models, construct orders, submit broker calls, or mutate accounts without the separate accepted gates.
+Execution-side realtime data and monitoring scaffolds are accepted and connected to a runtime readiness surface. The runtime may run continuously, but no active model pointer means `waiting_for_promoted_model`. The checked-in realtime monitor loop service is plan-only by default and requires a reviewed host override before read-only provider observation. It must not activate models, construct orders, submit broker calls, or mutate accounts without the separate accepted gates.
 
 The accepted `trade_risk_cap` validator remains mandatory for future execution-facing decision records but must not be treated as permission to construct or place orders.
 

@@ -110,6 +110,8 @@ PYTHONPATH=src python3 scripts/execution/run_realtime_monitor_smoke.py \
 
 This is still not a production model-decision executor. Decision-effectiveness aggregation is the lightweight quality surface for later shadow/live model review; historical dataset construction remains owned by the historical backfill/promotion pipeline.
 
+The checked-in systemd template is `deploy/systemd/trading-execution-realtime-monitor-loop.service`. It runs one supervised cycle per service start and lets systemd restart it on the configured cadence. By default it omits `--execute-live-observe`, so it writes plan/blocked receipts without provider calls. A host override may set `TRADING_EXECUTION_REALTIME_MONITOR_EXECUTE_LIVE_OBSERVE=1` only after read-only provider observation is reviewed for the runtime window.
+
 ## Formal live-observe execution
 
 The first formal realtime integration path is read-only provider observation, not trading. `src/trading_execution/market_data/live_approval.py` validates `realtime_live_observe_approval`; `src/trading_execution/market_data/live_provider.py` executes approved read-only observations and emits `execution_realtime_live_observe_result`.
