@@ -44,11 +44,12 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertFalse(plan["account_mutation_performed"])
         rows = {row["source_id"]: row for row in plan["adapter_plans"]}
         self.assertIn("layer_03_target_state_vector", rows["alpaca"]["model_layers"])
-        self.assertIn("layer_08_option_expression", rows["thetadata"]["model_layers"])
+        self.assertIn("layer_09_option_expression", rows["thetadata"]["model_layers"])
         self.assertIn("layer_01_market_regime", rows["okx"]["model_layers"])
-        self.assertEqual(rows["calendar_discovery"]["model_layers"], ["layer_09_event_risk_governor"])
-        self.assertEqual(rows["derived_model_context"]["model_layers"], ["layer_05_alpha_confidence"])
-        self.assertIn("layer_06_position_projection", rows["execution_account_state"]["model_layers"])
+        self.assertEqual(rows["calendar_discovery"]["model_layers"], ["layer_10_event_risk_governor"])
+        self.assertEqual(rows["derived_model_context"]["model_layers"], ["layer_05_alpha_confidence", "layer_06_dynamic_risk_policy"])
+        self.assertIn("layer_06_dynamic_risk_policy", rows["execution_account_state"]["model_layers"])
+        self.assertIn("layer_07_position_projection", rows["execution_account_state"]["model_layers"])
 
     def test_live_observe_adapter_blocks_real_stream_without_approval(self) -> None:
         plan = build_live_observe_adapter_plan(
@@ -71,7 +72,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                 "request_id": "rtcap_fixture_unit",
                 "mode": "fixture_replay",
                 "sources": ["alpaca", "execution_account_state"],
-                "model_layers": ["layer_06_position_projection", "layer_07_underlying_action"],
+                "model_layers": ["layer_06_dynamic_risk_policy", "layer_07_position_projection", "layer_08_underlying_action"],
                 "instrument_refs": ["AAPL"],
                 "decision_time": "2026-05-11T13:30:00+00:00",
                 "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
@@ -104,7 +105,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertEqual(bundle["bundle_status"], "ready_for_model_route_plan")
         self.assertEqual(bundle["provider_calls_performed"], 0)
         self.assertFalse(bundle["broker_order_construction_performed"])
-        self.assertEqual(len(bundle["decision_input_snapshot"]["layer_input_refs"]), 9)
+        self.assertEqual(len(bundle["decision_input_snapshot"]["layer_input_refs"]), 10)
 
     def test_build_realtime_subscription_plan_for_alpaca_target_layer(self) -> None:
         plan = build_realtime_subscription_plan(
@@ -133,7 +134,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             {
                 "mode": "live_observe",
                 "sources": ["thetadata"],
-                "model_layers": ["layer_08_option_expression"],
+                "model_layers": ["layer_09_option_expression"],
                 "instrument_refs": ["AAPL_20260515_270C"],
             }
         )
@@ -143,18 +144,18 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertIn("live_stream_approval_ref", row["required_gate_refs"])
         self.assertEqual(row["provider_calls_performed"], 0)
 
-    def test_execution_account_state_placeholder_routes_to_layer_six(self) -> None:
+    def test_execution_account_state_placeholder_routes_to_policy_and_projection_layers(self) -> None:
         plan = build_realtime_subscription_plan(
             {
                 "sources": ["execution_account_state"],
-                "model_layers": ["layer_06_position_projection"],
+                "model_layers": ["layer_06_dynamic_risk_policy", "layer_07_position_projection"],
             }
         )
 
         row = plan["subscription_plans"][0]
         self.assertEqual(row["source_id"], "execution_account_state")
         self.assertEqual(row["realtime_interfaces"], ["execution_account_state_context_ref"])
-        self.assertEqual(row["model_layers"], ["layer_06_position_projection"])
+        self.assertEqual(row["model_layers"], ["layer_06_dynamic_risk_policy", "layer_07_position_projection"])
 
     def test_validate_realtime_capture_accepts_complete_forward_holdout_row(self) -> None:
         candidate = {
@@ -214,7 +215,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
 
         self.assertEqual(snapshot["contract_type"], "realtime_feature_snapshot")
         self.assertEqual(snapshot["readiness_status"], "ready_for_fixture_or_shadow_model_decision_input")
-        self.assertEqual(len(snapshot["feature_rows"]), 9)
+        self.assertEqual(len(snapshot["feature_rows"]), 10)
         self.assertEqual(snapshot["provider_calls_performed"], 0)
         self.assertFalse(snapshot["model_activation_performed"])
         validation = validate_realtime_feature_snapshot(snapshot)
@@ -236,7 +237,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
 
         self.assertEqual(decision_input["contract_type"], "execution_model_decision_input_snapshot")
         self.assertEqual(decision_input["readiness_status"], "ready_for_historical_model_decision_handoff")
-        self.assertEqual(len(decision_input["layer_input_refs"]), 9)
+        self.assertEqual(len(decision_input["layer_input_refs"]), 10)
         self.assertEqual(decision_input["provider_calls_performed"], 0)
         self.assertFalse(decision_input["broker_order_construction_performed"])
         validation = validate_model_decision_input_snapshot(decision_input)
@@ -351,8 +352,8 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertEqual(receipt["summary"]["provider_status_counts"], {"observed": 2})
         self.assertEqual(receipt["summary"]["feature_snapshot_readiness"], "ready_for_fixture_or_shadow_model_decision_input")
         self.assertEqual(receipt["summary"]["decision_input_readiness"], "ready_for_historical_model_decision_handoff")
-        self.assertEqual(len(receipt["result"]["feature_snapshot"]["feature_rows"]), 9)
-        self.assertEqual(len(receipt["result"]["decision_input_snapshot"]["layer_input_refs"]), 9)
+        self.assertEqual(len(receipt["result"]["feature_snapshot"]["feature_rows"]), 10)
+        self.assertEqual(len(receipt["result"]["decision_input_snapshot"]["layer_input_refs"]), 10)
         self.assertEqual(receipt["summary"]["broker_calls_performed"], 0)
         self.assertFalse(receipt["summary"]["model_activation_performed"])
         self.assertFalse(receipt["summary"]["broker_order_construction_performed"])
@@ -757,7 +758,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             feature_snapshot = json.loads(feature_result.stdout)
             feature_path.write_text(json.dumps(feature_snapshot), encoding="utf-8")
             self.assertEqual(feature_snapshot["provider_calls_performed"], 0)
-            self.assertEqual(len(feature_snapshot["feature_rows"]), 9)
+            self.assertEqual(len(feature_snapshot["feature_rows"]), 10)
 
             decision_result = subprocess.run(
                 [sys.executable, "scripts/execution/build_realtime_model_input.py", "--feature-snapshot", str(feature_path)],

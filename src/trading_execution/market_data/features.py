@@ -29,10 +29,11 @@ _HISTORICAL_FEATURE_PARITY_REFS = {
     "layer_03_target_state_vector": "trading-data://src/data_feature/feature_03_target_state_vector",
     "layer_04_event_failure_risk": "trading-model://src/models/model_04_event_failure_risk/generator.py",  # current model path
     "layer_05_alpha_confidence": "trading-model://src/models/model_05_alpha_confidence/generator.py",  # current model path
-    "layer_06_position_projection": "trading-model://src/models/model_06_position_projection/generator.py",  # current model path
-    "layer_07_underlying_action": "trading-model://src/models/model_07_underlying_action/generator.py",  # current model path
-    "layer_08_option_expression": "trading-data://src/data_feature/feature_08_option_expression",  # current feature path
-    "layer_09_event_risk_governor": "trading-data://src/data_feature/feature_09_event_risk_governor",  # current feature path
+    "layer_06_dynamic_risk_policy": "trading-model://src/models/model_06_dynamic_risk_policy/generator.py",  # current model path
+    "layer_07_position_projection": "trading-model://src/models/model_07_position_projection/generator.py",  # current model path
+    "layer_08_underlying_action": "trading-model://src/models/model_08_underlying_action/generator.py",  # current model path
+    "layer_09_option_expression": "trading-model://src/models/model_09_option_expression/generator.py",  # current model path
+    "layer_10_event_risk_governor": "trading-model://src/models/model_10_event_risk_governor/generator.py",  # current model path
 }
 
 

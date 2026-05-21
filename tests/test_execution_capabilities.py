@@ -29,15 +29,17 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
     def test_realtime_input_coverage_matrix_covers_all_model_layers(self) -> None:
         coverage = {row.model_layer: row for row in realtime_input_coverage_matrix()}
 
-        self.assertEqual(len(coverage), 9)
+        self.assertEqual(len(coverage), 10)
         self.assertEqual(coverage["layer_01_market_regime"].model_id, "model_01_market_regime")
         self.assertIn("alpaca", coverage["layer_01_market_regime"].primary_realtime_sources)
         self.assertIn("okx", coverage["layer_01_market_regime"].primary_realtime_sources)
         self.assertIn("proxy_gap_review_required", coverage["layer_01_market_regime"].coverage_status)
         self.assertEqual(coverage["layer_05_alpha_confidence"].primary_realtime_sources, ("derived_model_context",))
-        self.assertIn("execution_account_state", coverage["layer_06_position_projection"].primary_realtime_sources)
-        self.assertIn("thetadata", coverage["layer_08_option_expression"].primary_realtime_sources)
-        self.assertIn("option_chain_snapshot", coverage["layer_08_option_expression"].realtime_input_groups)
+        self.assertEqual(coverage["layer_06_dynamic_risk_policy"].model_id, "model_06_dynamic_risk_policy")
+        self.assertIn("execution_account_state", coverage["layer_07_position_projection"].primary_realtime_sources)
+        self.assertIn("thetadata", coverage["layer_09_option_expression"].primary_realtime_sources)
+        self.assertIn("option_chain_snapshot", coverage["layer_09_option_expression"].realtime_input_groups)
+        self.assertEqual(coverage["layer_10_event_risk_governor"].model_id, "model_10_event_risk_governor")
         for row in coverage.values():
             self.assertEqual(row.contract_type, "execution_realtime_input_coverage")
             self.assertIn("observation_time", row.required_capture_fields)
@@ -59,13 +61,13 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
         decision_contract = model_decision_input_snapshot_contract()
 
         self.assertEqual(feature_contract["contract_type"], "realtime_feature_snapshot_contract")
-        self.assertEqual(len(feature_contract["required_layer_rows"]), 9)
+        self.assertEqual(len(feature_contract["required_layer_rows"]), 10)
         self.assertIn("historical_dataset_snapshot_ref", feature_contract["required_fields"])
         self.assertEqual(
             decision_contract["contract_type"],
             "execution_model_decision_input_snapshot_contract",
         )
-        self.assertEqual(len(decision_contract["required_layer_inputs"]), 9)
+        self.assertEqual(len(decision_contract["required_layer_inputs"]), 10)
         self.assertIn("model_activation", decision_contract["forbidden_actions"])
 
     def test_broker_catalog_accepts_okx_but_defers_firstrade(self) -> None:
@@ -85,7 +87,7 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
         catalog = build_execution_capability_catalog()
 
         self.assertEqual(catalog["contract_type"], "execution_capability_catalog")
-        self.assertEqual(len(catalog["realtime_input_coverage_matrix"]), 9)
+        self.assertEqual(len(catalog["realtime_input_coverage_matrix"]), 10)
         self.assertEqual(catalog["realtime_capture_contract"]["contract_type"], "realtime_capture_contract")
         self.assertEqual(
             catalog["realtime_feature_snapshot_contract"]["contract_type"],
@@ -111,7 +113,7 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
         payload = json.loads(result.stdout)
 
         self.assertEqual(payload["contract_type"], "execution_capability_catalog")
-        self.assertEqual(len(payload["realtime_input_coverage_matrix"]), 9)
+        self.assertEqual(len(payload["realtime_input_coverage_matrix"]), 10)
         self.assertFalse(payload["order_mutation_enabled"])
 
 
