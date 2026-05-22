@@ -8,7 +8,7 @@
 | `20_*` | `src/trading_execution/market_data/`, `scripts/execution/` | Realtime market-data observation interfaces. |
 | `30_*` | `src/trading_execution/broker/` | Broker interface contracts and non-mutation gates. |
 | `40_*` | `src/trading_execution/model_lifecycle.py` | Active/shadow runtime model roster selection. |
-| `50_*` | `src/trading_execution/runtime/components.py` | Live/replay runtime component graph and trading lifecycle contracts. |
+| `50_*` | `src/trading_execution/runtime/` | Live/Replay runtime component graph and trading lifecycle contracts. |
 
 ## Purpose
 
@@ -38,8 +38,10 @@ clock + market adapter + account adapter + frozen model bundle
 
 Live mode uses live clock, realtime market data, live account snapshots, and a
 broker execution gate. Replay uses historical clock, historical market snapshots,
-a simulated account, and a fill simulator. The components and decision contracts
-must remain identical across both modes.
+a simulated account adapter, and a simulated execution/fill adapter. Replay
+adapters are side-effect-free: they must not submit broker requests or mutate
+account, order, or position state. The components and decision contracts must
+remain identical across both modes.
 
 The account adapter exposes two independent sleeves: `crypto_spot_account` and
 `equity_options_account`. Runtime components must preserve that split through
@@ -75,16 +77,21 @@ Replay. The accepted route is:
 trading-evaluation replay runner -> trading-execution runtime component graph -> replay decision/fill logs -> trading-evaluation settlement
 ```
 
-## Current Execution Slice
+## Current Execution Surface
 
-The current slice opens execution development with side-effect-free catalogs only:
+The active route is a side-effect-controlled runtime surface:
 
 - `execution_realtime_data_interface` records reviewed realtime market-data interfaces for OKX, Alpaca, and ThetaData.
 - `execution_broker_interface` records broker/exchange posture for OKX and Firstrade.
 - `execution_capability_catalog` combines those catalogs for inspection.
+- `execution_realtime_subscription_plan`, `realtime_live_observe_approval`, and `execution_realtime_live_observe_result` support bounded read-only provider observation after explicit approval.
+- `realtime_feature_snapshot` and `execution_model_decision_input_snapshot` prepare point-in-time realtime handoff inputs without activating models.
+- `execution_shadow_cycle_selection` and `execution_active_model_config_write` record execution-owned active/shadow roster decisions and active-pointer writes.
+- `execution_runtime_component_graph` and the runtime decision builders provide the shared live/Replay trading component graph.
+- `execution_order_construction_approval` and `execution_broker_order_intent` support approved broker-shaped order-intent construction without submission.
 
-No order construction, order placement, broker call, provider stream, fill handling, account mutation, or active model pointer write is enabled by this slice.
+Live broker submission, live fills, live position/account mutation, and reconciliation remain closed until separate reviewed gates exist. Replay remains simulated and side-effect-free.
 
 ## Not Current Historical-Training Scope
 
-Execution implementation remains outside the no-broker historical-training run. The exact first live broker/order slice, request shape, artifact/manifest/ready-signal schema interactions, shared storage references, test harness, fixture policy, and package layout require explicit acceptance before mutation is enabled.
+Execution implementation remains outside the no-broker historical-training run. Historical training must not depend on live broker adapters, paper/live mutation, or execution-owned runtime outputs beyond accepted artifacts and references.

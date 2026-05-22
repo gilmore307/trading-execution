@@ -69,12 +69,14 @@ select target/risk, decide entry, manage an existing position, and emit a
 broker-neutral order intent. They are implemented as side-effect-free runtime
 builders and validators in `trading_execution.runtime`: they may emit decision
 records for live or Replay, but they do not call providers, submit broker
-requests, construct broker-specific payloads, or mutate account state.
+requests, construct broker-specific payloads, or mutate account, order, or
+position state.
 
 The second-batch contracts add option roll review, post-failure Layer 10
 explanation, and Replay fill simulation. They are also implemented as
 side-effect-free runtime builders and validators. `simulated_fill_event` is
-Replay-only evidence and never represents a real broker/account fill.
+Replay-only evidence and never represents a real broker/account fill or account,
+order, or position mutation.
 
 Layer 10 is only called by `failure_explanation_component` after observed model
 or trade failure. Normal entry decisions use Layer 4 for forward event risk.
@@ -96,7 +98,8 @@ submission permission.
 Current checks:
 
 ```bash
-PYTHONPATH=src python3 -m unittest discover tests
+PYTHONPATH=src python3 -m unittest discover -s tests
+python3 -m compileall -q src scripts
 git diff --check
 git status --short
 ```

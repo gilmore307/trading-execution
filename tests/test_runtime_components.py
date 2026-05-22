@@ -85,6 +85,10 @@ class RuntimeComponentGraphTests(unittest.TestCase):
             "separate_crypto_and_equity_options_accounts_no_cross_account_netting",
         )
         self.assertFalse(graph["side_effect_policy"]["cross_account_collateral_or_position_netting_allowed"])
+        self.assertFalse(graph["side_effect_policy"]["replay_broker_mutation_allowed"])
+        self.assertFalse(graph["side_effect_policy"]["replay_account_mutation_allowed"])
+        self.assertFalse(graph["side_effect_policy"]["replay_order_state_mutation_allowed"])
+        self.assertFalse(graph["side_effect_policy"]["replay_position_state_mutation_allowed"])
 
         rows = {component.component_id: component for component in runtime_components()}
         for component_id in (

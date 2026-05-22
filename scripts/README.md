@@ -8,7 +8,7 @@ Executable execution-runtime helpers live here.
 
 ## Risk-cap validation
 
-- `execution/validate_trade_risk_cap.py` validates a proposed unified decision record before any broker/paper order construction.
+- `execution/validate_trade_risk_cap.py` validates a proposed unified decision record before broker-order intent construction.
 
 Example:
 
@@ -23,3 +23,4 @@ The command exits non-zero when the `trade_risk_cap` is missing or invalid. It d
 
 - `execution/build_shadow_cycle_selection.py` builds an `execution_shadow_cycle_selection` record from ranked market-hours active/shadow review rows. The record recommends active, realtime-candidate, shadow-only, and eliminate-candidate roster roles without writing active pointers, constructing orders, calling brokers, or mutating accounts.
 - `execution/build_active_model_config_write.py` builds an `execution_active_model_config_write` record from a valid shadow-cycle selection. It records the active pointer write, expected previous active ref, new active config ref, rollback ref, and write window without constructing orders, calling brokers, or mutating accounts.
+- `execution/build_broker_order_intent.py` constructs an approved OKX broker-order intent after risk-cap validation. It does not submit broker requests or mutate accounts.

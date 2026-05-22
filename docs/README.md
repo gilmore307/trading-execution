@@ -8,7 +8,7 @@ This directory is the authoritative documentation spine for `trading-execution`.
 - `01_context.md` — why the repository exists, related systems, environment assumptions, and dependencies.
 - `02_architecture.md` — component workflow, handoffs, and operating sequence.
 - `03_contracts.md` — acceptance gates, verification commands, evidence requirements, and rejection reasons.
-- `04_task.md` — current task state, queued work, blockers, and recently accepted work.
+- `04_task.md` — active task state, blocked work, and current accepted surfaces.
 - `05_decision.md` — ratified repository decisions.
 - `06_memory.md` — durable local continuity that does not fit narrower docs.
 - `10_trade_risk_cap.md` — mandatory pre-order hard risk-cap invariant and validation surface.

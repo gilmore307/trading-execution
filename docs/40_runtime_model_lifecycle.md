@@ -85,8 +85,6 @@ It refreshes the status artifact when the active model pointer changes. Dashboar
 /ws/read-models/execution_realtime_trading_runtime_status/latest
 ```
 
-The old minute timer is not the primary runtime status channel.
-
 ## Elimination
 
 Elimination is evidence-based and not purely quantitative. Acceptable reasons can include repeated unstable tail loss, repeated poor live/shadow decision effectiveness, excessive turnover/cost sensitivity, operational incompatibility, or clear degradation versus the active model. A single weak cycle normally marks a candidate for elimination review; repeated cycles can retire it.

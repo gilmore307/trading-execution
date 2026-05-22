@@ -1,4 +1,4 @@
-"""Runtime component graph shared by live trading and replay.
+"""Runtime component graph shared by live trading and Replay.
 
 The graph is deliberately component-oriented. Models provide point-in-time
 decision inputs, but execution owns the task-level trading lifecycle that turns
@@ -110,7 +110,7 @@ def runtime_account_sleeves() -> tuple[RuntimeAccountSleeve, ...]:
 
 
 def runtime_components() -> tuple[RuntimeComponent, ...]:
-    """Return the accepted live/replay runtime component graph."""
+    """Return the accepted live/Replay runtime component graph."""
 
     return (
         RuntimeComponent(
@@ -261,7 +261,7 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             component_label="Execution Gate / Adapter",
             purpose=(
                 "Apply final execution gates to broker-neutral order intents. Live mode "
-                "routes to reviewed broker adapters; replay mode routes to the fill simulator."
+                "routes to reviewed broker adapters; Replay mode routes to the fill simulator."
             ),
             input_contracts=(EXECUTION_ORDER_INTENT_CONTRACT, "trade_risk_cap"),
             output_contracts=("broker_order_request", SIMULATED_FILL_EVENT_CONTRACT),
@@ -321,6 +321,9 @@ def build_runtime_component_graph(*, mode: RuntimeMode) -> dict[str, Any]:
             "components_construct_broker_neutral_decisions": True,
             "live_broker_mutation_requires_execution_gate": True,
             "replay_broker_mutation_allowed": False,
+            "replay_account_mutation_allowed": False,
+            "replay_order_state_mutation_allowed": False,
+            "replay_position_state_mutation_allowed": False,
             "replay_uses_simulated_fills": True,
             "cross_account_collateral_or_position_netting_allowed": False,
         },

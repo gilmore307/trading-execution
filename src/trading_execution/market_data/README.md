@@ -2,7 +2,7 @@
 
 Execution-side realtime market-data interface catalog.
 
-This package records reviewed realtime interfaces for providers that may also exist as historical data sources. It does not open sockets, call providers, write runtime data, or define historical source-of-truth behavior.
+This package records reviewed realtime interfaces for providers that may also exist as historical data sources. Default planning, fixture, capture, feature, and aggregation paths are side-effect-free. Bounded read-only provider observations require `realtime_live_observe_approval` plus an explicit execute flag. This package does not define historical source-of-truth behavior and does not authorize model activation, broker execution, or account mutation.
 
 Key file:
 

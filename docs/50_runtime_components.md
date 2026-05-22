@@ -170,7 +170,8 @@ Owns the boundary where `execution_order_intent` becomes either a live broker
 request or a Replay simulated fill event.
 
 Live broker mutation remains disabled unless a reviewed execution gate enables
-it. Replay never mutates a real broker or account.
+it. Replay uses simulated adapters only; it must not submit broker requests or
+mutate account, order, or position state.
 
 ## Implementation Status
 

@@ -1,8 +1,8 @@
 # trading-execution
 
-`trading-execution` is the live and paper execution runtime repository for the trading system.
+`trading-execution` is the live, paper, and Replay execution runtime repository for the trading system.
 
-It consumes externally promoted/readiness decisions and owns runtime model selection, broker/exchange execution workflows, orders, positions, reconciliation, execution artifacts, and safety controls.
+It consumes externally promoted/readiness decisions and owns runtime model selection, execution runtime components, Replay adapters, broker/exchange execution workflows, orders, positions, reconciliation, execution artifacts, and safety controls.
 
 It does not own component responsibilities outside that boundary, global contracts, shared registry authority, generated runtime artifacts committed to Git, or secrets.
 
@@ -49,9 +49,9 @@ python3 -m compileall -q src scripts
 - `trading_execution.risk_cap` owns broker-agnostic pre-order validation for mandatory `trade_risk_cap` payloads. Missing or invalid caps force order rejection before paper/live mutation.
 - `trading_execution.market_data` owns the side-effect-free realtime data interface catalog, model input coverage matrix, adapter subscription planner, concrete live-observe fixture adapter plans, capture fixture builder, capture validator, realtime feature snapshot builder, and model-decision input handoff envelope. Realtime acquisition may use the same canonical data providers as historical backfill, but through distinct realtime transports such as WebSocket streams or realtime HTTP snapshots.
 - `trading_execution.model_lifecycle` owns the execution-side post-shadow-cycle model roster selection contract. It records active, realtime-candidate, shadow-only, and eliminate-candidate recommendations without writing active pointers, constructing orders, submitting broker calls, or mutating accounts.
-- `trading_execution.runtime.components` owns the live/Replay shared runtime component graph. The graph is task-centric: opportunity/risk allocation, entry, position lifecycle, option re-expression, failure explanation, order intent, and execution gate/adapters. It also defines independent `crypto_spot_account` and `equity_options_account` sleeves; crypto starts from the fixed `BTC`/`ETH`/`SOL` candidate pool.
-- `trading_execution.broker` owns the side-effect-free broker/exchange interface catalog. OKX is accepted for crypto adapter scaffolding with live mutation disabled; Firstrade equity/options execution is deferred because no official trading API is accepted.
-- `docs/11_execution_acceptance.md` records the prior execution-preparation closeout; `docs/20_realtime_data.md` and `docs/30_broker_interfaces.md` open the next execution design slice without enabling broker adapters, order construction, order placement, fills, positions, or account mutation.
+- `trading_execution.runtime` owns the live/Replay shared runtime component graph and side-effect-free decision builders. Replay uses the same components through historical market, simulated account, and simulated execution adapters; it must not submit broker requests or mutate account, order, or position state.
+- `trading_execution.broker` owns the side-effect-free broker/exchange interface catalog and gated broker-order intent construction. OKX order intents may be constructed after approval and risk-cap validation, but live broker submission and account mutation remain disabled; Firstrade equity/options execution is deferred because no official trading API is accepted.
+- `docs/11_execution_acceptance.md` records the prior execution-preparation closeout. Current runtime, realtime, broker, and Replay surfaces are documented in `docs/20_realtime_data.md`, `docs/30_broker_interfaces.md`, `docs/40_runtime_model_lifecycle.md`, and `docs/50_runtime_components.md`.
 
 ## Platform Dependencies
 

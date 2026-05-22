@@ -74,7 +74,7 @@ After a market-hours cycle matures, runtime roster selection is handled by `exec
 
 ## Adapter scaffold
 
-The adapter scaffold now has two safe layers:
+The adapter surface has two safe layers:
 
 1. generic subscription planning via `execution_realtime_subscription_plan`;
 2. concrete provider/source live-observe fixture planning via `execution_realtime_live_observe_adapter_plan`.
@@ -200,7 +200,9 @@ This makes the bridge to historical model data decision routing explicit while k
 
 `src/trading_execution/market_data/contracts.py` owns the side-effect-free `execution_realtime_data_interface`, `execution_realtime_input_coverage`, and `realtime_capture_contract` catalogs. `adapters.py` owns `execution_realtime_subscription_plan` planning; `live_observe.py` owns concrete provider/account/event fixture adapter plans, capture-fixture rows, and execution-side realtime shadow fixture bundles; `capture.py` owns `realtime_capture_validation`; `features.py` owns `realtime_feature_snapshot` and `execution_model_decision_input_snapshot` builders/validators.
 
-The current implementation slice is catalog/contract/fixture handoff only. Later adapters must add:
+The current implementation covers catalogs, planning, fixture handoff, bounded read-only provider observation, feature/model-input snapshots, monitor receipts, and decision-effectiveness aggregation. Live provider observation is allowed only behind `realtime_live_observe_approval` and an explicit execute flag. Broker execution, order submission, model activation, and account mutation remain outside this surface.
+
+Later streaming adapters must add:
 
 1. explicit mode (`dry_run`, `paper`, `live_observe`, or equivalent accepted values);
 2. entitlement/secret alias resolution without leaking secrets;

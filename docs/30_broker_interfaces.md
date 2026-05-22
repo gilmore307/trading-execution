@@ -24,7 +24,7 @@ No broker adapter may construct or place a paper/live order unless all of these 
 6. order mutation is explicitly enabled by a reviewed decision path;
 7. the adapter emits order/fill/position/reconcile artifacts through accepted manager/storage contracts.
 
-The current catalog does not enable live trading. It now permits a narrower formal step: approved order-intent construction without broker submission.
+The current catalog does not enable live trading. It permits approved order-intent construction without broker submission.
 
 ## Formal order-intent construction
 
