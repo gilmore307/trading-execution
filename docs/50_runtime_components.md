@@ -174,15 +174,12 @@ it. Replay never mutates a real broker or account.
 
 ## Implementation Status
 
-Implemented and tested first-batch contracts:
+Implemented and tested runtime dry-run contracts:
 
 - `target_allocation_snapshot`
 - `entry_decision`
 - `position_lifecycle_decision`
 - `execution_order_intent`
-
-Remaining second-batch contracts:
-
 - `option_reexpression_decision`
 - `failure_explanation_packet`
 - `simulated_fill_event`

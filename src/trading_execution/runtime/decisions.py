@@ -23,7 +23,10 @@ from .components import (
     ENTRY_DECISION_CONTRACT,
     EQUITY_OPTIONS_ACCOUNT_SLEEVE,
     EXECUTION_ORDER_INTENT_CONTRACT,
+    FAILURE_EXPLANATION_PACKET_CONTRACT,
+    OPTION_REEXPRESSION_DECISION_CONTRACT,
     POSITION_LIFECYCLE_DECISION_CONTRACT,
+    SIMULATED_FILL_EVENT_CONTRACT,
     TARGET_ALLOCATION_SNAPSHOT_CONTRACT,
     RuntimeAccountSleeve,
     runtime_account_sleeves,
@@ -35,6 +38,7 @@ _ALLOWED_SLEEVES = {sleeve.sleeve_id: sleeve for sleeve in runtime_account_sleev
 _CRYPTO_INSTRUMENT_BY_SYMBOL = dict(zip(CRYPTO_CANDIDATE_SYMBOLS, CRYPTO_SPOT_INSTRUMENT_REFS, strict=True))
 _EXECUTABLE_ENTRY_ACTIONS = {"open_underlying", "open_option"}
 _EXECUTABLE_LIFECYCLE_ACTIONS = {"add", "reduce", "exit", "stop", "take_profit"}
+_EXECUTABLE_OPTION_REEXPRESSION_ACTIONS = {"roll_option", "exit_option", "reduce_option"}
 
 
 def _utc_now_iso() -> str:
@@ -439,7 +443,13 @@ def build_execution_order_intent(
         reasons.append("entry_action_not_executable")
     if contract_type == POSITION_LIFECYCLE_DECISION_CONTRACT and action not in _EXECUTABLE_LIFECYCLE_ACTIONS:
         reasons.append("lifecycle_action_not_executable")
-    if contract_type not in {ENTRY_DECISION_CONTRACT, POSITION_LIFECYCLE_DECISION_CONTRACT}:
+    if contract_type == OPTION_REEXPRESSION_DECISION_CONTRACT and action not in _EXECUTABLE_OPTION_REEXPRESSION_ACTIONS:
+        reasons.append("option_reexpression_action_not_executable")
+    if contract_type not in {
+        ENTRY_DECISION_CONTRACT,
+        POSITION_LIFECYCLE_DECISION_CONTRACT,
+        OPTION_REEXPRESSION_DECISION_CONTRACT,
+    }:
         reasons.append("unsupported_source_decision_contract")
     if sleeve.sleeve_id == CRYPTO_SPOT_ACCOUNT_SLEEVE and instrument_ref not in CRYPTO_SPOT_INSTRUMENT_REFS:
         reasons.append("crypto_order_instrument_not_in_fixed_spot_pool")
@@ -466,6 +476,7 @@ def build_execution_order_intent(
         "source_decision_contract": contract_type,
         "source_decision_id": decision_record.get("entry_decision_id")
         or decision_record.get("position_lifecycle_decision_id")
+        or decision_record.get("option_reexpression_decision_id")
         or decision_record.get("decision_id"),
         "decision_action": action,
         "instrument_ref": instrument_ref,
@@ -484,6 +495,205 @@ def build_execution_order_intent(
         "safety": _safety_flags(),
     }
     body["execution_order_intent_id"] = _stable_id("eoi", body)
+    return body
+
+
+def build_option_reexpression_decision(
+    *,
+    option_position_state: Mapping[str, Any],
+    underlying_action_plan: Mapping[str, Any] | None = None,
+    option_expression_plan: Mapping[str, Any] | None = None,
+    dynamic_risk_policy_state: Mapping[str, Any] | None = None,
+    candidate_option_contracts: Any = None,
+    generated_at_utc: str | None = None,
+) -> dict[str, Any]:
+    """Review a held option and decide whether it should be rolled or held."""
+
+    generated_at_utc = generated_at_utc or _utc_now_iso()
+    position = _as_mapping(option_position_state)
+    sleeve_id = str(position.get("account_sleeve_id") or "")
+    sleeve = _sleeve(sleeve_id)
+    if sleeve.sleeve_id != EQUITY_OPTIONS_ACCOUNT_SLEEVE:
+        raise ValueError("option re-expression is only allowed for equity_options_account")
+
+    policy = _as_mapping(dynamic_risk_policy_state)
+    current_score = _number(position.get("contract_quality_score"), default=0.0)
+    min_improvement = _number(policy.get("minimum_roll_quality_improvement"), default=0.15)
+    max_roll_cost_pct = _number(policy.get("max_roll_cost_pct"), default=0.20)
+    best_candidate = _best_option_candidate(candidate_option_contracts)
+    reasons: list[str] = []
+    status: DecisionStatus = "monitor_only"
+    action = "hold_option"
+
+    if _number(position.get("quantity"), default=0.0) <= 0:
+        reasons.append("no_open_option_position")
+    elif _bool_flag(policy, "force_exit_options", "halt_option_exposure"):
+        status = "accepted"
+        action = "exit_option"
+        reasons.append("dynamic_risk_policy_requires_option_exit")
+    elif best_candidate:
+        improvement = _number(best_candidate.get("contract_quality_score"), default=0.0) - current_score
+        roll_cost_pct = _number(best_candidate.get("roll_cost_pct"), default=0.0)
+        if improvement >= min_improvement and roll_cost_pct <= max_roll_cost_pct:
+            status = "accepted"
+            action = "roll_option"
+            reasons.append("candidate_option_materially_better_after_roll_cost")
+        elif roll_cost_pct > max_roll_cost_pct:
+            reasons.append("roll_cost_above_policy_limit")
+        else:
+            reasons.append("candidate_option_not_materially_better")
+    else:
+        reasons.append("no_candidate_option_contract")
+
+    body = {
+        "contract_type": OPTION_REEXPRESSION_DECISION_CONTRACT,
+        "option_reexpression_decision_id": None,
+        "account_sleeve_id": sleeve.sleeve_id,
+        "position_ref": position.get("position_ref"),
+        "target_ref": str(position.get("underlying_symbol") or position.get("target_ref") or "").upper(),
+        "current_instrument_ref": str(position.get("instrument_ref") or "").upper(),
+        "replacement_instrument_ref": str(best_candidate.get("instrument_ref") or "").upper() if best_candidate else "",
+        "instrument_ref": str(best_candidate.get("instrument_ref") or position.get("instrument_ref") or "").upper()
+        if best_candidate
+        else str(position.get("instrument_ref") or "").upper(),
+        "generated_at_utc": generated_at_utc,
+        "decision_status": status,
+        "decision_action": action,
+        "reason_codes": reasons,
+        "current_contract_quality_score": current_score,
+        "candidate_contract": dict(best_candidate) if best_candidate else {},
+        "model_layer_refs": {
+            "underlying_action_plan": _as_mapping(underlying_action_plan).get("model_ref"),
+            "option_expression_plan": _as_mapping(option_expression_plan).get("model_ref"),
+            "dynamic_risk_policy_state": policy.get("model_ref"),
+        },
+        "safety": _safety_flags(),
+    }
+    body["option_reexpression_decision_id"] = _stable_id("ord", body)
+    return body
+
+
+def build_failure_explanation_packet(
+    *,
+    failure_observation: Mapping[str, Any],
+    unscreened_event_evidence: Any,
+    event_failure_risk_vector: Mapping[str, Any] | None = None,
+    generated_at_utc: str | None = None,
+) -> dict[str, Any]:
+    """Link an observed model/trade failure to possible earlier events."""
+
+    generated_at_utc = generated_at_utc or _utc_now_iso()
+    failure = _as_mapping(failure_observation)
+    observed_at = str(failure.get("observed_at_utc") or failure.get("failure_time_utc") or "")
+    event_rows = _as_rows(unscreened_event_evidence)
+    backward_events: list[dict[str, Any]] = []
+    ignored_events: list[dict[str, Any]] = []
+    for row in event_rows:
+        event_time = str(row.get("event_time_utc") or row.get("observed_at_utc") or "")
+        event_ref = str(row.get("event_ref") or row.get("event_id") or "")
+        if observed_at and event_time and event_time > observed_at:
+            ignored_events.append({"event_ref": event_ref, "reason_codes": ["event_after_failure_time"]})
+            continue
+        backward_events.append(
+            {
+                "event_ref": event_ref,
+                "event_time_utc": event_time,
+                "event_family": row.get("event_family") or row.get("family") or "",
+                "severity_score": _number(row.get("severity_score"), default=0.0),
+                "match_score": _number(row.get("match_score", row.get("event_match_score")), default=0.0),
+            }
+        )
+    ranked = sorted(
+        backward_events,
+        key=lambda row: (row["match_score"], row["severity_score"], row["event_time_utc"]),
+        reverse=True,
+    )[:5]
+    body = {
+        "contract_type": FAILURE_EXPLANATION_PACKET_CONTRACT,
+        "failure_explanation_packet_id": None,
+        "account_sleeve_id": failure.get("account_sleeve_id"),
+        "observed_failure_ref": failure.get("failure_ref") or failure.get("observation_ref"),
+        "observed_at_utc": observed_at,
+        "generated_at_utc": generated_at_utc,
+        "explanation_status": "candidate_causes_found" if ranked else "no_backward_event_match",
+        "ranked_possible_causes": ranked,
+        "ignored_events": ignored_events,
+        "layer_4_feedback_candidates": [
+            {
+                "event_ref": row["event_ref"],
+                "event_family": row["event_family"],
+                "reason": "possible_backward_cause_of_observed_model_or_trade_failure",
+            }
+            for row in ranked
+            if row["event_ref"]
+        ],
+        "model_layer_refs": {
+            "event_failure_risk_vector": _as_mapping(event_failure_risk_vector).get("model_ref"),
+            "layer_10_event_risk_governor": failure.get("layer_10_model_ref"),
+        },
+        "safety": _safety_flags(),
+    }
+    body["failure_explanation_packet_id"] = _stable_id("fep", body)
+    return body
+
+
+def build_simulated_fill_event(
+    *,
+    execution_order_intent: Mapping[str, Any],
+    replay_fill_policy: Mapping[str, Any] | None = None,
+    market_snapshot: Mapping[str, Any] | None = None,
+    generated_at_utc: str | None = None,
+) -> dict[str, Any]:
+    """Build a Replay-only simulated fill event from a broker-neutral intent."""
+
+    generated_at_utc = generated_at_utc or _utc_now_iso()
+    intent = _as_mapping(execution_order_intent)
+    policy = _as_mapping(replay_fill_policy)
+    market = _as_mapping(market_snapshot)
+    order = _as_mapping(intent.get("broker_neutral_order"))
+    reasons: list[str] = []
+    fill_status = "simulated_rejected"
+
+    if intent.get("contract_type") != EXECUTION_ORDER_INTENT_CONTRACT:
+        reasons.append("source_is_not_execution_order_intent")
+    if intent.get("intent_status") != "ready_for_execution_gate_not_submitted":
+        reasons.append("source_order_intent_not_ready")
+
+    quantity = _number(order.get("quantity"), default=0.0)
+    if quantity <= 0:
+        reasons.append("missing_positive_order_quantity")
+
+    limit_price = _number(order.get("limit_price"), default=0.0)
+    reference_price = _number(market.get("reference_price", market.get("close_price")), default=limit_price)
+    slippage_bps = _number(policy.get("slippage_bps"), default=0.0)
+    fee_bps = _number(policy.get("fee_bps"), default=0.0)
+    side = str(order.get("side") or "buy").lower()
+    signed_slippage = 1 if side == "buy" else -1
+    simulated_price = reference_price * (1 + signed_slippage * slippage_bps / 10000) if reference_price > 0 else 0.0
+    fee_usd = abs(simulated_price * quantity * fee_bps / 10000)
+    if simulated_price <= 0:
+        reasons.append("missing_positive_reference_price")
+    if not reasons:
+        fill_status = "simulated_filled"
+
+    body = {
+        "contract_type": SIMULATED_FILL_EVENT_CONTRACT,
+        "simulated_fill_event_id": None,
+        "account_sleeve_id": intent.get("account_sleeve_id"),
+        "source_order_intent_id": intent.get("execution_order_intent_id"),
+        "generated_at_utc": generated_at_utc,
+        "fill_status": fill_status,
+        "reason_codes": reasons,
+        "instrument_ref": order.get("instrument_ref"),
+        "side": side,
+        "quantity": quantity if quantity > 0 else None,
+        "simulated_fill_price": simulated_price if simulated_price > 0 else None,
+        "simulated_fee_usd": fee_usd if simulated_price > 0 and quantity > 0 else None,
+        "replay_fill_policy_ref": policy.get("replay_fill_policy_ref"),
+        "market_snapshot_ref": market.get("market_snapshot_ref"),
+        "safety": _safety_flags(),
+    }
+    body["simulated_fill_event_id"] = _stable_id("sfe", body)
     return body
 
 
@@ -541,6 +751,53 @@ def validate_execution_order_intent(record: Mapping[str, Any]) -> dict[str, Any]
     )
 
 
+def validate_option_reexpression_decision(record: Mapping[str, Any]) -> dict[str, Any]:
+    validation = _validate_record(
+        record,
+        contract_type=OPTION_REEXPRESSION_DECISION_CONTRACT,
+        required_fields=(
+            "option_reexpression_decision_id",
+            "account_sleeve_id",
+            "current_instrument_ref",
+            "decision_status",
+            "decision_action",
+            "safety",
+        ),
+    )
+    if record.get("account_sleeve_id") != EQUITY_OPTIONS_ACCOUNT_SLEEVE:
+        validation["errors"].append("option_reexpression_requires_equity_options_account")
+        validation["validation_status"] = "failed"
+    return validation
+
+
+def validate_failure_explanation_packet(record: Mapping[str, Any]) -> dict[str, Any]:
+    return _validate_record(
+        record,
+        contract_type=FAILURE_EXPLANATION_PACKET_CONTRACT,
+        required_fields=(
+            "failure_explanation_packet_id",
+            "observed_failure_ref",
+            "observed_at_utc",
+            "ranked_possible_causes",
+            "safety",
+        ),
+    )
+
+
+def validate_simulated_fill_event(record: Mapping[str, Any]) -> dict[str, Any]:
+    return _validate_record(
+        record,
+        contract_type=SIMULATED_FILL_EVENT_CONTRACT,
+        required_fields=(
+            "simulated_fill_event_id",
+            "account_sleeve_id",
+            "source_order_intent_id",
+            "fill_status",
+            "safety",
+        ),
+    )
+
+
 def _validate_record(
     record: Mapping[str, Any],
     *,
@@ -581,6 +838,13 @@ def _order_side(decision_record: Mapping[str, Any]) -> str:
     if action in {"reduce", "exit", "stop", "take_profit"}:
         return "buy" if position_side == "short" else "sell"
     return "sell" if position_side == "short" else "buy"
+
+
+def _best_option_candidate(candidate_option_contracts: Any) -> Mapping[str, Any]:
+    rows = _as_rows(candidate_option_contracts)
+    if not rows:
+        return {}
+    return max(rows, key=lambda row: _number(row.get("contract_quality_score"), default=0.0))
 
 
 def _safety_flags() -> dict[str, Any]:

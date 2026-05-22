@@ -5,11 +5,17 @@ from trading_execution.runtime import (
     EQUITY_OPTIONS_ACCOUNT_SLEEVE,
     build_entry_decision,
     build_execution_order_intent,
+    build_failure_explanation_packet,
+    build_option_reexpression_decision,
     build_position_lifecycle_decision,
+    build_simulated_fill_event,
     build_target_allocation_snapshot,
     validate_entry_decision,
     validate_execution_order_intent,
+    validate_failure_explanation_packet,
+    validate_option_reexpression_decision,
     validate_position_lifecycle_decision,
+    validate_simulated_fill_event,
     validate_target_allocation_snapshot,
 )
 
@@ -158,6 +164,102 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertIn("missing_max_loss_usd", intent["reason_codes"])
         self.assertTrue(intent["risk_cap_validation"]["reject_order"])
         self.assertEqual(validate_execution_order_intent(intent)["validation_status"], "passed")
+
+    def test_option_reexpression_rolls_only_for_equity_options_sleeve(self) -> None:
+        decision = build_option_reexpression_decision(
+            option_position_state={
+                "position_ref": "opt-aapl-1",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "underlying_symbol": "AAPL",
+                "instrument_ref": "AAPL_20260220_110C",
+                "quantity": 1,
+                "contract_quality_score": 0.40,
+            },
+            dynamic_risk_policy_state={"minimum_roll_quality_improvement": 0.15, "max_roll_cost_pct": 0.10},
+            candidate_option_contracts=[
+                {"instrument_ref": "AAPL_20260320_115C", "contract_quality_score": 0.62, "roll_cost_pct": 0.04},
+                {"instrument_ref": "AAPL_20260320_120C", "contract_quality_score": 0.50, "roll_cost_pct": 0.03},
+            ],
+            generated_at_utc="2026-01-01T00:04:00Z",
+        )
+
+        self.assertEqual(decision["contract_type"], "option_reexpression_decision")
+        self.assertEqual(decision["decision_status"], "accepted")
+        self.assertEqual(decision["decision_action"], "roll_option")
+        self.assertEqual(decision["replacement_instrument_ref"], "AAPL_20260320_115C")
+        self.assertEqual(validate_option_reexpression_decision(decision)["validation_status"], "passed")
+
+    def test_failure_explanation_only_uses_events_before_failure(self) -> None:
+        packet = build_failure_explanation_packet(
+            failure_observation={
+                "failure_ref": "failure-aapl-1",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "observed_at_utc": "2026-01-03T15:00:00Z",
+            },
+            unscreened_event_evidence=[
+                {
+                    "event_ref": "event-before",
+                    "event_time_utc": "2026-01-03T14:00:00Z",
+                    "event_family": "regulatory_probe",
+                    "severity_score": 0.7,
+                    "match_score": 0.8,
+                },
+                {
+                    "event_ref": "event-after",
+                    "event_time_utc": "2026-01-03T16:00:00Z",
+                    "event_family": "late_news",
+                    "severity_score": 0.9,
+                    "match_score": 0.9,
+                },
+            ],
+            generated_at_utc="2026-01-03T15:01:00Z",
+        )
+
+        self.assertEqual(packet["contract_type"], "failure_explanation_packet")
+        self.assertEqual(packet["explanation_status"], "candidate_causes_found")
+        self.assertEqual(packet["ranked_possible_causes"][0]["event_ref"], "event-before")
+        self.assertEqual(packet["ignored_events"], [{"event_ref": "event-after", "reason_codes": ["event_after_failure_time"]}])
+        self.assertEqual(validate_failure_explanation_packet(packet)["validation_status"], "passed")
+
+    def test_simulated_fill_event_consumes_ready_order_intent(self) -> None:
+        allocation = build_target_allocation_snapshot(
+            account_sleeve_id=CRYPTO_SPOT_ACCOUNT_SLEEVE,
+            generated_at_utc="2026-01-01T00:00:00Z",
+        )
+        decision = build_entry_decision(
+            target_allocation_snapshot=allocation,
+            target_ref="ETH",
+            alpha_confidence_vector={"alpha_confidence_score": 0.90},
+            generated_at_utc="2026-01-01T00:01:00Z",
+        )
+        intent = build_execution_order_intent(
+            decision_record=decision,
+            trade_risk_cap={
+                "max_loss_usd": 50.0,
+                "max_loss_pct": 0.02,
+                "time_stop_at": "2026-01-05T20:00:00Z",
+                "cap_enforcement_mode": "broker_native_stop",
+                "cap_failure_action": "reject_order",
+                "model_invalidation_price": 3000.0,
+                "hard_stop_price": 2995.0,
+                "planned_quantity": 0.2,
+                "planned_limit_price": 3200.0,
+            },
+            generated_at_utc="2026-01-01T00:03:00Z",
+        )
+        fill = build_simulated_fill_event(
+            execution_order_intent=intent,
+            replay_fill_policy={"slippage_bps": 5, "fee_bps": 10, "replay_fill_policy_ref": "policy://fixture"},
+            market_snapshot={"reference_price": 3190.0, "market_snapshot_ref": "snapshot://eth"},
+            generated_at_utc="2026-01-01T00:04:00Z",
+        )
+
+        self.assertEqual(fill["contract_type"], "simulated_fill_event")
+        self.assertEqual(fill["fill_status"], "simulated_filled")
+        self.assertEqual(fill["instrument_ref"], "ETH-USDT")
+        self.assertAlmostEqual(fill["simulated_fill_price"], 3191.595)
+        self.assertEqual(fill["safety"]["broker_calls_performed"], 0)
+        self.assertEqual(validate_simulated_fill_event(fill)["validation_status"], "passed")
 
 
 if __name__ == "__main__":

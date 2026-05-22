@@ -72,7 +72,9 @@ records for live or Replay, but they do not call providers, submit broker
 requests, construct broker-specific payloads, or mutate account state.
 
 The second-batch contracts add option roll review, post-failure Layer 10
-explanation, and Replay fill simulation.
+explanation, and Replay fill simulation. They are also implemented as
+side-effect-free runtime builders and validators. `simulated_fill_event` is
+Replay-only evidence and never represents a real broker/account fill.
 
 Layer 10 is only called by `failure_explanation_component` after observed model
 or trade failure. Normal entry decisions use Layer 4 for forward event risk.
