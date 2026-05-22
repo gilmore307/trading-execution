@@ -22,6 +22,16 @@ from .components import (
     runtime_components,
     validate_same_component_graph,
 )
+from .decisions import (
+    build_entry_decision,
+    build_execution_order_intent,
+    build_position_lifecycle_decision,
+    build_target_allocation_snapshot,
+    validate_entry_decision,
+    validate_execution_order_intent,
+    validate_position_lifecycle_decision,
+    validate_target_allocation_snapshot,
+)
 from .orchestrator import (
     DEFAULT_ACTIVE_MODEL_CONFIG_PATH,
     REALTIME_TRADING_RUNTIME_STATUS_CONTRACT,
@@ -49,9 +59,17 @@ __all__ = [
     "SIMULATED_FILL_EVENT_CONTRACT",
     "TARGET_ALLOCATION_SNAPSHOT_CONTRACT",
     "build_runtime_component_graph",
+    "build_entry_decision",
+    "build_execution_order_intent",
+    "build_position_lifecycle_decision",
     "build_realtime_trading_runtime_status",
+    "build_target_allocation_snapshot",
     "runtime_account_sleeves",
     "runtime_components",
     "run_realtime_trading_runtime_check",
+    "validate_entry_decision",
+    "validate_execution_order_intent",
+    "validate_position_lifecycle_decision",
     "validate_same_component_graph",
+    "validate_target_allocation_snapshot",
 ]

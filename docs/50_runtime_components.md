@@ -172,16 +172,16 @@ request or a Replay simulated fill event.
 Live broker mutation remains disabled unless a reviewed execution gate enables
 it. Replay never mutates a real broker or account.
 
-## First Implementation Batch
+## Implementation Status
 
-Implement and validate these contracts first:
+Implemented and tested first-batch contracts:
 
 - `target_allocation_snapshot`
 - `entry_decision`
 - `position_lifecycle_decision`
 - `execution_order_intent`
 
-Then add:
+Remaining second-batch contracts:
 
 - `option_reexpression_decision`
 - `failure_explanation_packet`

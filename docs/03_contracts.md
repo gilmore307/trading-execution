@@ -66,8 +66,13 @@ Graph/catalog contracts:
 
 The first-batch contracts are sufficient to build the initial dry-run lifecycle:
 select target/risk, decide entry, manage an existing position, and emit a
-broker-neutral order intent. The second-batch contracts add option roll review,
-post-failure Layer 10 explanation, and Replay fill simulation.
+broker-neutral order intent. They are implemented as side-effect-free runtime
+builders and validators in `trading_execution.runtime`: they may emit decision
+records for live or Replay, but they do not call providers, submit broker
+requests, construct broker-specific payloads, or mutate account state.
+
+The second-batch contracts add option roll review, post-failure Layer 10
+explanation, and Replay fill simulation.
 
 Layer 10 is only called by `failure_explanation_component` after observed model
 or trade failure. Normal entry decisions use Layer 4 for forward event risk.
@@ -78,6 +83,11 @@ to `BTC`, `ETH`, and `SOL` spot candidates. The equity/options sleeve uses the
 reviewed stock/ETF/optionable-underlying candidate process and owns option
 re-expression. Cross-account collateral, buying-power substitution, and position
 netting are not accepted.
+
+`execution_order_intent` is broker-neutral. A valid `trade_risk_cap` is required
+before an executable intent can reach `ready_for_execution_gate_not_submitted`;
+missing or invalid caps produce a blocked intent and never imply order
+submission permission.
 
 ## Verification Commands
 
