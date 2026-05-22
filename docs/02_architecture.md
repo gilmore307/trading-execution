@@ -26,6 +26,7 @@ component graph:
 
 ```text
 clock + market adapter + account adapter + frozen model bundle
+  -> Account Sleeve Split
   -> Opportunity & Risk Allocation Engine
   -> Entry Decision Engine
   -> Position Lifecycle Controller
@@ -40,12 +41,19 @@ broker execution gate. Replay uses historical clock, historical market snapshots
 a simulated account, and a fill simulator. The components and decision contracts
 must remain identical across both modes.
 
+The account adapter exposes two independent sleeves: `crypto_spot_account` and
+`equity_options_account`. Runtime components must preserve that split through
+target allocation, entry, lifecycle, option re-expression, and order intent
+records. Crypto candidates are fixed to `BTC`, `ETH`, and `SOL`; equity/options
+candidates come from the reviewed stock/ETF/optionable-underlying process.
+
 ## Operating Principles
 
 - Execution is safety-sensitive and must distinguish dry-run, paper, and live behavior.
 - Live external actions require explicit safeguards and should not be hidden inside generic tests.
 - Execution consumes promotion readiness records; it must not train models or judge offline replay promotion.
 - Evaluation-owned Replay calls the execution runtime component graph rather than reimplementing trading decisions.
+- Crypto and equity/options use separate account sleeves; execution must not net buying power, collateral, positions, or risk budget across them.
 - Execution owns runtime active/shadow roster selection after live/shadow evidence matures.
 - Realtime data acquisition for execution is a separate interface layer from historical backfill even when the provider/source is the same.
 - Broker/exchange mutation is separate from market-data observation; market-data access must never imply order-placement authority.

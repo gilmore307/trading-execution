@@ -20,8 +20,39 @@ OPTION_REEXPRESSION_DECISION_CONTRACT = "option_reexpression_decision"
 FAILURE_EXPLANATION_PACKET_CONTRACT = "failure_explanation_packet"
 EXECUTION_ORDER_INTENT_CONTRACT = "execution_order_intent"
 SIMULATED_FILL_EVENT_CONTRACT = "simulated_fill_event"
+ACCOUNT_SLEEVE_CONTRACT = "execution_account_sleeve"
+
+CRYPTO_SPOT_ACCOUNT_SLEEVE = "crypto_spot_account"
+EQUITY_OPTIONS_ACCOUNT_SLEEVE = "equity_options_account"
+CRYPTO_CANDIDATE_SYMBOLS = ("BTC", "ETH", "SOL")
+CRYPTO_SPOT_INSTRUMENT_REFS = ("BTC-USDT", "ETH-USDT", "SOL-USDT")
 
 RuntimeMode = Literal["live", "replay"]
+
+
+@dataclass(frozen=True)
+class RuntimeAccountSleeve:
+    """One independently funded execution account sleeve."""
+
+    sleeve_id: str
+    sleeve_label: str
+    account_state_contract: str
+    risk_budget_contract: str
+    allowed_asset_classes: tuple[str, ...]
+    candidate_pool_policy: str
+    candidate_symbols: tuple[str, ...]
+    candidate_instrument_refs: tuple[str, ...]
+    option_reexpression_enabled: bool
+    broker_mutation_allowed: bool = False
+    account_mutation_allowed: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        row = asdict(self)
+        row["contract_type"] = ACCOUNT_SLEEVE_CONTRACT
+        row["allowed_asset_classes"] = list(self.allowed_asset_classes)
+        row["candidate_symbols"] = list(self.candidate_symbols)
+        row["candidate_instrument_refs"] = list(self.candidate_instrument_refs)
+        return row
 
 
 @dataclass(frozen=True)
@@ -35,6 +66,7 @@ class RuntimeComponent:
     output_contracts: tuple[str, ...]
     called_model_layers: tuple[str, ...]
     layer_10_policy: str
+    account_sleeves: tuple[str, ...] = (CRYPTO_SPOT_ACCOUNT_SLEEVE, EQUITY_OPTIONS_ACCOUNT_SLEEVE)
     broker_mutation_allowed: bool = False
     account_mutation_allowed: bool = False
 
@@ -44,7 +76,37 @@ class RuntimeComponent:
         row["input_contracts"] = list(self.input_contracts)
         row["output_contracts"] = list(self.output_contracts)
         row["called_model_layers"] = list(self.called_model_layers)
+        row["account_sleeves"] = list(self.account_sleeves)
         return row
+
+
+def runtime_account_sleeves() -> tuple[RuntimeAccountSleeve, ...]:
+    """Return the independent execution account sleeves."""
+
+    return (
+        RuntimeAccountSleeve(
+            sleeve_id=CRYPTO_SPOT_ACCOUNT_SLEEVE,
+            sleeve_label="Crypto Spot Account",
+            account_state_contract="crypto_account_state_snapshot",
+            risk_budget_contract="crypto_risk_budget_snapshot",
+            allowed_asset_classes=("crypto_spot",),
+            candidate_pool_policy="fixed_three_asset_crypto_pool",
+            candidate_symbols=CRYPTO_CANDIDATE_SYMBOLS,
+            candidate_instrument_refs=CRYPTO_SPOT_INSTRUMENT_REFS,
+            option_reexpression_enabled=False,
+        ),
+        RuntimeAccountSleeve(
+            sleeve_id=EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+            sleeve_label="Equity / Options Account",
+            account_state_contract="equity_options_account_state_snapshot",
+            risk_budget_contract="equity_options_risk_budget_snapshot",
+            allowed_asset_classes=("us_equity", "us_etf", "us_option"),
+            candidate_pool_policy="model_selected_from_reviewed_equity_watchlist_and_optionable_underlyings",
+            candidate_symbols=(),
+            candidate_instrument_refs=(),
+            option_reexpression_enabled=True,
+        ),
+    )
 
 
 def runtime_components() -> tuple[RuntimeComponent, ...]:
@@ -56,11 +118,12 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             component_label="Opportunity & Risk Allocation Engine",
             purpose=(
                 "Select the current target pool and pre-allocate risk budget from "
-                "market, sector, target-state, account, and existing-position evidence."
+                "market, sector, target-state, account-sleeve, and existing-position evidence."
             ),
             input_contracts=(
                 "market_universe_snapshot",
-                "account_state_snapshot",
+                "account_sleeve_state_snapshot",
+                "account_sleeve_risk_budget_snapshot",
                 "position_state_snapshot",
                 "market_context_state",
                 "sector_context_state",
@@ -85,7 +148,8 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             ),
             input_contracts=(
                 TARGET_ALLOCATION_SNAPSHOT_CONTRACT,
-                "account_state_snapshot",
+                "account_sleeve_state_snapshot",
+                "account_sleeve_risk_budget_snapshot",
                 "position_state_snapshot",
                 "target_context_state",
                 "event_failure_risk_vector",
@@ -114,7 +178,8 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             ),
             input_contracts=(
                 "position_state_snapshot",
-                "account_state_snapshot",
+                "account_sleeve_state_snapshot",
+                "account_sleeve_risk_budget_snapshot",
                 "market_context_state",
                 "entry_decision",
                 "event_failure_risk_vector",
@@ -152,6 +217,7 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
                 "layer_08_underlying_action",
                 "layer_09_option_expression",
             ),
+            account_sleeves=(EQUITY_OPTIONS_ACCOUNT_SLEEVE,),
             layer_10_policy="not_called; abnormal option or model behavior routes to failure_explanation_component",
         ),
         RuntimeComponent(
@@ -183,7 +249,7 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
                 ENTRY_DECISION_CONTRACT,
                 POSITION_LIFECYCLE_DECISION_CONTRACT,
                 OPTION_REEXPRESSION_DECISION_CONTRACT,
-                "account_state_snapshot",
+                "account_sleeve_state_snapshot",
                 "execution_policy_snapshot",
             ),
             output_contracts=(EXECUTION_ORDER_INTENT_CONTRACT,),
@@ -236,6 +302,8 @@ def build_runtime_component_graph(*, mode: RuntimeMode) -> dict[str, Any]:
         "mode": mode,
         "component_graph_policy": "same_components_live_and_replay_different_adapters",
         "adapter_profile": adapter_profile,
+        "account_sleeve_policy": "separate_crypto_and_equity_options_accounts_no_cross_account_netting",
+        "account_sleeves": [sleeve.to_dict() for sleeve in runtime_account_sleeves()],
         "component_order": [component.component_id for component in runtime_components()],
         "components": [component.to_dict() for component in runtime_components()],
         "required_first_batch_contracts": [
@@ -254,6 +322,7 @@ def build_runtime_component_graph(*, mode: RuntimeMode) -> dict[str, Any]:
             "live_broker_mutation_requires_execution_gate": True,
             "replay_broker_mutation_allowed": False,
             "replay_uses_simulated_fills": True,
+            "cross_account_collateral_or_position_netting_allowed": False,
         },
     }
 
@@ -264,6 +333,8 @@ def validate_same_component_graph(live_graph: dict[str, Any], replay_graph: dict
     errors: list[str] = []
     live_components = live_graph.get("components")
     replay_components = replay_graph.get("components")
+    live_sleeves = live_graph.get("account_sleeves")
+    replay_sleeves = replay_graph.get("account_sleeves")
     if not isinstance(live_components, list) or not isinstance(replay_components, list):
         errors.append("components must be lists")
     else:
@@ -278,9 +349,34 @@ def validate_same_component_graph(live_graph: dict[str, Any], replay_graph: dict
         if live_shape != replay_shape:
             errors.append("live and replay component shapes must match")
 
+    if not isinstance(live_sleeves, list) or not isinstance(replay_sleeves, list):
+        errors.append("account_sleeves must be lists")
+    else:
+        live_sleeve_shape = [
+            (
+                row.get("sleeve_id"),
+                row.get("account_state_contract"),
+                row.get("risk_budget_contract"),
+                tuple(row.get("allowed_asset_classes") or ()),
+                tuple(row.get("candidate_symbols") or ()),
+            )
+            for row in live_sleeves
+        ]
+        replay_sleeve_shape = [
+            (
+                row.get("sleeve_id"),
+                row.get("account_state_contract"),
+                row.get("risk_budget_contract"),
+                tuple(row.get("allowed_asset_classes") or ()),
+                tuple(row.get("candidate_symbols") or ()),
+            )
+            for row in replay_sleeves
+        ]
+        if live_sleeve_shape != replay_sleeve_shape:
+            errors.append("live and replay account sleeve shapes must match")
+
     return {
         "contract_type": "execution_runtime_component_graph_validation",
         "validation_status": "passed" if not errors else "failed",
         "errors": errors,
     }
-

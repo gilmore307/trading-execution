@@ -4,6 +4,7 @@
 
 - Keep the execution realtime trading runtime check available while the first promoted model is still pending.
 - Implement the first dry-run runtime component contracts: `target_allocation_snapshot`, `entry_decision`, `position_lifecycle_decision`, and `execution_order_intent`.
+- Keep crypto and equity/options runtime decisions separated by account sleeve. Crypto starts from the fixed `BTC`/`ETH`/`SOL` candidate pool; equity/options uses the reviewed stock and optionable-underlying candidate process.
 
 Execution-side realtime data and monitoring scaffolds are accepted and connected to a runtime readiness surface. The runtime may run continuously, but no active model pointer means `waiting_for_promoted_model`. The checked-in realtime monitor loop service is plan-only by default and requires a reviewed host override before read-only provider observation. It must not activate models, construct orders, submit broker calls, or mutate accounts without the separate accepted gates.
 
@@ -12,7 +13,9 @@ The accepted `trade_risk_cap` validator remains mandatory for future execution-f
 The accepted component graph in `docs/50_runtime_components.md` is now the
 runtime shape for both live trading and Replay. The next implementation should
 stay side-effect-free: build and validate decision records, but do not submit
-broker calls or mutate account/position state.
+broker calls or mutate account/position state. Decision records must carry a
+single account sleeve and must not net risk or positions across the crypto and
+equity/options accounts.
 
 ## Historical-Training Todo Status
 
@@ -45,6 +48,7 @@ These items are intentionally outside the current promote-first model phase and 
 - Added execution-owned runtime lifecycle boundary: active model remains trading authority, promoted-but-not-active models run as shadow candidates, mature market-hours evidence selects the next active model, ranks 2-4 stay realtime candidates, and repeated elimination evidence can retire weak candidates.
 - Added side-effect-free execution capability catalogs: `execution_realtime_data_interface`, `execution_broker_interface`, and `execution_capability_catalog`.
 - Added the live/Replay shared runtime component graph: `opportunity_risk_allocation_engine`, `entry_decision_engine`, `position_lifecycle_controller`, `option_reexpression_review`, `failure_explanation_component`, `order_intent_builder`, and `execution_gate_adapter`. Layer 10 is only called by the failure explanation component after observed model/trade failure.
+- Added independent account sleeves to the runtime graph: `crypto_spot_account` with fixed `BTC`/`ETH`/`SOL` spot candidates, and `equity_options_account` for stocks/ETFs/options with option re-expression enabled.
 - Accepted the first interface split: realtime market data may share canonical providers with historical data, but it uses distinct realtime transports; broker mutation is a separate authority from market-data access.
 - Accepted OKX as crypto execution venue candidate because an official API exists; live mutation remains disabled.
 - Deferred Firstrade equity/options automation because no official trading API is accepted.

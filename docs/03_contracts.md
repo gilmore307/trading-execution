@@ -62,6 +62,7 @@ Graph/catalog contracts:
 - `execution_runtime_component`
 - `execution_runtime_component_graph`
 - `execution_runtime_component_graph_validation`
+- `execution_account_sleeve`
 
 The first-batch contracts are sufficient to build the initial dry-run lifecycle:
 select target/risk, decide entry, manage an existing position, and emit a
@@ -70,6 +71,13 @@ post-failure Layer 10 explanation, and Replay fill simulation.
 
 Layer 10 is only called by `failure_explanation_component` after observed model
 or trade failure. Normal entry decisions use Layer 4 for forward event risk.
+
+Runtime decisions must be scoped to one independent account sleeve:
+`crypto_spot_account` or `equity_options_account`. The crypto sleeve is limited
+to `BTC`, `ETH`, and `SOL` spot candidates. The equity/options sleeve uses the
+reviewed stock/ETF/optionable-underlying candidate process and owns option
+re-expression. Cross-account collateral, buying-power substitution, and position
+netting are not accepted.
 
 ## Verification Commands
 

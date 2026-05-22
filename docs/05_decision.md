@@ -376,3 +376,24 @@ Status: Accepted
 `trading-evaluation` owns offline replay promotion eligibility and promotion readiness. `trading-execution` owns runtime active model selection after a market-hours shadow cycle compares the active model with promoted-but-not-active shadow candidates. The best overall candidate becomes active, ranks 2-4 remain realtime candidates, and weak candidates enter eliminate-candidate review when there is sufficient reason evidence.
 
 Active model selection is not broker execution. Selection records do not construct orders, submit broker calls, or mutate accounts.
+
+## D018 - Crypto And Equity Options Use Separate Account Sleeves
+
+Date: 2026-05-21
+Status: Accepted
+
+Crypto spot trading and US equity/options trading are independent execution
+accounts. Runtime components may observe aggregate portfolio limits, but each
+target allocation, entry, lifecycle, option re-expression, and order-intent
+record must belong to exactly one account sleeve.
+
+Accepted sleeves:
+
+- `crypto_spot_account`: fixed candidate pool `BTC`, `ETH`, and `SOL`; OKX spot
+  instrument refs `BTC-USDT`, `ETH-USDT`, and `SOL-USDT`; no option
+  re-expression.
+- `equity_options_account`: stocks/ETFs/options from the reviewed equity
+  watchlist and optionable-underlying process; option re-expression is enabled.
+
+Cross-account collateral, buying-power substitution, and position/risk netting
+between these sleeves are not accepted.

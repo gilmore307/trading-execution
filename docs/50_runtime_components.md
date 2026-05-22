@@ -18,6 +18,35 @@ adapter profile:
 Any trading component that cannot run in both modes is not an accepted runtime
 component.
 
+## Account Sleeves
+
+Runtime decisions are scoped to independent account sleeves. A component may
+read aggregate portfolio caps, but it must not net positions, collateral,
+buying power, or risk budget across sleeves when producing trade decisions.
+
+Accepted sleeves:
+
+- `crypto_spot_account`
+  - account contract: `crypto_account_state_snapshot`
+  - risk-budget contract: `crypto_risk_budget_snapshot`
+  - allowed asset class: `crypto_spot`
+  - candidate pool: fixed to `BTC`, `ETH`, and `SOL`
+  - OKX spot instrument refs: `BTC-USDT`, `ETH-USDT`, and `SOL-USDT`
+  - option re-expression is disabled
+- `equity_options_account`
+  - account contract: `equity_options_account_state_snapshot`
+  - risk-budget contract: `equity_options_risk_budget_snapshot`
+  - allowed asset classes: `us_equity`, `us_etf`, and `us_option`
+  - candidate pool: model-selected from the reviewed equity watchlist and
+    optionable underlyings
+  - option re-expression is enabled
+
+Every `target_allocation_snapshot`, `entry_decision`,
+`position_lifecycle_decision`, `option_reexpression_decision`, and
+`execution_order_intent` must carry exactly one account sleeve. Cross-account
+collateral, cross-account buying-power substitution, and cross-account position
+netting are not accepted.
+
 ## Component Graph
 
 ```text
@@ -35,7 +64,7 @@ Opportunity & Risk Allocation Engine
 Owns `target_allocation_snapshot`.
 
 Purpose: select the current target pool and pre-allocate risk budget from market,
-sector, target-state, account, and existing-position evidence.
+sector, target-state, account-sleeve, and existing-position evidence.
 
 Model inputs:
 
@@ -88,6 +117,9 @@ Owns `option_reexpression_decision`.
 
 Purpose: periodically review held option contracts for moneyness, greeks, DTE,
 spread, liquidity, IV, payoff efficiency, and roll cost.
+
+This component runs only for `equity_options_account`. Crypto spot positions do
+not use option re-expression.
 
 Model inputs:
 
@@ -154,4 +186,3 @@ Then add:
 - `option_reexpression_decision`
 - `failure_explanation_packet`
 - `simulated_fill_event`
-
