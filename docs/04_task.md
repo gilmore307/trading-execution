@@ -3,7 +3,7 @@
 ## Active Tasks
 
 - Keep the execution realtime trading runtime check available while the first promoted model is still pending.
-- Wire `trading-evaluation` Replay settlement to call the execution runtime decision builders directly.
+- Support `trading-evaluation` as it freezes the first replay dataset and starts producing real Replay decision rows.
 
 Execution-side realtime data and monitoring scaffolds are accepted and connected to a runtime readiness surface. The runtime may run continuously, but no active model pointer means `waiting_for_promoted_model`. The checked-in realtime monitor loop service is plan-only by default and requires a reviewed host override before read-only provider observation. It must not activate models, construct orders, submit broker calls, or mutate accounts without the separate accepted gates.
 
@@ -51,6 +51,7 @@ These items are intentionally outside the current promote-first model phase and 
 - Implemented and tested the first dry-run runtime component contracts: `target_allocation_snapshot`, `entry_decision`, `position_lifecycle_decision`, and broker-neutral `execution_order_intent`.
 - Implemented and tested the second dry-run runtime component contracts: `option_reexpression_decision`, `failure_explanation_packet`, and Replay-only `simulated_fill_event`.
 - Kept crypto and equity/options runtime decisions separated by account sleeve. Crypto starts from the fixed `BTC`/`ETH`/`SOL` candidate pool; equity/options uses the reviewed stock and optionable-underlying candidate process.
+- Registered and connected the evaluation-side Replay dry-run harness so `trading-evaluation` calls execution runtime builders directly instead of duplicating trading decisions.
 - Accepted the first interface split: realtime market data may share canonical providers with historical data, but it uses distinct realtime transports; broker mutation is a separate authority from market-data access.
 - Accepted OKX as crypto execution venue candidate because an official API exists; live mutation remains disabled.
 - Deferred Firstrade equity/options automation because no official trading API is accepted.
