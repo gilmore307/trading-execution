@@ -174,8 +174,9 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             component_id="component_03_lifecycle",
             component_label="C03 Lifecycle",
             purpose=(
-                "Manage open positions by deciding hold, add, reduce, exit, stop, "
-                "take-profit, or flatten-review actions from current thesis and risk state."
+                "Manage already-open positions in underlying-thesis terms, deciding hold, "
+                "add, reduce, exit, stop, take-profit, or flatten-review actions with "
+                "model-stop and churn/cost controls."
             ),
             input_contracts=(
                 "position_state_snapshot",

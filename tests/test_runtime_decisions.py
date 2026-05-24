@@ -276,6 +276,76 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertIn("event_failure_risk_requires_reduction", decision["reason_codes"])
         self.assertEqual(validate_position_lifecycle_decision(decision)["validation_status"], "passed")
 
+    def test_position_lifecycle_uses_underlying_stop_not_fixed_loss_pct(self) -> None:
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-nvda-1",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "target_ref": "NVDA",
+                "instrument_ref": "NVDA",
+                "quantity": 1,
+                "unrealized_loss_pct": 0.80,
+                "current_underlying_price": 101.0,
+                "position_side": "long",
+            },
+            account_sleeve_risk_budget={"max_position_loss_pct": 0.05},
+            underlying_action_plan={
+                "hard_stop_price": 94.0,
+                "model_invalidation_price": 95.0,
+                "target_price": 120.0,
+            },
+            alpha_confidence_vector={"alpha_confidence_score": 0.80},
+            generated_at_utc="2026-01-01T00:02:00Z",
+        )
+
+        self.assertEqual(decision["decision_status"], "accepted")
+        self.assertEqual(decision["decision_action"], "hold")
+        self.assertIn("position_thesis_still_valid", decision["reason_codes"])
+        self.assertIn("fixed_percentage_loss_not_lifecycle_stop", decision["reason_codes"])
+        self.assertNotIn("max_position_loss_pct_reached", decision["reason_codes"])
+
+    def test_position_lifecycle_stops_on_model_underlying_hard_stop(self) -> None:
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-nvda-2",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "target_ref": "NVDA",
+                "instrument_ref": "NVDA",
+                "quantity": 1,
+                "current_underlying_price": 93.5,
+                "position_side": "long",
+            },
+            underlying_action_plan={"hard_stop_price": 94.0, "model_invalidation_price": 95.0},
+            generated_at_utc="2026-01-01T00:02:00Z",
+        )
+
+        self.assertEqual(decision["decision_status"], "accepted")
+        self.assertEqual(decision["decision_action"], "stop")
+        self.assertIn("model_underlying_hard_stop_reached", decision["reason_codes"])
+        self.assertEqual(validate_position_lifecycle_decision(decision)["validation_status"], "passed")
+
+    def test_position_lifecycle_cost_controls_defer_noncritical_add(self) -> None:
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-msft-1",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "target_ref": "MSFT",
+                "instrument_ref": "MSFT",
+                "quantity": 1,
+                "current_underlying_price": 105.0,
+            },
+            alpha_confidence_vector={"alpha_confidence_score": 0.90},
+            dynamic_risk_policy_state={"minimum_add_alpha_confidence": 0.70, "day_trade_guard_active": True},
+            position_projection_vector={"add_allowed": True},
+            generated_at_utc="2026-01-01T00:02:00Z",
+        )
+
+        self.assertEqual(decision["decision_status"], "accepted")
+        self.assertEqual(decision["decision_action"], "hold")
+        self.assertTrue(decision["lifecycle_cost_controls"]["active"])
+        self.assertIn("day_trade_guard_active", decision["lifecycle_cost_controls"]["reason_codes"])
+        self.assertIn("lifecycle_cost_controls_defer_add", decision["reason_codes"])
+
     def test_order_intent_is_broker_neutral_and_requires_valid_risk_cap(self) -> None:
         decision = build_position_lifecycle_decision(
             position_state={

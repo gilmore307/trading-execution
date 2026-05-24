@@ -171,8 +171,15 @@ Live application scenario:
 
 Owns `position_lifecycle_decision`.
 
-Purpose: manage open positions by deciding hold, add, reduce, exit, stop,
-take-profit, or flatten-review actions from current thesis and risk state.
+Purpose: manage already-open positions by deciding hold, add, reduce, exit,
+stop, take-profit, or flatten-review actions from the current underlying thesis
+and risk state.
+
+C03 is an underlying-thesis lifecycle layer. It does not select new targets,
+decide new-entry suitability, select option contracts, size positions, build
+orders, or execute broker/account mutations. For option positions, it evaluates
+the position's underlying exposure; C04 owns the later translation into option
+or stock expression.
 
 Model inputs:
 
@@ -184,6 +191,29 @@ Model inputs:
 
 It does not call Layer 10 during normal lifecycle decisions. Observed model or
 trade failure routes to the Failure Explanation Component.
+
+Live application scenario:
+
+- All lifecycle operations are computed in underlying terms first. C03 decides
+  whether the underlying thesis should hold, add exposure, reduce exposure,
+  stop, exit, or take profit. C04 translates that underlying action into option
+  expression, roll, repair, stock fallback, or no expression.
+- Ordinary high-risk options-account exits are not driven by fixed option P/L
+  loss percentages. C03 follows the model-provided underlying hard stop and
+  thesis invalidation lines. Option premium at risk limits capital committed;
+  it is not an automatic mark-to-market exit trigger.
+- Hard risk exits are allowed to bypass churn controls: underlying hard stop,
+  thesis invalidation, critical event risk, or explicit underlying exit/stop
+  plans must still act.
+- Non-critical position changes must be cost-aware. Add and reduce signals are
+  dampened when same-day round-trip/PDT guards, minimum-hold guards, churn
+  guards, or transaction-cost/fee-drag guards are active. The default response
+  to a weak non-critical adjustment signal under those guards is `hold`, not
+  repeated in-and-out trading.
+- `reduce` is reserved for material risk reduction or thesis deterioration.
+  It is not a reaction to every small price wiggle.
+- `add` requires a still-valid thesis, stronger alpha, acceptable projected
+  path after add, and no active non-critical churn/cost guard.
 
 ### C04 Option Review
 

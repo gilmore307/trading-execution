@@ -153,6 +153,82 @@ def _entry_direction(underlying_plan: Mapping[str, Any]) -> str | None:
     return None
 
 
+def _position_direction(
+    position: Mapping[str, Any],
+    entry_decision: Mapping[str, Any],
+    underlying_plan: Mapping[str, Any],
+) -> str:
+    for source in (position, entry_decision, underlying_plan):
+        value = str(
+            source.get("position_side")
+            or source.get("underlying_direction")
+            or source.get("entry_direction")
+            or source.get("side")
+            or source.get("direction")
+            or ""
+        ).strip().lower()
+        if value in {"long", "buy", "bullish", "call", "increase_long", "open_long"}:
+            return "long"
+        if value in {"short", "sell_short", "bearish", "put", "increase_short", "open_short"}:
+            return "short"
+    return "long"
+
+
+def _planned_lifecycle_action(underlying_plan: Mapping[str, Any]) -> str | None:
+    value = str(
+        underlying_plan.get("lifecycle_action")
+        or underlying_plan.get("position_action")
+        or underlying_plan.get("planned_action")
+        or underlying_plan.get("underlying_action")
+        or underlying_plan.get("action")
+        or underlying_plan.get("recommended_action")
+        or ""
+    ).strip().lower()
+    if value in {"hold", "maintain", "no_change"}:
+        return "hold"
+    if value in {"add", "increase", "increase_long", "increase_short", "add_exposure"}:
+        return "add"
+    if value in {"reduce", "trim", "decrease", "decrease_exposure"}:
+        return "reduce"
+    if value in {"exit", "close", "close_position", "flatten"}:
+        return "exit"
+    if value in {"stop", "stop_out", "hard_stop"}:
+        return "stop"
+    if value in {"take_profit", "profit_take", "take-profit"}:
+        return "take_profit"
+    return None
+
+
+def _price_reaches_downside(price: float | None, level: float | None, direction: str) -> bool:
+    if price is None or level is None:
+        return False
+    return price <= level if direction == "long" else price >= level
+
+
+def _price_reaches_upside(price: float | None, level: float | None, direction: str) -> bool:
+    if price is None or level is None:
+        return False
+    return price >= level if direction == "long" else price <= level
+
+
+def _lifecycle_cost_control_reasons(*sources: Mapping[str, Any]) -> list[str]:
+    checks = (
+        ("same_day_round_trip_restricted", "same_day_round_trip_restricted"),
+        ("day_trade_guard_active", "day_trade_guard_active"),
+        ("pdt_guard_active", "pattern_day_trade_guard_active"),
+        ("lifecycle_churn_guard_active", "lifecycle_churn_guard_active"),
+        ("min_lifecycle_hold_active", "minimum_lifecycle_hold_active"),
+        ("transaction_cost_drag_high", "transaction_cost_drag_high"),
+        ("fee_drag_high", "transaction_cost_drag_high"),
+    )
+    reasons: list[str] = []
+    for source in sources:
+        for key, reason in checks:
+            if source.get(key) is True and reason not in reasons:
+                reasons.append(reason)
+    return reasons
+
+
 def _zone_from_fields(mapping: Mapping[str, Any], zone_key: str, low_keys: tuple[str, ...], high_keys: tuple[str, ...]) -> dict[str, float] | None:
     zone = mapping.get(zone_key)
     if isinstance(zone, Mapping):
@@ -726,6 +802,47 @@ def build_position_lifecycle_decision(
     alpha = _as_mapping(alpha_confidence_vector)
     policy = _as_mapping(dynamic_risk_policy_state)
     projection = _as_mapping(position_projection_vector)
+    underlying_plan = _as_mapping(underlying_action_plan)
+    entry = _as_mapping(entry_decision)
+    market = _as_mapping(market_context_state)
+    risk_budget = _as_mapping(account_sleeve_risk_budget)
+    position_side = _position_direction(position, entry, underlying_plan)
+    current_underlying_price = _first_number(
+        position,
+        "current_underlying_price",
+        "underlying_price",
+        "current_price",
+        "last_price",
+        "reference_price",
+    )
+    if current_underlying_price is None:
+        current_underlying_price = _first_number(market, "current_underlying_price", "current_price", "last_price", "reference_price")
+    if current_underlying_price is None:
+        current_underlying_price = _first_number(
+            underlying_plan,
+            "current_underlying_price",
+            "underlying_price",
+            "current_price",
+            "last_price",
+            "reference_price",
+        )
+    model_invalidation_price = (
+        _first_number(underlying_plan, "model_invalidation_price", "thesis_invalidation_price", "invalidation_price")
+        or _first_number(entry, "model_invalidation_price", "thesis_invalidation_price", "invalidation_price")
+        or _first_number(position, "model_invalidation_price", "thesis_invalidation_price", "invalidation_price")
+    )
+    hard_stop_price = (
+        _first_number(underlying_plan, "hard_stop_price", "stop_loss_price", "stop_price")
+        or _first_number(entry, "hard_stop_price", "stop_loss_price", "stop_price")
+        or _first_number(position, "hard_stop_price", "stop_loss_price", "stop_price")
+    )
+    target_price = (
+        _first_number(underlying_plan, "take_profit_price", "target_price", "target_price_high", "target_price_low")
+        or _first_number(entry, "take_profit_price", "target_price", "target_price_high", "target_price_low")
+        or _first_number(position, "take_profit_price", "target_price", "target_price_high", "target_price_low")
+    )
+    planned_action = _planned_lifecycle_action(underlying_plan)
+    cost_control_reasons = _lifecycle_cost_control_reasons(position, policy, projection, risk_budget)
 
     reasons: list[str] = []
     status: DecisionStatus = "monitor_only"
@@ -736,17 +853,33 @@ def build_position_lifecycle_decision(
         reasons.append("no_open_position")
     else:
         status = "accepted"
-        unrealized_loss_pct = abs(_number(position.get("unrealized_loss_pct"), default=0.0))
-        max_loss_pct = _number(_as_mapping(account_sleeve_risk_budget).get("max_position_loss_pct"), default=0.0)
-        if max_loss_pct > 0 and unrealized_loss_pct >= max_loss_pct:
+        if _price_reaches_downside(current_underlying_price, hard_stop_price, position_side):
             action = "stop"
-            reasons.append("max_position_loss_pct_reached")
+            reasons.append("model_underlying_hard_stop_reached")
+        elif _price_reaches_downside(current_underlying_price, model_invalidation_price, position_side):
+            action = "stop"
+            reasons.append("model_underlying_invalidation_reached")
         elif _bool_flag(event_risk, "flatten_positions", "halt_exposure") or _risk_level(event_risk) == "critical":
             action = "exit"
             reasons.append("event_failure_risk_requires_exit")
+        elif _bool_flag(policy, "flatten_positions", "halt_exposure", "force_exit_positions"):
+            action = "exit"
+            reasons.append("dynamic_risk_policy_requires_exit")
+        elif planned_action in {"stop", "exit"}:
+            action = planned_action
+            reasons.append(f"underlying_action_plan_requires_{planned_action}")
+        elif planned_action == "take_profit" or _price_reaches_upside(current_underlying_price, target_price, position_side):
+            action = "take_profit"
+            reasons.append("underlying_target_or_take_profit_reached")
         elif _risk_level(event_risk) == "high":
             action = "reduce"
             reasons.append("event_failure_risk_requires_reduction")
+        elif _bool_flag(policy, "reduce_positions", "reduce_exposure"):
+            action = "reduce"
+            reasons.append("dynamic_risk_policy_requires_reduction")
+        elif planned_action in {"add", "reduce", "hold"}:
+            action = planned_action
+            reasons.append(f"underlying_action_plan_supports_{planned_action}")
         else:
             alpha_score = _number(alpha.get("alpha_confidence_score", alpha.get("score")), default=0.0)
             add_threshold = _number(policy.get("minimum_add_alpha_confidence"), default=0.70)
@@ -760,6 +893,19 @@ def build_position_lifecycle_decision(
             else:
                 action = "hold"
                 reasons.append("position_thesis_still_valid")
+        if action == "add" and cost_control_reasons:
+            action = "hold"
+            reasons.append("lifecycle_cost_controls_defer_add")
+        elif (
+            action == "reduce"
+            and cost_control_reasons
+            and "event_failure_risk_requires_reduction" not in reasons
+            and "dynamic_risk_policy_requires_reduction" not in reasons
+        ):
+            action = "hold"
+            reasons.append("lifecycle_cost_controls_defer_noncritical_reduction")
+        if risk_budget.get("max_position_loss_pct") is not None or position.get("unrealized_loss_pct") is not None:
+            reasons.append("fixed_percentage_loss_not_lifecycle_stop")
 
     body = {
         "contract_type": POSITION_LIFECYCLE_DECISION_CONTRACT,
@@ -771,18 +917,27 @@ def build_position_lifecycle_decision(
         "generated_at_utc": generated_at_utc,
         "decision_status": status,
         "decision_action": action,
+        "position_side": position_side,
+        "current_underlying_price": current_underlying_price,
+        "model_invalidation_price": model_invalidation_price,
+        "hard_stop_price": hard_stop_price,
+        "target_price": target_price,
         "reason_codes": reasons,
-        "source_entry_decision_id": _as_mapping(entry_decision).get("entry_decision_id"),
+        "source_entry_decision_id": entry.get("entry_decision_id"),
+        "lifecycle_cost_controls": {
+            "active": bool(cost_control_reasons),
+            "reason_codes": cost_control_reasons,
+        },
         "model_layer_refs": {
-            "market_context_state": _as_mapping(market_context_state).get("model_ref"),
+            "market_context_state": market.get("model_ref"),
             "event_failure_risk_vector": event_risk.get("model_ref"),
             "alpha_confidence_vector": alpha.get("model_ref"),
             "dynamic_risk_policy_state": policy.get("model_ref"),
             "position_projection_vector": projection.get("model_ref"),
-            "underlying_action_plan": _as_mapping(underlying_action_plan).get("model_ref"),
+            "underlying_action_plan": underlying_plan.get("model_ref"),
         },
         "account_state_ref": _as_mapping(account_sleeve_state).get("account_state_ref"),
-        "account_sleeve_risk_budget": dict(_as_mapping(account_sleeve_risk_budget)),
+        "account_sleeve_risk_budget": dict(risk_budget),
         "safety": _safety_flags(),
     }
     body["position_lifecycle_decision_id"] = _stable_id("pld", body)
