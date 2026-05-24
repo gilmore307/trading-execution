@@ -157,7 +157,7 @@ class RuntimeDecisionTests(unittest.TestCase):
             ],
         )
 
-    def test_intake_pool_excludes_targets_from_filled_sector(self) -> None:
+    def test_intake_pool_keeps_filled_sector_target_with_independent_signal(self) -> None:
         snapshot = build_execution_intake_snapshot(
             account_sleeve_id=EQUITY_OPTIONS_ACCOUNT_SLEEVE,
             account_sleeve_state={"available_cash_usd": 1000.0},
@@ -173,27 +173,29 @@ class RuntimeDecisionTests(unittest.TestCase):
                 ],
             },
             target_context_rows=[
-                {"target_ref": "NVDA", "asset_class": "us_equity", "sector_ref": "semiconductors"},
+                {"target_ref": "NVDA", "asset_class": "us_equity", "sector_ref": "semiconductors", "volume_score": 0.90},
+                {"target_ref": "AMD", "asset_class": "us_equity", "sector_ref": "semiconductors"},
                 {"target_ref": "MSFT", "asset_class": "us_equity", "sector_ref": "software"},
                 {"target_ref": "LLY", "asset_class": "us_equity", "sector_ref": "healthcare"},
-                {"target_ref": "TSLA", "asset_class": "us_equity", "volume_score": 0.85},
+                {"target_ref": "TSLA", "asset_class": "us_equity", "relative_volume": 2.4},
                 {"target_ref": "AAPL", "asset_class": "us_equity", "news_catalyst_score": 0.80},
                 {"target_ref": "LOWQ", "asset_class": "us_equity"},
             ],
             generated_at_utc="2026-01-01T00:00:00Z",
         )
 
-        self.assertEqual([row["target_ref"] for row in snapshot["watch_targets"]], ["MSFT", "LLY", "TSLA", "AAPL"])
+        self.assertEqual([row["target_ref"] for row in snapshot["watch_targets"]], ["NVDA", "MSFT", "LLY", "TSLA", "AAPL"])
         self.assertEqual(
             snapshot["blocked_targets"],
             [
-                {"target_ref": "NVDA", "reason_codes": ["sector_opportunity_already_filled"]},
+                {"target_ref": "AMD", "reason_codes": ["sector_opportunity_already_filled"]},
                 {"target_ref": "LOWQ", "reason_codes": ["not_in_c01_candidate_source_pool"]},
             ],
         )
-        self.assertEqual(snapshot["watch_targets"][0]["candidate_reasons"], ["remaining_strong_sector_opportunity"])
-        self.assertEqual(snapshot["watch_targets"][2]["candidate_reasons"], ["recent_high_trading_volume"])
-        self.assertEqual(snapshot["watch_targets"][3]["candidate_reasons"], ["recent_news_catalyst"])
+        self.assertEqual(snapshot["watch_targets"][0]["candidate_reasons"], ["recent_high_trading_volume"])
+        self.assertEqual(snapshot["watch_targets"][1]["candidate_reasons"], ["remaining_strong_sector_opportunity"])
+        self.assertEqual(snapshot["watch_targets"][3]["candidate_reasons"], ["recent_abnormal_volume"])
+        self.assertEqual(snapshot["watch_targets"][4]["candidate_reasons"], ["recent_news_catalyst"])
 
     def test_equity_options_entry_can_open_option_when_allocated(self) -> None:
         allocation = build_execution_intake_snapshot(

@@ -109,9 +109,16 @@ Live application scenario:
   fill `semiconductors 35%`, the remaining C01 opportunity map stops asking C02
   to focus on semiconductors until that exposure falls below its target mix.
 - The equity/options watch target pool is the union of remaining strong-sector
-  targets, recent high-trading-volume targets, and recent catalyst targets such
-  as earnings beats or material news. Targets whose sector opportunity is
-  already filled are excluded before C02 sees them.
+  targets, recent high-trading-volume targets, recent abnormal-volume targets,
+  and recent catalyst targets such as earnings beats or material news. A filled
+  sector only removes the strong-sector opportunity reason; a target from that
+  sector can still enter through high volume, abnormal volume, or catalyst
+  evidence.
+- `recent_high_trading_volume` means a reviewed high-volume flag or an absolute
+  volume/dollar-volume score or percentile at or above `0.80`.
+- `recent_abnormal_volume` means a reviewed abnormal-volume flag, relative or
+  abnormal volume score at or above `0.80`, relative volume at or above `2.0x`,
+  or volume z-score at or above `2.0`.
 - The mix is an opportunity map for C02, not a final position-weight, order
   quantity, or risk allocation instruction.
 - If the account has available balance, C01 may pass watch targets forward. It

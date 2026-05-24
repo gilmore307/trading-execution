@@ -39,6 +39,9 @@ _CRYPTO_INSTRUMENT_BY_SYMBOL = dict(zip(CRYPTO_CANDIDATE_SYMBOLS, CRYPTO_SPOT_IN
 _EXECUTABLE_ENTRY_ACTIONS = {"open_underlying", "open_option"}
 _EXECUTABLE_LIFECYCLE_ACTIONS = {"add", "reduce", "exit", "stop", "take_profit"}
 _EXECUTABLE_OPTION_REEXPRESSION_ACTIONS = {"roll_option", "exit_option", "reduce_option"}
+_HIGH_VOLUME_SCORE_THRESHOLD = 0.80
+_ABNORMAL_RELATIVE_VOLUME_THRESHOLD = 2.0
+_ABNORMAL_VOLUME_Z_SCORE_THRESHOLD = 2.0
 
 
 def _utc_now_iso() -> str:
@@ -297,12 +300,32 @@ def _pool_score(row: Mapping[str, Any], *keys: str) -> float:
     return max((_number(row.get(key), default=0.0) for key in keys), default=0.0)
 
 
-def _recent_high_volume(row: Mapping[str, Any]) -> bool:
-    if _bool_flag(row, "recent_high_volume", "high_trading_volume", "unusual_volume"):
+def _recent_high_trading_volume(row: Mapping[str, Any]) -> bool:
+    if _bool_flag(row, "recent_high_volume", "high_trading_volume"):
         return True
-    if _pool_score(row, "volume_score", "relative_volume_score", "liquidity_score") >= 0.70:
+    if (
+        _pool_score(
+            row,
+            "volume_score",
+            "trading_volume_score",
+            "dollar_volume_score",
+            "volume_percentile",
+            "dollar_volume_percentile",
+        )
+        >= _HIGH_VOLUME_SCORE_THRESHOLD
+    ):
         return True
-    return _number(row.get("relative_volume"), default=0.0) >= 2.0
+    return False
+
+
+def _recent_abnormal_volume(row: Mapping[str, Any]) -> bool:
+    if _bool_flag(row, "recent_abnormal_volume", "abnormal_volume", "unusual_volume"):
+        return True
+    if _pool_score(row, "relative_volume_score", "abnormal_volume_score", "volume_surge_score") >= _HIGH_VOLUME_SCORE_THRESHOLD:
+        return True
+    if _number(row.get("relative_volume"), default=0.0) >= _ABNORMAL_RELATIVE_VOLUME_THRESHOLD:
+        return True
+    return _number(row.get("volume_z_score"), default=0.0) >= _ABNORMAL_VOLUME_Z_SCORE_THRESHOLD
 
 
 def _recent_news_catalyst(row: Mapping[str, Any]) -> bool:
@@ -319,8 +342,10 @@ def _candidate_reasons(row: Mapping[str, Any], residual_sector_refs: set[str]) -
     sector_ref = _sector_ref(row)
     if sector_ref in residual_sector_refs:
         reasons.append("remaining_strong_sector_opportunity")
-    if _recent_high_volume(row):
+    if _recent_high_trading_volume(row):
         reasons.append("recent_high_trading_volume")
+    if _recent_abnormal_volume(row):
+        reasons.append("recent_abnormal_volume")
     if _recent_news_catalyst(row):
         reasons.append("recent_news_catalyst")
     return reasons
@@ -344,7 +369,7 @@ def _candidate_rows_for_sleeve(
     }
     filled_refs = filled_sector_refs or set()
     pool_filter_enabled = bool(residual_sector_refs or filled_refs) or any(
-        _recent_high_volume(row) or _recent_news_catalyst(row) for row in rows
+        _recent_high_trading_volume(row) or _recent_abnormal_volume(row) or _recent_news_catalyst(row) for row in rows
     )
 
     if sleeve.sleeve_id == CRYPTO_SPOT_ACCOUNT_SLEEVE:
@@ -373,12 +398,10 @@ def _candidate_rows_for_sleeve(
             blocked.append({"target_ref": ref, "reason_codes": ["asset_class_not_allowed_for_account_sleeve"]})
             continue
         sector_ref = _sector_ref(row)
-        if sector_ref in filled_refs:
-            blocked.append({"target_ref": ref, "reason_codes": ["sector_opportunity_already_filled"]})
-            continue
         candidate_reasons = _candidate_reasons(row, residual_sector_refs)
         if pool_filter_enabled and not candidate_reasons:
-            blocked.append({"target_ref": ref, "reason_codes": ["not_in_c01_candidate_source_pool"]})
+            reason = "sector_opportunity_already_filled" if sector_ref in filled_refs else "not_in_c01_candidate_source_pool"
+            blocked.append({"target_ref": ref, "reason_codes": [reason]})
             continue
         selected_row = {
             "target_ref": ref,
