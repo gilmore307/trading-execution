@@ -9,6 +9,12 @@ Every executable trade must carry a hard `trade_risk_cap` before order construct
 
 This document does not approve live trading. It defines the minimum invariant any future paper/live execution implementation must enforce.
 
+The high-risk options account is managed by underlying thesis, not by a fixed
+option P/L stop. For options-first trades, execution follows the model-provided
+underlying stop and thesis invalidation levels. Fixed loss percentages may size
+risk budget and gate catastrophic account exposure, but they must not replace
+the model stop line for ordinary position management.
+
 ## Boundary
 
 Model layers may emit offline risk thesis fields:
@@ -41,6 +47,28 @@ Long-option premium-defined trades require:
 planned_max_premium_at_risk_usd
 max_loss_is_premium_paid_flag = true
 ```
+
+For long-option trades, premium-at-risk defines the maximum capital committed
+to the option expression. It is not an automatic exit trigger based on option
+mark-to-market loss. Exit, roll, reduce, or hold decisions are driven by the
+underlying thesis path: model invalidation, model stop, time stop, event-risk
+changes, liquidity/spread deterioration, or account-level catastrophic gates.
+
+## Stop-source policy
+
+Execution must not substitute a fixed percentage stop for a model stop.
+
+Accepted stop hierarchy:
+
+1. `model_invalidation_price` from the model thesis identifies where the
+   underlying thesis is no longer valid.
+2. `hard_stop_price` is the enforceable execution protection derived from that
+   thesis and broker/synthetic monitor constraints.
+3. `max_loss_usd` and `max_loss_pct` size the trade and account budget; they do
+   not define a standalone fixed stop.
+
+If the model thesis does not provide an enforceable stop or invalidation line,
+the order must be rejected rather than filled with a default fixed stop.
 
 ## Rejection rule
 

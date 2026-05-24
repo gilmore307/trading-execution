@@ -149,6 +149,13 @@ spread, liquidity, IV, payoff efficiency, and roll cost.
 This component runs only for `equity_options_account`. Crypto spot positions do
 not use option re-expression.
 
+For the high-risk options account, option review is underlying-thesis driven.
+Large option mark-to-market drawdowns are tolerated when the underlying path
+still respects the model-provided stop and thesis invalidation. C04 may roll or
+repair expression when DTE, delta, spread, liquidity, IV, or payoff efficiency
+deteriorates, but it must not exit solely because option premium crossed a
+fixed loss percentage.
+
 Model inputs:
 
 - Layer 6 dynamic risk policy.

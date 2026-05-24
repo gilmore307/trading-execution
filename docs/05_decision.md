@@ -117,11 +117,20 @@ Layer 7 emits offline direct-underlying stop/invalidation thesis fields and Laye
 
 The cap must include positive `max_loss_usd`, positive `max_loss_pct`, ISO `time_stop_at`, accepted `cap_enforcement_mode`, and `cap_failure_action = reject_order`. Direct underlying trades also require `model_invalidation_price` and `hard_stop_price`. Long-option premium-defined trades require positive premium-at-risk evidence and `max_loss_is_premium_paid_flag = true`.
 
+For the high-risk options account, stop management is underlying-thesis driven.
+Execution must follow the model-provided `model_invalidation_price` and
+`hard_stop_price`; it must not replace them with a fixed percentage loss stop.
+Option mark-to-market losses may be large and are not by themselves a normal
+exit trigger when the underlying thesis remains valid. Fixed loss percentages
+size risk budget and account-level catastrophe gates only.
+
 ### Consequences
 
 - Warn-only or best-effort cap handling is not accepted.
 - Broker adapters must call equivalent pre-order validation before any paper/live mutation.
 - Missing, malformed, unsupported, stale, or unenforceable caps are hard rejects.
+- Missing model stop/invalidation evidence must reject the order instead of
+  falling back to a default fixed stop.
 
 ## D005 - Current execution-preparation phase is closed
 
