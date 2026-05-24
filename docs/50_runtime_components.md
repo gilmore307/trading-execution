@@ -132,8 +132,10 @@ Live application scenario:
 
 Owns `entry_decision`.
 
-Purpose: decide whether an allocated target should open an underlying or option
-position, remain watch-only, defer, or be blocked.
+Purpose: decide whether each C01 watch target has a suitable underlying entry
+thesis for continued review. C02 does not choose option versus stock
+expression, choose contracts, size positions, check account balance, or build
+orders.
 
 Model inputs:
 
@@ -142,9 +144,28 @@ Model inputs:
 - Layer 5 alpha confidence.
 - Layer 6 dynamic risk policy.
 - Layer 8 underlying action.
-- Layer 9 option expression.
 
-It does not call Layer 10. Pre-entry event risk is handled by Layer 4.
+It does not call Layer 9 or Layer 10. Option versus underlying expression is a
+C04 decision; pre-entry event risk is handled by Layer 4.
+
+Live application scenario:
+
+- C02 consumes only `execution_intake_snapshot.watch_targets` emitted by C01.
+  A target outside C01 is rejected as a defensive contract error, not actively
+  selected by C02.
+- C02 emits `entry_thesis_status` as `suitable`, `deferred`, or `rejected`.
+  Only `suitable` proceeds to C04.
+- A suitable thesis must include a long or short underlying direction, entry
+  zone, target or take-profit zone, model invalidation price, hard stop price,
+  expected horizon when available, and an `entry_suitability_score`.
+- `deferred` is used when the thesis may be valid but the entry zone or
+  target/take-profit setup is not currently actionable, including when current
+  price is outside the entry zone.
+- `rejected` is used for event-risk blocks, dynamic-risk new-entry blocks,
+  insufficient alpha, missing direction, missing model invalidation, missing
+  hard stop, or invalid C01 source target.
+- `entry_decision` is not a direct order source for C06. It is an underlying
+  thesis handoff for C04 expression review.
 
 ### C03 Lifecycle
 

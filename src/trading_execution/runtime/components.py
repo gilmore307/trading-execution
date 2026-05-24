@@ -147,20 +147,16 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             component_id="component_02_entry",
             component_label="C02 Entry",
             purpose=(
-                "Decide whether an allocated target should open an underlying or "
-                "option position, remain watch-only, defer, or be blocked."
+                "Decide whether a C01 watch target has a suitable underlying entry "
+                "thesis for continued expression review."
             ),
             input_contracts=(
                 EXECUTION_INTAKE_SNAPSHOT_CONTRACT,
-                "account_sleeve_state_snapshot",
-                "account_sleeve_risk_budget_snapshot",
-                "position_state_snapshot",
                 "target_context_state",
                 "event_failure_risk_vector",
                 "alpha_confidence_vector",
                 "dynamic_risk_policy_state",
                 "underlying_action_plan",
-                "option_expression_plan",
             ),
             output_contracts=(ENTRY_DECISION_CONTRACT,),
             called_model_layers=(
@@ -169,9 +165,8 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
                 "layer_05_alpha_confidence",
                 "layer_06_dynamic_risk_policy",
                 "layer_08_underlying_action",
-                "layer_09_option_expression",
             ),
-            layer_10_policy="not_called; pre-entry event risk is handled by layer_04_event_failure_risk",
+            layer_10_policy="not_called; pre-entry event risk is handled by layer_04_event_failure_risk; option expression is handled by component_04_option_review",
         ),
         RuntimeComponent(
             component_step="C03",

@@ -74,6 +74,7 @@ class RuntimeComponentGraphTests(unittest.TestCase):
 
         entry = rows["component_02_entry"]
         self.assertNotIn("layer_10_event_risk_governor", entry.called_model_layers)
+        self.assertNotIn("layer_09_option_expression", entry.called_model_layers)
         self.assertIn("layer_04_event_failure_risk", entry.called_model_layers)
         self.assertIn("not_called", entry.layer_10_policy)
 
@@ -138,11 +139,11 @@ class RuntimeComponentGraphTests(unittest.TestCase):
         rows = {component.component_id: component for component in runtime_components()}
         for component_id in (
             "component_01_intake",
-            "component_02_entry",
             "component_03_lifecycle",
             "component_06_order_intent",
         ):
             self.assertIn("account_sleeve_state_snapshot", rows[component_id].input_contracts)
+        self.assertNotIn("account_sleeve_state_snapshot", rows["component_02_entry"].input_contracts)
 
         option_review = rows["component_04_option_review"]
         self.assertEqual(option_review.account_sleeves, (EQUITY_OPTIONS_ACCOUNT_SLEEVE,))

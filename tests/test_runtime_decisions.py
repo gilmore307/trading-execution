@@ -32,6 +32,17 @@ VALID_STOCK_RISK_CAP = {
     "planned_limit_price": 101.25,
 }
 
+VALID_UNDERLYING_ENTRY_PLAN = {
+    "entry_direction": "long",
+    "entry_price_min": 100.0,
+    "entry_price_max": 103.0,
+    "target_price": 112.0,
+    "model_invalidation_price": 94.0,
+    "hard_stop_price": 93.5,
+    "expected_horizon": "swing",
+    "entry_thesis_score": 0.82,
+}
+
 
 class RuntimeDecisionTests(unittest.TestCase):
     def test_crypto_intake_uses_fixed_three_asset_pool(self) -> None:
@@ -57,17 +68,8 @@ class RuntimeDecisionTests(unittest.TestCase):
             target_context_rows=[{"target_ref": "AAPL", "asset_class": "us_equity"}],
             generated_at_utc="2026-01-01T00:00:00Z",
         )
-        decision = build_entry_decision(
-            execution_intake_snapshot=snapshot,
-            target_ref="AAPL",
-            alpha_confidence_vector={"alpha_confidence_score": 0.95},
-            generated_at_utc="2026-01-01T00:01:00Z",
-        )
-
         self.assertEqual(snapshot["new_position_balance_status"], "no_available_balance")
         self.assertNotIn("risk_budget", snapshot)
-        self.assertEqual(decision["decision_status"], "blocked")
-        self.assertIn("no_available_account_balance", decision["reason_codes"])
 
     def test_intake_builds_sector_opportunity_mix_from_strong_sectors(self) -> None:
         snapshot = build_execution_intake_snapshot(
@@ -197,7 +199,7 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(snapshot["watch_targets"][3]["candidate_reasons"], ["recent_abnormal_volume"])
         self.assertEqual(snapshot["watch_targets"][4]["candidate_reasons"], ["recent_news_catalyst"])
 
-    def test_equity_options_entry_can_open_option_when_allocated(self) -> None:
+    def test_equity_options_entry_outputs_underlying_thesis_only(self) -> None:
         allocation = build_execution_intake_snapshot(
             account_sleeve_id=EQUITY_OPTIONS_ACCOUNT_SLEEVE,
             account_sleeve_state={"available_cash_usd": 1000.0},
@@ -213,18 +215,27 @@ class RuntimeDecisionTests(unittest.TestCase):
             alpha_confidence_vector={"alpha_confidence_score": 0.80},
             event_failure_risk_vector={"risk_level": "low"},
             dynamic_risk_policy_state={"minimum_entry_alpha_confidence": 0.55},
+            underlying_action_plan=VALID_UNDERLYING_ENTRY_PLAN,
             option_expression_plan={"preferred_expression": "long_call", "instrument_ref": "AAPL_20260220_120C"},
+            target_context_state={"current_price": 101.0},
             generated_at_utc="2026-01-01T00:01:00Z",
         )
 
         self.assertEqual(decision["contract_type"], "entry_decision")
-        self.assertEqual(decision["decision_status"], "accepted")
-        self.assertEqual(decision["decision_action"], "open_option")
-        self.assertEqual(decision["asset_class"], "us_option")
-        self.assertEqual(decision["instrument_ref"], "AAPL_20260220_120C")
+        self.assertEqual(decision["decision_status"], "suitable")
+        self.assertEqual(decision["decision_action"], "continue_to_option_review")
+        self.assertEqual(decision["entry_thesis_status"], "suitable")
+        self.assertEqual(decision["entry_direction"], "long")
+        self.assertEqual(decision["asset_class"], "us_equity")
+        self.assertEqual(decision["instrument_ref"], "AAPL")
+        self.assertEqual(decision["entry_zone"], {"low": 100.0, "high": 103.0})
+        self.assertEqual(decision["target_price"], 112.0)
+        self.assertEqual(decision["model_invalidation_price"], 94.0)
+        self.assertEqual(decision["hard_stop_price"], 93.5)
+        self.assertNotIn("option_expression_plan", decision["model_layer_refs"])
         self.assertEqual(validate_entry_decision(decision)["validation_status"], "passed")
 
-    def test_crypto_entry_blocks_options(self) -> None:
+    def test_entry_rejects_missing_underlying_thesis_without_handling_options(self) -> None:
         allocation = build_execution_intake_snapshot(
             account_sleeve_id=CRYPTO_SPOT_ACCOUNT_SLEEVE,
             account_sleeve_state={"available_cash_usd": 1000.0},
@@ -239,9 +250,10 @@ class RuntimeDecisionTests(unittest.TestCase):
             generated_at_utc="2026-01-01T00:01:00Z",
         )
 
-        self.assertEqual(decision["decision_status"], "blocked")
-        self.assertEqual(decision["decision_action"], "block_entry")
-        self.assertIn("options_not_allowed_for_account_sleeve", decision["reason_codes"])
+        self.assertEqual(decision["decision_status"], "rejected")
+        self.assertEqual(decision["decision_action"], "reject_entry_thesis")
+        self.assertIn("missing_underlying_entry_direction", decision["reason_codes"])
+        self.assertNotIn("options_not_allowed_for_account_sleeve", decision["reason_codes"])
         self.assertEqual(validate_entry_decision(decision)["validation_status"], "passed")
 
     def test_position_lifecycle_reduces_on_high_event_risk(self) -> None:
@@ -265,17 +277,16 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(validate_position_lifecycle_decision(decision)["validation_status"], "passed")
 
     def test_order_intent_is_broker_neutral_and_requires_valid_risk_cap(self) -> None:
-        allocation = build_execution_intake_snapshot(
-            account_sleeve_id=EQUITY_OPTIONS_ACCOUNT_SLEEVE,
-            account_sleeve_state={"available_cash_usd": 1000.0},
-            target_context_rows=[{"target_ref": "MSFT", "asset_class": "us_equity"}],
-            generated_at_utc="2026-01-01T00:00:00Z",
-        )
-        decision = build_entry_decision(
-            execution_intake_snapshot=allocation,
-            target_ref="MSFT",
-            alpha_confidence_vector={"alpha_confidence_score": 0.80},
-            generated_at_utc="2026-01-01T00:01:00Z",
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-msft-1",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "target_ref": "MSFT",
+                "instrument_ref": "MSFT",
+                "quantity": 5,
+            },
+            event_failure_risk_vector={"risk_level": "high"},
+            generated_at_utc="2026-01-01T00:02:00Z",
         )
 
         intent = build_execution_order_intent(
@@ -288,23 +299,23 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(intent["contract_type"], "execution_order_intent")
         self.assertEqual(intent["intent_status"], "ready_for_execution_gate_not_submitted")
         self.assertEqual(intent["broker_neutral_order"]["instrument_ref"], "MSFT")
-        self.assertEqual(intent["broker_neutral_order"]["side"], "buy")
+        self.assertEqual(intent["broker_neutral_order"]["side"], "sell")
         self.assertEqual(intent["risk_cap_validation"]["valid"], True)
         self.assertEqual(intent["safety"]["broker_calls_performed"], 0)
         self.assertFalse(intent["safety"]["account_mutation_performed"])
         self.assertEqual(validate_execution_order_intent(intent)["validation_status"], "passed")
 
     def test_order_intent_blocks_missing_risk_cap(self) -> None:
-        allocation = build_execution_intake_snapshot(
-            account_sleeve_id=CRYPTO_SPOT_ACCOUNT_SLEEVE,
-            account_sleeve_state={"available_cash_usd": 1000.0},
-            generated_at_utc="2026-01-01T00:00:00Z",
-        )
-        decision = build_entry_decision(
-            execution_intake_snapshot=allocation,
-            target_ref="BTC",
-            alpha_confidence_vector={"alpha_confidence_score": 0.85},
-            generated_at_utc="2026-01-01T00:01:00Z",
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-btc-1",
+                "account_sleeve_id": CRYPTO_SPOT_ACCOUNT_SLEEVE,
+                "target_ref": "BTC",
+                "instrument_ref": "BTC-USDT",
+                "quantity": 0.5,
+            },
+            event_failure_risk_vector={"risk_level": "high"},
+            generated_at_utc="2026-01-01T00:02:00Z",
         )
 
         intent = build_execution_order_intent(
@@ -375,16 +386,16 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(validate_failure_explanation_packet(packet)["validation_status"], "passed")
 
     def test_simulated_fill_event_consumes_ready_order_intent(self) -> None:
-        allocation = build_execution_intake_snapshot(
-            account_sleeve_id=CRYPTO_SPOT_ACCOUNT_SLEEVE,
-            account_sleeve_state={"available_cash_usd": 1000.0},
-            generated_at_utc="2026-01-01T00:00:00Z",
-        )
-        decision = build_entry_decision(
-            execution_intake_snapshot=allocation,
-            target_ref="ETH",
-            alpha_confidence_vector={"alpha_confidence_score": 0.90},
-            generated_at_utc="2026-01-01T00:01:00Z",
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-eth-1",
+                "account_sleeve_id": CRYPTO_SPOT_ACCOUNT_SLEEVE,
+                "target_ref": "ETH",
+                "instrument_ref": "ETH-USDT",
+                "quantity": 0.5,
+            },
+            event_failure_risk_vector={"risk_level": "high"},
+            generated_at_utc="2026-01-01T00:02:00Z",
         )
         intent = build_execution_order_intent(
             decision_record=decision,
@@ -411,7 +422,7 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(fill["contract_type"], "simulated_fill_event")
         self.assertEqual(fill["fill_status"], "simulated_filled")
         self.assertEqual(fill["instrument_ref"], "ETH-USDT")
-        self.assertAlmostEqual(fill["simulated_fill_price"], 3191.595)
+        self.assertAlmostEqual(fill["simulated_fill_price"], 3188.405)
         self.assertEqual(fill["safety"]["broker_calls_performed"], 0)
         self.assertEqual(validate_simulated_fill_event(fill)["validation_status"], "passed")
 

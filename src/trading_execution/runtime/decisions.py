@@ -32,11 +32,11 @@ from .components import (
     runtime_account_sleeves,
 )
 
-DecisionStatus = Literal["accepted", "blocked", "deferred", "watch_only", "monitor_only"]
+DecisionStatus = Literal["accepted", "blocked", "deferred", "watch_only", "monitor_only", "suitable", "rejected"]
 
 _ALLOWED_SLEEVES = {sleeve.sleeve_id: sleeve for sleeve in runtime_account_sleeves()}
 _CRYPTO_INSTRUMENT_BY_SYMBOL = dict(zip(CRYPTO_CANDIDATE_SYMBOLS, CRYPTO_SPOT_INSTRUMENT_REFS, strict=True))
-_EXECUTABLE_ENTRY_ACTIONS = {"open_underlying", "open_option"}
+_EXECUTABLE_ENTRY_ACTIONS: set[str] = set()
 _EXECUTABLE_LIFECYCLE_ACTIONS = {"add", "reduce", "exit", "stop", "take_profit"}
 _EXECUTABLE_OPTION_REEXPRESSION_ACTIONS = {"roll_option", "exit_option", "reduce_option"}
 _HIGH_VOLUME_SCORE_THRESHOLD = 0.80
@@ -116,6 +116,14 @@ def _risk_level(mapping: Mapping[str, Any]) -> str:
     return str(value or "").strip().lower()
 
 
+def _first_number(mapping: Mapping[str, Any], *keys: str) -> float | None:
+    for key in keys:
+        value = _number(mapping.get(key), default=-1.0)
+        if value >= 0:
+            return value
+    return None
+
+
 def _watch_targets(snapshot: Mapping[str, Any]) -> set[str]:
     rows = snapshot.get("watch_targets")
     if not isinstance(rows, list):
@@ -127,6 +135,45 @@ def _watch_targets(snapshot: Mapping[str, Any]) -> set[str]:
             if ref:
                 values.add(ref)
     return values
+
+
+def _entry_direction(underlying_plan: Mapping[str, Any]) -> str | None:
+    value = str(
+        underlying_plan.get("entry_direction")
+        or underlying_plan.get("resolved_action_side")
+        or underlying_plan.get("action_side")
+        or underlying_plan.get("planned_side")
+        or underlying_plan.get("direction")
+        or ""
+    ).strip().lower()
+    if value in {"long", "buy", "increase_long", "open_long", "bullish"}:
+        return "long"
+    if value in {"short", "sell_short", "increase_short", "open_short", "bearish"}:
+        return "short"
+    return None
+
+
+def _zone_from_fields(mapping: Mapping[str, Any], zone_key: str, low_keys: tuple[str, ...], high_keys: tuple[str, ...]) -> dict[str, float] | None:
+    zone = mapping.get(zone_key)
+    if isinstance(zone, Mapping):
+        low = _first_number(zone, "low", "min", "lower", "from")
+        high = _first_number(zone, "high", "max", "upper", "to")
+    elif isinstance(zone, Sequence) and not isinstance(zone, (str, bytes, bytearray)) and len(zone) >= 2:
+        low = _number(zone[0], default=-1.0)
+        high = _number(zone[1], default=-1.0)
+        low = low if low >= 0 else None
+        high = high if high >= 0 else None
+    else:
+        low = _first_number(mapping, *low_keys)
+        high = _first_number(mapping, *high_keys)
+    if low is None and high is None:
+        single = _first_number(mapping, f"{zone_key}_price", "entry_price", "planned_entry_price", "limit_price")
+        if single is not None:
+            low = single
+            high = single
+    if low is None or high is None:
+        return None
+    return {"low": min(low, high), "high": max(low, high)}
 
 
 def _account_balance_status(account_sleeve_state: Mapping[str, Any]) -> dict[str, Any]:
@@ -495,69 +542,122 @@ def build_entry_decision(
     option_expression_plan: Mapping[str, Any] | None = None,
     generated_at_utc: str | None = None,
 ) -> dict[str, Any]:
-    """Decide whether a selected target should open a position."""
+    """Decide whether a C01 target has a suitable underlying entry thesis."""
 
     generated_at_utc = generated_at_utc or _utc_now_iso()
     target_ref = target_ref.strip().upper()
     sleeve_id = str(execution_intake_snapshot.get("account_sleeve_id") or "")
-    sleeve = _sleeve(sleeve_id)
+    _sleeve(sleeve_id)
     selected = _watch_targets(execution_intake_snapshot)
     event_risk = _as_mapping(event_failure_risk_vector)
     alpha = _as_mapping(alpha_confidence_vector)
     policy = _as_mapping(dynamic_risk_policy_state)
-    option_plan = _as_mapping(option_expression_plan)
     underlying_plan = _as_mapping(underlying_action_plan)
+    target_state = _as_mapping(target_context_state)
 
     reasons: list[str] = []
-    status: DecisionStatus = "accepted"
-    action = "open_underlying"
-    instrument_ref = target_ref
+    status: DecisionStatus = "suitable"
+    action = "continue_to_option_review"
     asset_class = "crypto_spot" if sleeve_id == CRYPTO_SPOT_ACCOUNT_SLEEVE else "us_equity"
 
     if target_ref not in selected:
-        status = "blocked"
-        action = "block_entry"
+        status = "rejected"
+        action = "reject_entry_thesis"
         reasons.append("target_not_in_execution_intake_snapshot")
 
-    if execution_intake_snapshot.get("new_position_balance_status") == "no_available_balance":
-        status = "blocked"
-        action = "block_entry"
-        reasons.append("no_available_account_balance")
-
     if _bool_flag(event_risk, "block_new_entries", "halt_new_entries") or _risk_level(event_risk) in {"high", "critical"}:
-        status = "blocked"
-        action = "block_entry"
+        status = "rejected"
+        action = "reject_entry_thesis"
         reasons.append("event_failure_risk_blocks_new_entry")
 
     if _bool_flag(policy, "block_new_entries", "account_risk_cap_reached"):
-        status = "blocked"
-        action = "block_entry"
+        status = "rejected"
+        action = "reject_entry_thesis"
         reasons.append("dynamic_risk_policy_blocks_new_entry")
 
     alpha_score = _number(alpha.get("alpha_confidence_score", alpha.get("score")), default=0.0)
     minimum_alpha = _number(policy.get("minimum_entry_alpha_confidence"), default=0.55)
-    if status == "accepted" and alpha_score < minimum_alpha:
-        status = "watch_only"
-        action = "watch_only"
+    if status == "suitable" and alpha_score < minimum_alpha:
+        status = "rejected"
+        action = "reject_entry_thesis"
         reasons.append("alpha_confidence_below_entry_threshold")
 
-    preferred_expression = str(
-        option_plan.get("preferred_expression")
-        or option_plan.get("expression_type")
-        or underlying_plan.get("preferred_expression")
-        or "underlying"
+    direction = _entry_direction(underlying_plan)
+    if status == "suitable" and direction is None:
+        status = "rejected"
+        action = "reject_entry_thesis"
+        reasons.append("missing_underlying_entry_direction")
+
+    entry_zone = _zone_from_fields(
+        underlying_plan,
+        "entry_zone",
+        ("entry_price_min", "entry_lower_price", "entry_low", "entry_min"),
+        ("entry_price_max", "entry_upper_price", "entry_high", "entry_max"),
     )
-    if status == "accepted" and preferred_expression in {"option", "long_call", "long_put", "option_contract"}:
-        if not sleeve.option_reexpression_enabled:
-            status = "blocked"
-            action = "block_entry"
-            reasons.append("options_not_allowed_for_account_sleeve")
-        else:
-            action = "open_option"
-            instrument_ref = str(option_plan.get("instrument_ref") or option_plan.get("contract_ref") or target_ref).upper()
-            asset_class = "us_option"
-    elif status == "accepted" and sleeve_id == CRYPTO_SPOT_ACCOUNT_SLEEVE:
-        instrument_ref = _CRYPTO_INSTRUMENT_BY_SYMBOL.get(target_ref, target_ref)
+    if entry_zone is None:
+        single_entry = _first_number(underlying_plan, "entry_price", "planned_entry_price", "limit_price")
+        if single_entry is not None:
+            entry_zone = {"low": single_entry, "high": single_entry}
+
+    target_price = _first_number(
+        underlying_plan,
+        "target_price",
+        "take_profit_price",
+        "planned_target_price",
+        "price_target",
+    )
+    take_profit_zone = _zone_from_fields(
+        underlying_plan,
+        "take_profit_zone",
+        ("take_profit_price_min", "target_price_min", "take_profit_low"),
+        ("take_profit_price_max", "target_price_max", "take_profit_high"),
+    )
+    model_invalidation_price = _first_number(
+        underlying_plan,
+        "model_invalidation_price",
+        "thesis_invalidation_price",
+        "invalidation_price",
+    )
+    hard_stop_price = _first_number(underlying_plan, "hard_stop_price", "stop_price", "planned_stop_price")
+    expected_horizon = underlying_plan.get("expected_horizon") or underlying_plan.get("dominant_horizon") or underlying_plan.get("horizon")
+
+    if status == "suitable" and entry_zone is None:
+        status = "deferred"
+        action = "defer_entry_thesis"
+        reasons.append("missing_underlying_entry_zone")
+    if status == "suitable" and target_price is None and take_profit_zone is None:
+        status = "deferred"
+        action = "defer_entry_thesis"
+        reasons.append("missing_underlying_take_profit_or_target")
+    if status == "suitable" and model_invalidation_price is None:
+        status = "rejected"
+        action = "reject_entry_thesis"
+        reasons.append("missing_model_invalidation_price")
+    if status == "suitable" and hard_stop_price is None:
+        status = "rejected"
+        action = "reject_entry_thesis"
+        reasons.append("missing_hard_stop_price")
+
+    current_price = _first_number(target_state, "current_price", "last_price", "mark_price")
+    if current_price is None:
+        current_price = _first_number(underlying_plan, "current_price", "reference_price", "last_price")
+    if status == "suitable" and current_price is not None and entry_zone is not None:
+        if current_price < entry_zone["low"] or current_price > entry_zone["high"]:
+            status = "deferred"
+            action = "defer_entry_thesis"
+            reasons.append("current_price_outside_entry_zone")
+
+    suitability_score = max(
+        0.0,
+        min(
+            1.0,
+            (
+                alpha_score
+                + _pool_score(underlying_plan, "underlying_action_score", "entry_thesis_score", "setup_quality_score")
+            )
+            / 2,
+        ),
+    )
 
     body = {
         "contract_type": ENTRY_DECISION_CONTRACT,
@@ -566,10 +666,21 @@ def build_entry_decision(
         "source_intake_snapshot_id": execution_intake_snapshot.get("intake_snapshot_id"),
         "generated_at_utc": generated_at_utc,
         "target_ref": target_ref,
-        "instrument_ref": instrument_ref,
+        "instrument_ref": _CRYPTO_INSTRUMENT_BY_SYMBOL.get(target_ref, target_ref)
+        if sleeve_id == CRYPTO_SPOT_ACCOUNT_SLEEVE
+        else target_ref,
         "asset_class": asset_class,
         "decision_status": status,
         "decision_action": action,
+        "entry_thesis_status": status,
+        "entry_direction": direction,
+        "entry_zone": entry_zone,
+        "target_price": target_price,
+        "take_profit_zone": take_profit_zone,
+        "model_invalidation_price": model_invalidation_price,
+        "hard_stop_price": hard_stop_price,
+        "expected_horizon": expected_horizon,
+        "entry_suitability_score": round(suitability_score, 6),
         "reason_codes": reasons,
         "alpha_confidence_score": alpha_score,
         "minimum_alpha_confidence": minimum_alpha,
@@ -584,10 +695,7 @@ def build_entry_decision(
             "alpha_confidence_vector": alpha.get("model_ref"),
             "dynamic_risk_policy_state": policy.get("model_ref"),
             "underlying_action_plan": underlying_plan.get("model_ref"),
-            "option_expression_plan": option_plan.get("model_ref"),
         },
-        "account_sleeve_risk_budget": dict(_as_mapping(account_sleeve_risk_budget)),
-        "account_state_ref": _as_mapping(account_sleeve_state).get("account_state_ref"),
         "safety": _safety_flags(),
     }
     body["entry_decision_id"] = _stable_id("ed", body)
@@ -982,6 +1090,7 @@ def validate_entry_decision(record: Mapping[str, Any]) -> dict[str, Any]:
             "instrument_ref",
             "decision_status",
             "decision_action",
+            "entry_thesis_status",
             "safety",
         ),
     )
