@@ -50,16 +50,30 @@ netting are not accepted.
 ## Component Graph
 
 ```text
-Opportunity & Risk Allocation Engine
-  -> Entry Decision Engine
-  -> Position Lifecycle Controller
-  -> Option Re-Expression Review
-  -> Failure Explanation Component when observed failure exists
-  -> Order Intent Builder
-  -> Execution Gate / Adapter
+C01 Allocation
+  -> C02 Entry
+  -> C03 Lifecycle
+  -> C04 Option Review
+  -> C05 Failure Review when observed failure exists
+  -> C06 Order Intent
+  -> C07 Execution Gate
 ```
 
-### Opportunity & Risk Allocation Engine
+The short numbered names are the intraday process order. The stable
+`component_id` values remain the interface names used by existing contracts and
+callers.
+
+| Step | Short name | Stable `component_id` | Owns |
+|---|---|---|---|
+| `C01` | Allocation | `opportunity_risk_allocation_engine` | `target_allocation_snapshot` |
+| `C02` | Entry | `entry_decision_engine` | `entry_decision` |
+| `C03` | Lifecycle | `position_lifecycle_controller` | `position_lifecycle_decision` |
+| `C04` | Option Review | `option_reexpression_review` | `option_reexpression_decision` |
+| `C05` | Failure Review | `failure_explanation_component` | `failure_explanation_packet` |
+| `C06` | Order Intent | `order_intent_builder` | `execution_order_intent` |
+| `C07` | Execution Gate | `execution_gate_adapter` | `broker_order_request` / `simulated_fill_event` |
+
+### C01 Allocation
 
 Owns `target_allocation_snapshot`.
 
@@ -75,7 +89,7 @@ Model inputs:
 
 It does not call Layer 8, Layer 9, or Layer 10.
 
-### Entry Decision Engine
+### C02 Entry
 
 Owns `entry_decision`.
 
@@ -93,7 +107,7 @@ Model inputs:
 
 It does not call Layer 10. Pre-entry event risk is handled by Layer 4.
 
-### Position Lifecycle Controller
+### C03 Lifecycle
 
 Owns `position_lifecycle_decision`.
 
@@ -111,7 +125,7 @@ Model inputs:
 It does not call Layer 10 during normal lifecycle decisions. Observed model or
 trade failure routes to the Failure Explanation Component.
 
-### Option Re-Expression Review
+### C04 Option Review
 
 Owns `option_reexpression_decision`.
 
@@ -130,7 +144,7 @@ Model inputs:
 Roll decisions require a material improvement after roll-cost penalty and must
 respect roll-count, liquidity, and risk-budget limits.
 
-### Failure Explanation Component
+### C05 Failure Review
 
 Owns `failure_explanation_packet`.
 
@@ -155,7 +169,7 @@ lifecycle decisions:
 accepted event evidence -> model/trade risk
 ```
 
-### Order Intent Builder
+### C06 Order Intent
 
 Owns `execution_order_intent`.
 
@@ -164,7 +178,7 @@ into broker-neutral execution order intents.
 
 It calls no models and performs no broker/account mutation.
 
-### Execution Gate / Adapter
+### C07 Execution Gate
 
 Owns the boundary where `execution_order_intent` becomes either a live broker
 request or a Replay simulated fill event.

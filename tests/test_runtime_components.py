@@ -22,7 +22,52 @@ class RuntimeComponentGraphTests(unittest.TestCase):
         validation = validate_same_component_graph(live, replay)
         self.assertEqual(validation["validation_status"], "passed")
         self.assertEqual(live["component_order"], replay["component_order"])
+        self.assertEqual(live["component_sequence"], replay["component_sequence"])
         self.assertEqual(live["account_sleeves"], replay["account_sleeves"])
+
+    def test_components_have_intraday_step_numbers_and_short_names(self) -> None:
+        graph = build_runtime_component_graph(mode="replay")
+
+        self.assertEqual(
+            graph["component_sequence"],
+            [
+                {
+                    "component_step": "C01",
+                    "component_name": "Allocation",
+                    "component_id": "opportunity_risk_allocation_engine",
+                },
+                {
+                    "component_step": "C02",
+                    "component_name": "Entry",
+                    "component_id": "entry_decision_engine",
+                },
+                {
+                    "component_step": "C03",
+                    "component_name": "Lifecycle",
+                    "component_id": "position_lifecycle_controller",
+                },
+                {
+                    "component_step": "C04",
+                    "component_name": "Option Review",
+                    "component_id": "option_reexpression_review",
+                },
+                {
+                    "component_step": "C05",
+                    "component_name": "Failure Review",
+                    "component_id": "failure_explanation_component",
+                },
+                {
+                    "component_step": "C06",
+                    "component_name": "Order Intent",
+                    "component_id": "order_intent_builder",
+                },
+                {
+                    "component_step": "C07",
+                    "component_name": "Execution Gate",
+                    "component_id": "execution_gate_adapter",
+                },
+            ],
+        )
 
     def test_entry_component_does_not_call_layer_10(self) -> None:
         rows = {component.component_id: component for component in runtime_components()}

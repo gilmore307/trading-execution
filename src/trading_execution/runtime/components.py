@@ -59,6 +59,8 @@ class RuntimeAccountSleeve:
 class RuntimeComponent:
     """One task-level trading component in the execution runtime graph."""
 
+    component_step: str
+    component_name: str
     component_id: str
     component_label: str
     purpose: str
@@ -114,8 +116,10 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
 
     return (
         RuntimeComponent(
+            component_step="C01",
+            component_name="Allocation",
             component_id="opportunity_risk_allocation_engine",
-            component_label="Opportunity & Risk Allocation Engine",
+            component_label="C01 Allocation",
             purpose=(
                 "Select the current target pool and pre-allocate risk budget from "
                 "market, sector, target-state, account-sleeve, and existing-position evidence."
@@ -140,8 +144,10 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             layer_10_policy="not_called",
         ),
         RuntimeComponent(
+            component_step="C02",
+            component_name="Entry",
             component_id="entry_decision_engine",
-            component_label="Entry Decision Engine",
+            component_label="C02 Entry",
             purpose=(
                 "Decide whether an allocated target should open an underlying or "
                 "option position, remain watch-only, defer, or be blocked."
@@ -170,8 +176,10 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             layer_10_policy="not_called; pre-entry event risk is handled by layer_04_event_failure_risk",
         ),
         RuntimeComponent(
+            component_step="C03",
+            component_name="Lifecycle",
             component_id="position_lifecycle_controller",
-            component_label="Position Lifecycle Controller",
+            component_label="C03 Lifecycle",
             purpose=(
                 "Manage open positions by deciding hold, add, reduce, exit, stop, "
                 "take-profit, or flatten-review actions from current thesis and risk state."
@@ -199,8 +207,10 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             layer_10_policy="trigger_failure_explanation_component_only_after_observed_failure_or_abnormal_deviation",
         ),
         RuntimeComponent(
+            component_step="C04",
+            component_name="Option Review",
             component_id="option_reexpression_review",
-            component_label="Option Re-Expression Review",
+            component_label="C04 Option Review",
             purpose=(
                 "Periodically review held option contracts for moneyness, greeks, "
                 "DTE, spread, liquidity, IV, payoff efficiency, and roll cost."
@@ -221,8 +231,10 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             layer_10_policy="not_called; abnormal option or model behavior routes to failure_explanation_component",
         ),
         RuntimeComponent(
+            component_step="C05",
+            component_name="Failure Review",
             component_id="failure_explanation_component",
-            component_label="Failure Explanation Component",
+            component_label="C05 Failure Review",
             purpose=(
                 "When model or trade behavior has already failed or deviated, link "
                 "the failure evidence to possible unscreened events and produce Layer 4 feedback candidates."
@@ -239,8 +251,10 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             layer_10_policy="called_only_after_observed_model_or_trade_failure",
         ),
         RuntimeComponent(
+            component_step="C06",
+            component_name="Order Intent",
             component_id="order_intent_builder",
-            component_label="Order Intent Builder",
+            component_label="C06 Order Intent",
             purpose=(
                 "Convert accepted entry, lifecycle, or option re-expression decisions "
                 "into broker-neutral execution order intents."
@@ -257,8 +271,10 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             layer_10_policy="not_called",
         ),
         RuntimeComponent(
+            component_step="C07",
+            component_name="Execution Gate",
             component_id="execution_gate_adapter",
-            component_label="Execution Gate / Adapter",
+            component_label="C07 Execution Gate",
             purpose=(
                 "Apply final execution gates to broker-neutral order intents. Live mode "
                 "routes to reviewed broker adapters; Replay mode routes to the fill simulator."
@@ -305,6 +321,14 @@ def build_runtime_component_graph(*, mode: RuntimeMode) -> dict[str, Any]:
         "account_sleeve_policy": "separate_crypto_and_equity_options_accounts_no_cross_account_netting",
         "account_sleeves": [sleeve.to_dict() for sleeve in runtime_account_sleeves()],
         "component_order": [component.component_id for component in runtime_components()],
+        "component_sequence": [
+            {
+                "component_step": component.component_step,
+                "component_name": component.component_name,
+                "component_id": component.component_id,
+            }
+            for component in runtime_components()
+        ],
         "components": [component.to_dict() for component in runtime_components()],
         "required_first_batch_contracts": [
             TARGET_ALLOCATION_SNAPSHOT_CONTRACT,
@@ -342,11 +366,23 @@ def validate_same_component_graph(live_graph: dict[str, Any], replay_graph: dict
         errors.append("components must be lists")
     else:
         live_shape = [
-            (row.get("component_id"), tuple(row.get("input_contracts") or ()), tuple(row.get("output_contracts") or ()))
+            (
+                row.get("component_step"),
+                row.get("component_name"),
+                row.get("component_id"),
+                tuple(row.get("input_contracts") or ()),
+                tuple(row.get("output_contracts") or ()),
+            )
             for row in live_components
         ]
         replay_shape = [
-            (row.get("component_id"), tuple(row.get("input_contracts") or ()), tuple(row.get("output_contracts") or ()))
+            (
+                row.get("component_step"),
+                row.get("component_name"),
+                row.get("component_id"),
+                tuple(row.get("input_contracts") or ()),
+                tuple(row.get("output_contracts") or ()),
+            )
             for row in replay_components
         ]
         if live_shape != replay_shape:
