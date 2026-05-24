@@ -60,18 +60,18 @@ C01 Allocation
 ```
 
 The short numbered names are the intraday process order. The stable
-`component_id` values remain the interface names used by existing contracts and
-callers.
+`component_id` values follow the same physical naming pattern as model ids:
+`component_01_*` through `component_07_*`.
 
 | Step | Short name | Stable `component_id` | Owns |
 |---|---|---|---|
-| `C01` | Allocation | `opportunity_risk_allocation_engine` | `target_allocation_snapshot` |
-| `C02` | Entry | `entry_decision_engine` | `entry_decision` |
-| `C03` | Lifecycle | `position_lifecycle_controller` | `position_lifecycle_decision` |
-| `C04` | Option Review | `option_reexpression_review` | `option_reexpression_decision` |
-| `C05` | Failure Review | `failure_explanation_component` | `failure_explanation_packet` |
-| `C06` | Order Intent | `order_intent_builder` | `execution_order_intent` |
-| `C07` | Execution Gate | `execution_gate_adapter` | `broker_order_request` / `simulated_fill_event` |
+| `C01` | Allocation | `component_01_allocation` | `target_allocation_snapshot` |
+| `C02` | Entry | `component_02_entry` | `entry_decision` |
+| `C03` | Lifecycle | `component_03_lifecycle` | `position_lifecycle_decision` |
+| `C04` | Option Review | `component_04_option_review` | `option_reexpression_decision` |
+| `C05` | Failure Review | `component_05_failure_review` | `failure_explanation_packet` |
+| `C06` | Order Intent | `component_06_order_intent` | `execution_order_intent` |
+| `C07` | Execution Gate | `component_07_execution_gate` | `broker_order_request` / `simulated_fill_event` |
 
 ### C01 Allocation
 

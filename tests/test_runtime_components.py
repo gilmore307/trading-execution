@@ -34,37 +34,37 @@ class RuntimeComponentGraphTests(unittest.TestCase):
                 {
                     "component_step": "C01",
                     "component_name": "Allocation",
-                    "component_id": "opportunity_risk_allocation_engine",
+                    "component_id": "component_01_allocation",
                 },
                 {
                     "component_step": "C02",
                     "component_name": "Entry",
-                    "component_id": "entry_decision_engine",
+                    "component_id": "component_02_entry",
                 },
                 {
                     "component_step": "C03",
                     "component_name": "Lifecycle",
-                    "component_id": "position_lifecycle_controller",
+                    "component_id": "component_03_lifecycle",
                 },
                 {
                     "component_step": "C04",
                     "component_name": "Option Review",
-                    "component_id": "option_reexpression_review",
+                    "component_id": "component_04_option_review",
                 },
                 {
                     "component_step": "C05",
                     "component_name": "Failure Review",
-                    "component_id": "failure_explanation_component",
+                    "component_id": "component_05_failure_review",
                 },
                 {
                     "component_step": "C06",
                     "component_name": "Order Intent",
-                    "component_id": "order_intent_builder",
+                    "component_id": "component_06_order_intent",
                 },
                 {
                     "component_step": "C07",
                     "component_name": "Execution Gate",
-                    "component_id": "execution_gate_adapter",
+                    "component_id": "component_07_execution_gate",
                 },
             ],
         )
@@ -72,18 +72,18 @@ class RuntimeComponentGraphTests(unittest.TestCase):
     def test_entry_component_does_not_call_layer_10(self) -> None:
         rows = {component.component_id: component for component in runtime_components()}
 
-        entry = rows["entry_decision_engine"]
+        entry = rows["component_02_entry"]
         self.assertNotIn("layer_10_event_risk_governor", entry.called_model_layers)
         self.assertIn("layer_04_event_failure_risk", entry.called_model_layers)
         self.assertIn("not_called", entry.layer_10_policy)
 
-        failure = rows["failure_explanation_component"]
+        failure = rows["component_05_failure_review"]
         self.assertEqual(failure.called_model_layers, ("layer_10_event_risk_governor",))
         self.assertIn("after_observed_model_or_trade_failure", failure.layer_10_policy)
 
-    def test_order_intent_builder_has_no_model_calls_or_mutation(self) -> None:
+    def test_order_intent_component_has_no_model_calls_or_mutation(self) -> None:
         rows = {component.component_id: component for component in runtime_components()}
-        order_builder = rows["order_intent_builder"]
+        order_builder = rows["component_06_order_intent"]
 
         self.assertEqual(order_builder.called_model_layers, ())
         self.assertEqual(order_builder.output_contracts, ("execution_order_intent",))
@@ -137,14 +137,14 @@ class RuntimeComponentGraphTests(unittest.TestCase):
 
         rows = {component.component_id: component for component in runtime_components()}
         for component_id in (
-            "opportunity_risk_allocation_engine",
-            "entry_decision_engine",
-            "position_lifecycle_controller",
-            "order_intent_builder",
+            "component_01_allocation",
+            "component_02_entry",
+            "component_03_lifecycle",
+            "component_06_order_intent",
         ):
             self.assertIn("account_sleeve_state_snapshot", rows[component_id].input_contracts)
 
-        option_review = rows["option_reexpression_review"]
+        option_review = rows["component_04_option_review"]
         self.assertEqual(option_review.account_sleeves, (EQUITY_OPTIONS_ACCOUNT_SLEEVE,))
 
 

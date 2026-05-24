@@ -118,7 +118,7 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
         RuntimeComponent(
             component_step="C01",
             component_name="Allocation",
-            component_id="opportunity_risk_allocation_engine",
+            component_id="component_01_allocation",
             component_label="C01 Allocation",
             purpose=(
                 "Select the current target pool and pre-allocate risk budget from "
@@ -146,7 +146,7 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
         RuntimeComponent(
             component_step="C02",
             component_name="Entry",
-            component_id="entry_decision_engine",
+            component_id="component_02_entry",
             component_label="C02 Entry",
             purpose=(
                 "Decide whether an allocated target should open an underlying or "
@@ -178,7 +178,7 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
         RuntimeComponent(
             component_step="C03",
             component_name="Lifecycle",
-            component_id="position_lifecycle_controller",
+            component_id="component_03_lifecycle",
             component_label="C03 Lifecycle",
             purpose=(
                 "Manage open positions by deciding hold, add, reduce, exit, stop, "
@@ -204,12 +204,12 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
                 "layer_07_position_projection",
                 "layer_08_underlying_action",
             ),
-            layer_10_policy="trigger_failure_explanation_component_only_after_observed_failure_or_abnormal_deviation",
+            layer_10_policy="trigger_component_05_failure_review_only_after_observed_failure_or_abnormal_deviation",
         ),
         RuntimeComponent(
             component_step="C04",
             component_name="Option Review",
-            component_id="option_reexpression_review",
+            component_id="component_04_option_review",
             component_label="C04 Option Review",
             purpose=(
                 "Periodically review held option contracts for moneyness, greeks, "
@@ -228,12 +228,12 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
                 "layer_09_option_expression",
             ),
             account_sleeves=(EQUITY_OPTIONS_ACCOUNT_SLEEVE,),
-            layer_10_policy="not_called; abnormal option or model behavior routes to failure_explanation_component",
+            layer_10_policy="not_called; abnormal option or model behavior routes to component_05_failure_review",
         ),
         RuntimeComponent(
             component_step="C05",
             component_name="Failure Review",
-            component_id="failure_explanation_component",
+            component_id="component_05_failure_review",
             component_label="C05 Failure Review",
             purpose=(
                 "When model or trade behavior has already failed or deviated, link "
@@ -253,7 +253,7 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
         RuntimeComponent(
             component_step="C06",
             component_name="Order Intent",
-            component_id="order_intent_builder",
+            component_id="component_06_order_intent",
             component_label="C06 Order Intent",
             purpose=(
                 "Convert accepted entry, lifecycle, or option re-expression decisions "
@@ -273,7 +273,7 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
         RuntimeComponent(
             component_step="C07",
             component_name="Execution Gate",
-            component_id="execution_gate_adapter",
+            component_id="component_07_execution_gate",
             component_label="C07 Execution Gate",
             purpose=(
                 "Apply final execution gates to broker-neutral order intents. Live mode "

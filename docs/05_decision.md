@@ -16,16 +16,16 @@ resulting decision, order-intent, fill, account, and position logs.
 
 The accepted runtime components are:
 
-- `C01 Allocation` / `opportunity_risk_allocation_engine`
-- `C02 Entry` / `entry_decision_engine`
-- `C03 Lifecycle` / `position_lifecycle_controller`
-- `C04 Option Review` / `option_reexpression_review`
-- `C05 Failure Review` / `failure_explanation_component`
-- `C06 Order Intent` / `order_intent_builder`
-- `C07 Execution Gate` / `execution_gate_adapter`
+- `C01 Allocation` / `component_01_allocation`
+- `C02 Entry` / `component_02_entry`
+- `C03 Lifecycle` / `component_03_lifecycle`
+- `C04 Option Review` / `component_04_option_review`
+- `C05 Failure Review` / `component_05_failure_review`
+- `C06 Order Intent` / `component_06_order_intent`
+- `C07 Execution Gate` / `component_07_execution_gate`
 
 Layer 10 remains an independent model, but it is not a normal pre-entry input.
-It is called only by `failure_explanation_component` after observed model or
+It is called only by `component_05_failure_review` after observed model or
 trade failure to connect the failure evidence to possible event causes and
 produce Layer 4 feedback candidates.
 

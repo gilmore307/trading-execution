@@ -78,7 +78,7 @@ side-effect-free runtime builders and validators. `simulated_fill_event` is
 Replay-only evidence and never represents a real broker/account fill or account,
 order, or position mutation.
 
-Layer 10 is only called by `failure_explanation_component` after observed model
+Layer 10 is only called by `component_05_failure_review` after observed model
 or trade failure. Normal entry decisions use Layer 4 for forward event risk.
 
 Runtime decisions must be scoped to one independent account sleeve:
