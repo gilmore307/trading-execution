@@ -102,11 +102,14 @@ Live application scenario:
 - For `equity_options_account`, it keeps only eligible equity, ETF, or
   optionable-underlying watch targets and leaves option expression to C02/C04.
 - It builds `sector_opportunity_mix` from sectors whose M02 strength exceeds the
-  accepted strong-sector threshold. It does not force a top-three list; every
-  sufficiently strong sector is included, and weights are normalized from their
-  relative strength scores.
-- The mix is an opportunity map for C02, not a final position-weight or risk
-  allocation instruction.
+  accepted strong-sector threshold, then subtracts the sector mix already held
+  in the account sleeve. It does not force a top-three list.
+- The mix is dynamic: if the desired opportunity mix is `software 35%`,
+  `semiconductors 35%`, and `healthcare 30%`, but current positions already
+  fill `semiconductors 35%`, the remaining C01 opportunity map stops asking C02
+  to focus on semiconductors until that exposure falls below its target mix.
+- The mix is an opportunity map for C02, not a final position-weight, order
+  quantity, or risk allocation instruction.
 - If the account has available balance, C01 may pass watch targets forward. It
   does not block targets for concentration, position size, stop distance, or
   risk-budget reasons; those decisions belong to downstream components.

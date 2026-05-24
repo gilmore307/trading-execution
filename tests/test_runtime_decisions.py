@@ -89,9 +89,71 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(
             snapshot["sector_opportunity_mix"],
             [
-                {"sector_ref": "semiconductors", "opportunity_strength_score": 0.8, "opportunity_mix_weight": 0.344828},
-                {"sector_ref": "software", "opportunity_strength_score": 0.8, "opportunity_mix_weight": 0.344828},
-                {"sector_ref": "financials", "opportunity_strength_score": 0.72, "opportunity_mix_weight": 0.310345},
+                {
+                    "sector_ref": "semiconductors",
+                    "opportunity_strength_score": 0.8,
+                    "target_mix_weight": 0.344828,
+                    "current_mix_weight": 0.0,
+                    "remaining_mix_weight": 0.344828,
+                    "opportunity_mix_weight": 0.344828,
+                },
+                {
+                    "sector_ref": "software",
+                    "opportunity_strength_score": 0.8,
+                    "target_mix_weight": 0.344828,
+                    "current_mix_weight": 0.0,
+                    "remaining_mix_weight": 0.344828,
+                    "opportunity_mix_weight": 0.344828,
+                },
+                {
+                    "sector_ref": "financials",
+                    "opportunity_strength_score": 0.72,
+                    "target_mix_weight": 0.310345,
+                    "current_mix_weight": 0.0,
+                    "remaining_mix_weight": 0.310345,
+                    "opportunity_mix_weight": 0.310345,
+                },
+            ],
+        )
+
+    def test_intake_removes_sector_when_current_mix_already_filled(self) -> None:
+        snapshot = build_execution_intake_snapshot(
+            account_sleeve_id=EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+            account_sleeve_state={"available_cash_usd": 1000.0},
+            position_state=[
+                {"position_ref": "pos-nvda", "sector_ref": "semiconductors", "portfolio_weight": 0.35},
+            ],
+            sector_context_state={
+                "strong_sector_threshold": 0.50,
+                "sector_scores": [
+                    {"sector_ref": "software", "sector_strength_score": 0.70},
+                    {"sector_ref": "semiconductors", "sector_strength_score": 0.70},
+                    {"sector_ref": "healthcare", "sector_strength_score": 0.60},
+                ],
+            },
+            target_context_rows=[{"target_ref": "MSFT", "asset_class": "us_equity", "sector_ref": "software"}],
+            generated_at_utc="2026-01-01T00:00:00Z",
+        )
+
+        self.assertEqual(
+            snapshot["sector_opportunity_mix"],
+            [
+                {
+                    "sector_ref": "software",
+                    "opportunity_strength_score": 0.7,
+                    "target_mix_weight": 0.35,
+                    "current_mix_weight": 0.0,
+                    "remaining_mix_weight": 0.35,
+                    "opportunity_mix_weight": 0.538462,
+                },
+                {
+                    "sector_ref": "healthcare",
+                    "opportunity_strength_score": 0.6,
+                    "target_mix_weight": 0.3,
+                    "current_mix_weight": 0.0,
+                    "remaining_mix_weight": 0.3,
+                    "opportunity_mix_weight": 0.461538,
+                },
             ],
         )
 

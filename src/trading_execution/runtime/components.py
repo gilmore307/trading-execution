@@ -121,8 +121,9 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             component_id="component_01_intake",
             component_label="C01 Intake",
             purpose=(
-                "Read account balance state, current holdings, and watch targets for one account sleeve "
-                "before downstream entry and lifecycle components make trading decisions."
+                "Read account balance state, current holdings, watch targets, and remaining sector "
+                "opportunity mix for one account sleeve before downstream entry and lifecycle components "
+                "make trading decisions."
             ),
             input_contracts=(
                 "market_universe_snapshot",

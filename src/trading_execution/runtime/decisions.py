@@ -138,7 +138,80 @@ def _account_balance_status(account_sleeve_state: Mapping[str, Any]) -> dict[str
     }
 
 
-def _sector_opportunity_mix(sector_context_state: Mapping[str, Any]) -> list[dict[str, Any]]:
+def _sector_ref(row: Mapping[str, Any]) -> str | None:
+    value = row.get("sector_ref") or row.get("sector") or row.get("industry_ref") or row.get("theme_ref")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _target_sector_refs(target_context_rows: Any) -> dict[str, str]:
+    refs: dict[str, str] = {}
+    for row in _as_rows(target_context_rows):
+        sector_ref = _sector_ref(row)
+        target_ref = _target_ref(row)
+        if sector_ref and target_ref:
+            refs[target_ref] = sector_ref
+        instrument_ref = row.get("instrument_ref") or row.get("contract_ref")
+        if sector_ref and isinstance(instrument_ref, str) and instrument_ref.strip():
+            refs[instrument_ref.strip().upper()] = sector_ref
+    return refs
+
+
+def _position_weight(row: Mapping[str, Any]) -> float:
+    for key in ("sector_weight", "portfolio_weight", "position_weight", "allocation_weight", "notional_weight"):
+        value = _number(row.get(key), default=-1.0)
+        if value >= 0:
+            return value
+    return -1.0
+
+
+def _current_sector_mix(position_state: Any, target_sector_refs: Mapping[str, str]) -> dict[str, float]:
+    rows = _as_rows(position_state)
+    weighted: dict[str, float] = {}
+    unweighted: dict[str, float] = {}
+    notional_rows: list[tuple[str, float]] = []
+
+    for row in rows:
+        sector_ref = _sector_ref(row)
+        if not sector_ref:
+            target_ref = _target_ref(row)
+            sector_ref = target_sector_refs.get(target_ref or "")
+        if not sector_ref:
+            continue
+        weight = _position_weight(row)
+        if weight >= 0:
+            weighted[sector_ref] = weighted.get(sector_ref, 0.0) + weight
+            continue
+        notional = _number(
+            row.get("market_value_usd", row.get("notional_usd", row.get("gross_exposure_usd"))),
+            default=0.0,
+        )
+        if notional > 0:
+            notional_rows.append((sector_ref, notional))
+        else:
+            unweighted[sector_ref] = unweighted.get(sector_ref, 0.0) + 1.0
+
+    if weighted:
+        return weighted
+    total_notional = sum(value for _, value in notional_rows)
+    if total_notional > 0:
+        current: dict[str, float] = {}
+        for sector_ref, value in notional_rows:
+            current[sector_ref] = current.get(sector_ref, 0.0) + value / total_notional
+        return current
+    total_count = sum(unweighted.values())
+    if total_count > 0:
+        return {sector_ref: count / total_count for sector_ref, count in unweighted.items()}
+    return {}
+
+
+def _sector_opportunity_mix(
+    sector_context_state: Mapping[str, Any],
+    *,
+    position_state: Any = None,
+    target_context_rows: Any = None,
+) -> list[dict[str, Any]]:
     threshold = _number(sector_context_state.get("strong_sector_threshold"), default=0.70)
     raw_rows = (
         sector_context_state.get("sector_scores")
@@ -149,8 +222,8 @@ def _sector_opportunity_mix(sector_context_state: Mapping[str, Any]) -> list[dic
     rows = _as_rows({"rows": raw_rows})
     strong: list[dict[str, Any]] = []
     for row in rows:
-        sector_ref = row.get("sector_ref") or row.get("sector") or row.get("industry_ref") or row.get("theme_ref")
-        if not isinstance(sector_ref, str) or not sector_ref.strip():
+        sector_ref = _sector_ref(row)
+        if not sector_ref:
             continue
         strength = _number(
             row.get("opportunity_strength_score", row.get("sector_strength_score", row.get("strength_score"))),
@@ -158,18 +231,42 @@ def _sector_opportunity_mix(sector_context_state: Mapping[str, Any]) -> list[dic
         )
         if strength < threshold:
             continue
-        strong.append({"sector_ref": sector_ref.strip(), "opportunity_strength_score": strength})
+        strong.append({"sector_ref": sector_ref, "opportunity_strength_score": strength})
 
     total_strength = sum(row["opportunity_strength_score"] for row in strong)
     if total_strength <= 0:
+        return []
+    target_rows = [
+        {
+            "sector_ref": row["sector_ref"],
+            "opportunity_strength_score": row["opportunity_strength_score"],
+            "target_mix_weight": row["opportunity_strength_score"] / total_strength,
+        }
+        for row in strong
+    ]
+    current_mix = _current_sector_mix(position_state, _target_sector_refs(target_context_rows))
+    residual_rows = [
+        {
+            **row,
+            "current_mix_weight": current_mix.get(row["sector_ref"], 0.0),
+            "remaining_mix_weight": max(row["target_mix_weight"] - current_mix.get(row["sector_ref"], 0.0), 0.0),
+        }
+        for row in target_rows
+    ]
+    total_remaining = sum(row["remaining_mix_weight"] for row in residual_rows)
+    if total_remaining <= 0:
         return []
     return [
         {
             "sector_ref": row["sector_ref"],
             "opportunity_strength_score": round(row["opportunity_strength_score"], 6),
-            "opportunity_mix_weight": round(row["opportunity_strength_score"] / total_strength, 6),
+            "target_mix_weight": round(row["target_mix_weight"], 6),
+            "current_mix_weight": round(row["current_mix_weight"], 6),
+            "remaining_mix_weight": round(row["remaining_mix_weight"], 6),
+            "opportunity_mix_weight": round(row["remaining_mix_weight"] / total_remaining, 6),
         }
-        for row in sorted(strong, key=lambda item: (-item["opportunity_strength_score"], item["sector_ref"]))
+        for row in sorted(residual_rows, key=lambda item: (-item["remaining_mix_weight"], item["sector_ref"]))
+        if row["remaining_mix_weight"] > 0
     ]
 
 
@@ -249,7 +346,11 @@ def build_execution_intake_snapshot(
         "generated_at_utc": generated_at_utc,
         "watch_targets": watch_targets,
         "blocked_targets": blocked,
-        "sector_opportunity_mix": _sector_opportunity_mix(sector_state),
+        "sector_opportunity_mix": _sector_opportunity_mix(
+            sector_state,
+            position_state=position_state,
+            target_context_rows=target_context_rows,
+        ),
         "available_balance_usd": balance_status["available_balance_usd"],
         "new_position_balance_status": balance_status["new_position_balance_status"],
         "account_state_ref": account_state.get("account_state_ref"),
