@@ -239,82 +239,6 @@ def _lifecycle_add_constraint_reasons(projection: Mapping[str, Any], underlying_
     return reasons
 
 
-def _account_equity_usd(*sources: Mapping[str, Any]) -> float | None:
-    for source in sources:
-        value = _first_number(
-            source,
-            "account_equity_usd",
-            "net_liquidation_value_usd",
-            "equity_usd",
-            "account_value_usd",
-        )
-        if value is not None:
-            return value
-    return None
-
-
-def _pdt_framework_retired(*sources: Mapping[str, Any]) -> bool:
-    retired_statuses = {"retired", "replaced", "not_applicable", "disabled", "intraday_margin_active"}
-    for source in sources:
-        status = str(
-            source.get("pdt_framework_status")
-            or source.get("day_trade_framework_status")
-            or source.get("broker_day_trade_framework_status")
-            or ""
-        ).strip().lower()
-        if status in retired_statuses:
-            return True
-        if _bool_flag(
-            source,
-            "broker_pdt_framework_retired",
-            "legacy_pdt_framework_retired",
-            "intraday_margin_framework_active",
-        ):
-            return True
-    return False
-
-
-def _day_trade_constraint_reasons(
-    *,
-    account_sleeve_state: Mapping[str, Any],
-    risk_budget: Mapping[str, Any],
-    policy: Mapping[str, Any],
-    projection: Mapping[str, Any],
-    underlying_plan: Mapping[str, Any],
-    position: Mapping[str, Any],
-) -> list[str]:
-    sources = (account_sleeve_state, risk_budget, policy, projection, underlying_plan, position)
-    if _pdt_framework_retired(*sources):
-        return []
-
-    equity = _account_equity_usd(*sources)
-    threshold = _first_number(policy, "pdt_min_equity_usd", "day_trade_min_equity_usd")
-    if threshold is None:
-        threshold = _first_number(risk_budget, "pdt_min_equity_usd", "day_trade_min_equity_usd") or 25_000.0
-    if equity is None or equity >= threshold:
-        return []
-
-    day_trade_remaining = _first_number(
-        account_sleeve_state,
-        "remaining_day_trades",
-        "day_trades_remaining",
-        "available_day_trades",
-    )
-    block_flags = (
-        "pdt_restriction_active",
-        "day_trade_restriction_active",
-        "same_day_round_trip_restricted",
-        "day_trade_limit_reached",
-        "pdt_day_trade_block_active",
-        "would_create_day_trade",
-        "same_day_round_trip_required",
-        "same_day_round_trip_would_be_created",
-    )
-    if day_trade_remaining == 0.0 or any(_bool_flag(source, *block_flags) for source in sources):
-        return ["pdt_under_25000_day_trade_deadline"]
-    return []
-
-
 def _zone_from_fields(mapping: Mapping[str, Any], zone_key: str, low_keys: tuple[str, ...], high_keys: tuple[str, ...]) -> dict[str, float] | None:
     zone = mapping.get(zone_key)
     if isinstance(zone, Mapping):
@@ -930,14 +854,6 @@ def build_position_lifecycle_decision(
     )
     planned_action = _planned_lifecycle_action(underlying_plan)
     add_constraint_reasons = _lifecycle_add_constraint_reasons(projection, underlying_plan)
-    day_trade_constraint_reasons = _day_trade_constraint_reasons(
-        account_sleeve_state=account,
-        risk_budget=risk_budget,
-        policy=policy,
-        projection=projection,
-        underlying_plan=underlying_plan,
-        position=position,
-    )
 
     reasons: list[str] = []
     status: DecisionStatus = "monitor_only"
@@ -991,9 +907,6 @@ def build_position_lifecycle_decision(
         if action == "add" and add_constraint_reasons:
             action = "hold"
             reasons.append("add_blocked_by_portfolio_constraints")
-        if action == "add" and day_trade_constraint_reasons:
-            action = "hold"
-            reasons.append("add_blocked_by_day_trade_constraint")
         if risk_budget.get("max_position_loss_pct") is not None or position.get("unrealized_loss_pct") is not None:
             reasons.append("fixed_percentage_loss_not_lifecycle_stop")
 
@@ -1017,10 +930,6 @@ def build_position_lifecycle_decision(
         "portfolio_constraint_checks": {
             "add_blocked": bool(add_constraint_reasons),
             "reason_codes": add_constraint_reasons,
-        },
-        "day_trade_constraint_checks": {
-            "add_blocked": bool(day_trade_constraint_reasons),
-            "reason_codes": day_trade_constraint_reasons,
         },
         "model_layer_refs": {
             "market_context_state": market.get("model_ref"),
