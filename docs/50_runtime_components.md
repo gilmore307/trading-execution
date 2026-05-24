@@ -108,6 +108,10 @@ Live application scenario:
   `semiconductors 35%`, and `healthcare 30%`, but current positions already
   fill `semiconductors 35%`, the remaining C01 opportunity map stops asking C02
   to focus on semiconductors until that exposure falls below its target mix.
+- The equity/options watch target pool is the union of remaining strong-sector
+  targets, recent high-trading-volume targets, and recent catalyst targets such
+  as earnings beats or material news. Targets whose sector opportunity is
+  already filled are excluded before C02 sees them.
 - The mix is an opportunity map for C02, not a final position-weight, order
   quantity, or risk allocation instruction.
 - If the account has available balance, C01 may pass watch targets forward. It

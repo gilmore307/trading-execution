@@ -206,7 +206,7 @@ def _current_sector_mix(position_state: Any, target_sector_refs: Mapping[str, st
     return {}
 
 
-def _sector_opportunity_mix(
+def _sector_opportunity_rows(
     sector_context_state: Mapping[str, Any],
     *,
     position_state: Any = None,
@@ -253,6 +253,20 @@ def _sector_opportunity_mix(
         }
         for row in target_rows
     ]
+    return residual_rows
+
+
+def _sector_opportunity_mix(
+    sector_context_state: Mapping[str, Any],
+    *,
+    position_state: Any = None,
+    target_context_rows: Any = None,
+) -> list[dict[str, Any]]:
+    residual_rows = _sector_opportunity_rows(
+        sector_context_state,
+        position_state=position_state,
+        target_context_rows=target_context_rows,
+    )
     total_remaining = sum(row["remaining_mix_weight"] for row in residual_rows)
     if total_remaining <= 0:
         return []
@@ -270,15 +284,68 @@ def _sector_opportunity_mix(
     ]
 
 
+def _filled_sector_refs(sector_opportunity_rows: Sequence[Mapping[str, Any]]) -> set[str]:
+    refs: set[str] = set()
+    for row in sector_opportunity_rows:
+        sector_ref = row.get("sector_ref")
+        if isinstance(sector_ref, str) and _number(row.get("remaining_mix_weight"), default=0.0) <= 0:
+            refs.add(sector_ref)
+    return refs
+
+
+def _pool_score(row: Mapping[str, Any], *keys: str) -> float:
+    return max((_number(row.get(key), default=0.0) for key in keys), default=0.0)
+
+
+def _recent_high_volume(row: Mapping[str, Any]) -> bool:
+    if _bool_flag(row, "recent_high_volume", "high_trading_volume", "unusual_volume"):
+        return True
+    if _pool_score(row, "volume_score", "relative_volume_score", "liquidity_score") >= 0.70:
+        return True
+    return _number(row.get("relative_volume"), default=0.0) >= 2.0
+
+
+def _recent_news_catalyst(row: Mapping[str, Any]) -> bool:
+    if _bool_flag(row, "recent_news_catalyst", "news_catalyst", "earnings_catalyst", "earnings_beat"):
+        return True
+    if _pool_score(row, "news_catalyst_score", "catalyst_score", "earnings_surprise_score") >= 0.70:
+        return True
+    catalyst_type = row.get("catalyst_type") or row.get("news_catalyst_type")
+    return isinstance(catalyst_type, str) and bool(catalyst_type.strip())
+
+
+def _candidate_reasons(row: Mapping[str, Any], residual_sector_refs: set[str]) -> list[str]:
+    reasons: list[str] = []
+    sector_ref = _sector_ref(row)
+    if sector_ref in residual_sector_refs:
+        reasons.append("remaining_strong_sector_opportunity")
+    if _recent_high_volume(row):
+        reasons.append("recent_high_trading_volume")
+    if _recent_news_catalyst(row):
+        reasons.append("recent_news_catalyst")
+    return reasons
+
+
 def _candidate_rows_for_sleeve(
     *,
     sleeve: RuntimeAccountSleeve,
     market_universe: Any,
     target_context_rows: Any,
+    sector_opportunity_mix: Sequence[Mapping[str, Any]] = (),
+    filled_sector_refs: set[str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     rows = _as_rows(target_context_rows) or _as_rows(market_universe)
     selected: list[dict[str, Any]] = []
     blocked: list[dict[str, Any]] = []
+    residual_sector_refs = {
+        row["sector_ref"]
+        for row in sector_opportunity_mix
+        if isinstance(row.get("sector_ref"), str) and _number(row.get("remaining_mix_weight"), default=0.0) > 0
+    }
+    filled_refs = filled_sector_refs or set()
+    pool_filter_enabled = bool(residual_sector_refs or filled_refs) or any(
+        _recent_high_volume(row) or _recent_news_catalyst(row) for row in rows
+    )
 
     if sleeve.sleeve_id == CRYPTO_SPOT_ACCOUNT_SLEEVE:
         allowed = set(CRYPTO_CANDIDATE_SYMBOLS)
@@ -305,12 +372,25 @@ def _candidate_rows_for_sleeve(
         if asset_class not in sleeve.allowed_asset_classes:
             blocked.append({"target_ref": ref, "reason_codes": ["asset_class_not_allowed_for_account_sleeve"]})
             continue
+        sector_ref = _sector_ref(row)
+        if sector_ref in filled_refs:
+            blocked.append({"target_ref": ref, "reason_codes": ["sector_opportunity_already_filled"]})
+            continue
+        candidate_reasons = _candidate_reasons(row, residual_sector_refs)
+        if pool_filter_enabled and not candidate_reasons:
+            blocked.append({"target_ref": ref, "reason_codes": ["not_in_c01_candidate_source_pool"]})
+            continue
+        selected_row = {
+            "target_ref": ref,
+            "instrument_ref": _instrument_ref(row, ref),
+            "asset_class": asset_class,
+        }
+        if sector_ref:
+            selected_row["sector_ref"] = sector_ref
+        if candidate_reasons:
+            selected_row["candidate_reasons"] = candidate_reasons
         selected.append(
-            {
-                "target_ref": ref,
-                "instrument_ref": _instrument_ref(row, ref),
-                "asset_class": asset_class,
-            }
+            selected_row
         )
     return selected, blocked
 
@@ -333,10 +413,22 @@ def build_execution_intake_snapshot(
     sector_state = _as_mapping(sector_context_state)
     balance_status = _account_balance_status(account_state)
     generated_at_utc = generated_at_utc or _utc_now_iso()
+    sector_opportunity_rows = _sector_opportunity_rows(
+        sector_state,
+        position_state=position_state,
+        target_context_rows=target_context_rows,
+    )
+    sector_opportunity_mix = _sector_opportunity_mix(
+        sector_state,
+        position_state=position_state,
+        target_context_rows=target_context_rows,
+    )
     watch_targets, blocked = _candidate_rows_for_sleeve(
         sleeve=sleeve,
         market_universe=market_universe,
         target_context_rows=target_context_rows,
+        sector_opportunity_mix=sector_opportunity_mix,
+        filled_sector_refs=_filled_sector_refs(sector_opportunity_rows),
     )
     positions = _as_rows(position_state)
     body = {
@@ -346,11 +438,7 @@ def build_execution_intake_snapshot(
         "generated_at_utc": generated_at_utc,
         "watch_targets": watch_targets,
         "blocked_targets": blocked,
-        "sector_opportunity_mix": _sector_opportunity_mix(
-            sector_state,
-            position_state=position_state,
-            target_context_rows=target_context_rows,
-        ),
+        "sector_opportunity_mix": sector_opportunity_mix,
         "available_balance_usd": balance_status["available_balance_usd"],
         "new_position_balance_status": balance_status["new_position_balance_status"],
         "account_state_ref": account_state.get("account_state_ref"),
