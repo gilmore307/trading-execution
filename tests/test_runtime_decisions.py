@@ -69,6 +69,32 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(decision["decision_status"], "blocked")
         self.assertIn("no_available_account_balance", decision["reason_codes"])
 
+    def test_intake_builds_sector_opportunity_mix_from_strong_sectors(self) -> None:
+        snapshot = build_execution_intake_snapshot(
+            account_sleeve_id=EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+            account_sleeve_state={"available_cash_usd": 1000.0},
+            sector_context_state={
+                "strong_sector_threshold": 0.70,
+                "sector_scores": [
+                    {"sector_ref": "software", "sector_strength_score": 0.80},
+                    {"sector_ref": "semiconductors", "sector_strength_score": 0.80},
+                    {"sector_ref": "healthcare", "sector_strength_score": 0.40},
+                    {"sector_ref": "financials", "sector_strength_score": 0.72},
+                ],
+            },
+            target_context_rows=[{"target_ref": "MSFT", "asset_class": "us_equity"}],
+            generated_at_utc="2026-01-01T00:00:00Z",
+        )
+
+        self.assertEqual(
+            snapshot["sector_opportunity_mix"],
+            [
+                {"sector_ref": "semiconductors", "opportunity_strength_score": 0.8, "opportunity_mix_weight": 0.344828},
+                {"sector_ref": "software", "opportunity_strength_score": 0.8, "opportunity_mix_weight": 0.344828},
+                {"sector_ref": "financials", "opportunity_strength_score": 0.72, "opportunity_mix_weight": 0.310345},
+            ],
+        )
+
     def test_equity_options_entry_can_open_option_when_allocated(self) -> None:
         allocation = build_execution_intake_snapshot(
             account_sleeve_id=EQUITY_OPTIONS_ACCOUNT_SLEEVE,

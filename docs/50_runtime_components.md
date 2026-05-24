@@ -77,9 +77,9 @@ The short numbered names are the intraday process order. The stable
 
 Owns `execution_intake_snapshot`.
 
-Purpose: read account balance state, current holdings, and watch targets for one
-account sleeve before downstream entry and lifecycle components make trading
-decisions.
+Purpose: read account balance state, current holdings, watch targets, and the
+strong-sector opportunity mix for one account sleeve before downstream entry and
+lifecycle components make trading decisions.
 
 Model inputs:
 
@@ -101,6 +101,12 @@ Live application scenario:
   them.
 - For `equity_options_account`, it keeps only eligible equity, ETF, or
   optionable-underlying watch targets and leaves option expression to C02/C04.
+- It builds `sector_opportunity_mix` from sectors whose M02 strength exceeds the
+  accepted strong-sector threshold. It does not force a top-three list; every
+  sufficiently strong sector is included, and weights are normalized from their
+  relative strength scores.
+- The mix is an opportunity map for C02, not a final position-weight or risk
+  allocation instruction.
 - If the account has available balance, C01 may pass watch targets forward. It
   does not block targets for concentration, position size, stop distance, or
   risk-budget reasons; those decisions belong to downstream components.

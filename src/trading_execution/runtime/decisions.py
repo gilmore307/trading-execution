@@ -138,6 +138,41 @@ def _account_balance_status(account_sleeve_state: Mapping[str, Any]) -> dict[str
     }
 
 
+def _sector_opportunity_mix(sector_context_state: Mapping[str, Any]) -> list[dict[str, Any]]:
+    threshold = _number(sector_context_state.get("strong_sector_threshold"), default=0.70)
+    raw_rows = (
+        sector_context_state.get("sector_scores")
+        or sector_context_state.get("sector_context_rows")
+        or sector_context_state.get("sectors")
+        or ()
+    )
+    rows = _as_rows({"rows": raw_rows})
+    strong: list[dict[str, Any]] = []
+    for row in rows:
+        sector_ref = row.get("sector_ref") or row.get("sector") or row.get("industry_ref") or row.get("theme_ref")
+        if not isinstance(sector_ref, str) or not sector_ref.strip():
+            continue
+        strength = _number(
+            row.get("opportunity_strength_score", row.get("sector_strength_score", row.get("strength_score"))),
+            default=0.0,
+        )
+        if strength < threshold:
+            continue
+        strong.append({"sector_ref": sector_ref.strip(), "opportunity_strength_score": strength})
+
+    total_strength = sum(row["opportunity_strength_score"] for row in strong)
+    if total_strength <= 0:
+        return []
+    return [
+        {
+            "sector_ref": row["sector_ref"],
+            "opportunity_strength_score": round(row["opportunity_strength_score"], 6),
+            "opportunity_mix_weight": round(row["opportunity_strength_score"] / total_strength, 6),
+        }
+        for row in sorted(strong, key=lambda item: (-item["opportunity_strength_score"], item["sector_ref"]))
+    ]
+
+
 def _candidate_rows_for_sleeve(
     *,
     sleeve: RuntimeAccountSleeve,
@@ -198,6 +233,7 @@ def build_execution_intake_snapshot(
 
     sleeve = _sleeve(account_sleeve_id)
     account_state = _as_mapping(account_sleeve_state)
+    sector_state = _as_mapping(sector_context_state)
     balance_status = _account_balance_status(account_state)
     generated_at_utc = generated_at_utc or _utc_now_iso()
     watch_targets, blocked = _candidate_rows_for_sleeve(
@@ -213,6 +249,7 @@ def build_execution_intake_snapshot(
         "generated_at_utc": generated_at_utc,
         "watch_targets": watch_targets,
         "blocked_targets": blocked,
+        "sector_opportunity_mix": _sector_opportunity_mix(sector_state),
         "available_balance_usd": balance_status["available_balance_usd"],
         "new_position_balance_status": balance_status["new_position_balance_status"],
         "account_state_ref": account_state.get("account_state_ref"),
@@ -223,7 +260,7 @@ def build_execution_intake_snapshot(
         ],
         "model_layer_refs": {
             "market_context_state": _as_mapping(market_context_state).get("model_ref"),
-            "sector_context_state": _as_mapping(sector_context_state).get("model_ref"),
+            "sector_context_state": sector_state.get("model_ref"),
         },
         "safety": _safety_flags(),
     }
