@@ -46,8 +46,14 @@ model-provided underlying hard stop, thesis invalidation, critical event risk,
 or explicit underlying action plan.
 
 Every non-hold action must carry explicit reason evidence. C03 does not run
-hidden fee, PDT, or churn formulas to override lifecycle actions. Those facts
-belong in C07 execution-review context.
+hidden fee or churn formulas to override lifecycle actions. PDT/day-trade
+state is different: when the broker's legacy PDT framework is still active,
+account equity is below $25,000, and the account context says another same-day
+round trip is blocked or unavailable, C03 must suppress non-critical `add`
+decisions early instead of spending downstream C04/C07 resources on an
+unexecutable increase. Once broker context marks the legacy PDT framework
+retired, replaced, not applicable, or migrated to intraday margin, the legacy
+PDT add block is bypassed.
 
 Add decisions must respect the current upstream sector/opportunity mix and
 portfolio exposure constraints carried from C01/M07. If the target's sector or

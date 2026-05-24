@@ -203,12 +203,18 @@ Live application scenario:
   thesis invalidation lines. Option premium at risk limits capital committed;
   it is not an automatic mark-to-market exit trigger.
 - Every non-hold lifecycle action must carry explicit reason codes and model
-  evidence. C03 does not use fee, PDT, or churn formulas to override the thesis
+  evidence. C03 does not use fee or churn formulas to override the thesis
   decision; those facts are execution-review context for C07.
 - Add signals must respect the upstream sector/opportunity mix and portfolio
   exposure constraints carried through C01/M07 context. If the target's sector
   or exposure bucket is already filled, C03 keeps `hold` rather than adding
   more exposure.
+- PDT/day-trade feasibility is checked before non-critical `add` decisions. If
+  the broker's legacy PDT framework is still active, account equity is below
+  `$25,000`, and account context says another same-day round trip is blocked or
+  unavailable, C03 emits `hold` with `add_blocked_by_day_trade_constraint`.
+  Broker context can disable this legacy check by marking the PDT framework as
+  retired, replaced, not applicable, or migrated to intraday margin.
 - `reduce` is reserved for material risk reduction or thesis deterioration.
   It is not a reaction to every small price wiggle.
 - `add` requires a still-valid thesis, stronger alpha, acceptable projected
@@ -286,9 +292,10 @@ mutate account, order, or position state.
 Agent final review is a hard live-submission boundary. Any open, add, reduce,
 exit, stop, take-profit, roll, or stock-fallback order must present its C02/C03
 or C04 reason evidence to C07 and receive an approved agent review before a
-live broker order can be submitted. PDT/day-trade limits, minimum-hold context,
-fees, spread, and transaction-cost concerns are reviewed here as execution
-context; they are not hidden formulas inside C03.
+live broker order can be submitted. C07 still reviews broker/regulatory context,
+minimum-hold context, fees, spread, and transaction-cost concerns before live
+submission; C03 only pre-blocks legacy PDT/day-trade add infeasibility when the
+account is under `$25,000` and the broker framework has not retired it.
 
 ## Implementation Status
 

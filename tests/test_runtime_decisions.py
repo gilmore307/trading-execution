@@ -350,6 +350,60 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertIn("sector_opportunity_mix_blocks_add", decision["portfolio_constraint_checks"]["reason_codes"])
         self.assertIn("add_blocked_by_portfolio_constraints", decision["reason_codes"])
 
+    def test_position_lifecycle_blocks_add_under_active_pdt_limit(self) -> None:
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-msft-1",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "target_ref": "MSFT",
+                "instrument_ref": "MSFT",
+                "quantity": 1,
+                "current_underlying_price": 105.0,
+            },
+            account_sleeve_state={
+                "account_equity_usd": 10_000.0,
+                "remaining_day_trades": 0,
+                "pdt_restriction_active": True,
+            },
+            alpha_confidence_vector={"alpha_confidence_score": 0.90},
+            dynamic_risk_policy_state={"minimum_add_alpha_confidence": 0.70},
+            position_projection_vector={"add_allowed": True},
+            generated_at_utc="2026-01-01T00:02:00Z",
+        )
+
+        self.assertEqual(decision["decision_status"], "accepted")
+        self.assertEqual(decision["decision_action"], "hold")
+        self.assertTrue(decision["day_trade_constraint_checks"]["add_blocked"])
+        self.assertIn("pdt_under_25000_day_trade_deadline", decision["day_trade_constraint_checks"]["reason_codes"])
+        self.assertIn("add_blocked_by_day_trade_constraint", decision["reason_codes"])
+
+    def test_position_lifecycle_ignores_pdt_when_framework_retired(self) -> None:
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-msft-1",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "target_ref": "MSFT",
+                "instrument_ref": "MSFT",
+                "quantity": 1,
+                "current_underlying_price": 105.0,
+            },
+            account_sleeve_state={
+                "account_equity_usd": 10_000.0,
+                "remaining_day_trades": 0,
+                "pdt_restriction_active": True,
+                "pdt_framework_status": "retired",
+            },
+            alpha_confidence_vector={"alpha_confidence_score": 0.90},
+            dynamic_risk_policy_state={"minimum_add_alpha_confidence": 0.70},
+            position_projection_vector={"add_allowed": True},
+            generated_at_utc="2026-01-01T00:02:00Z",
+        )
+
+        self.assertEqual(decision["decision_status"], "accepted")
+        self.assertEqual(decision["decision_action"], "add")
+        self.assertFalse(decision["day_trade_constraint_checks"]["add_blocked"])
+        self.assertNotIn("add_blocked_by_day_trade_constraint", decision["reason_codes"])
+
     def test_order_intent_is_broker_neutral_and_requires_valid_risk_cap(self) -> None:
         decision = build_position_lifecycle_decision(
             position_state={
