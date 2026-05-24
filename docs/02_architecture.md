@@ -27,7 +27,7 @@ component graph:
 ```text
 clock + market adapter + account adapter + frozen model bundle
   -> Account Sleeve Split
-  -> C01 Allocation
+  -> C01 Intake
   -> C02 Entry
   -> C03 Lifecycle
   -> C04 Option Review
@@ -45,9 +45,9 @@ remain identical across both modes.
 
 The account adapter exposes two independent sleeves: `crypto_spot_account` and
 `equity_options_account`. Runtime components must preserve that split through
-target allocation, entry, lifecycle, option re-expression, and order intent
-records. Crypto candidates are fixed to `BTC`, `ETH`, and `SOL`; equity/options
-candidates come from the reviewed stock/ETF/optionable-underlying process.
+intake, entry, lifecycle, option re-expression, and order intent records. Crypto
+candidates are fixed to `BTC`, `ETH`, and `SOL`; equity/options candidates come
+from the eligible equity/ETF/optionable-underlying universe.
 
 ## Operating Principles
 

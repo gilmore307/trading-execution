@@ -46,7 +46,7 @@ results, but it must call this graph instead of duplicating trading decisions.
 
 First-batch contracts:
 
-- `target_allocation_snapshot`
+- `execution_intake_snapshot`
 - `entry_decision`
 - `position_lifecycle_decision`
 - `execution_order_intent`

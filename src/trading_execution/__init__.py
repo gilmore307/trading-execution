@@ -46,7 +46,7 @@ from .runtime import (
     RUNTIME_COMPONENT_CONTRACT,
     RUNTIME_COMPONENT_GRAPH_CONTRACT,
     SIMULATED_FILL_EVENT_CONTRACT,
-    TARGET_ALLOCATION_SNAPSHOT_CONTRACT,
+    EXECUTION_INTAKE_SNAPSHOT_CONTRACT,
     RuntimeAccountSleeve,
     RuntimeComponent,
     build_entry_decision,
@@ -57,7 +57,7 @@ from .runtime import (
     build_runtime_component_graph,
     build_realtime_trading_runtime_status,
     build_simulated_fill_event,
-    build_target_allocation_snapshot,
+    build_execution_intake_snapshot,
     runtime_account_sleeves,
     runtime_components,
     run_realtime_trading_runtime_check,
@@ -68,7 +68,7 @@ from .runtime import (
     validate_position_lifecycle_decision,
     validate_simulated_fill_event,
     validate_same_component_graph,
-    validate_target_allocation_snapshot,
+    validate_execution_intake_snapshot,
 )
 
 __all__ = [
@@ -98,7 +98,7 @@ __all__ = [
     "RUNTIME_COMPONENT_GRAPH_CONTRACT",
     "SHADOW_CYCLE_SELECTION_CONTRACT",
     "SIMULATED_FILL_EVENT_CONTRACT",
-    "TARGET_ALLOCATION_SNAPSHOT_CONTRACT",
+    "EXECUTION_INTAKE_SNAPSHOT_CONTRACT",
     "RuntimeAccountSleeve",
     "RuntimeComponent",
     "broker_interfaces",
@@ -114,7 +114,7 @@ __all__ = [
     "build_realtime_feature_snapshot",
     "build_realtime_subscription_plan",
     "build_simulated_fill_event",
-    "build_target_allocation_snapshot",
+    "build_execution_intake_snapshot",
     "build_active_model_config_write",
     "build_shadow_cycle_selection",
     "model_decision_input_snapshot_contract",
@@ -137,5 +137,5 @@ __all__ = [
     "runtime_components",
     "run_realtime_trading_runtime_check",
     "validate_same_component_graph",
-    "validate_target_allocation_snapshot",
+    "validate_execution_intake_snapshot",
 ]

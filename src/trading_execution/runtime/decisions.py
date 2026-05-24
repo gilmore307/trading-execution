@@ -27,7 +27,7 @@ from .components import (
     OPTION_REEXPRESSION_DECISION_CONTRACT,
     POSITION_LIFECYCLE_DECISION_CONTRACT,
     SIMULATED_FILL_EVENT_CONTRACT,
-    TARGET_ALLOCATION_SNAPSHOT_CONTRACT,
+    EXECUTION_INTAKE_SNAPSHOT_CONTRACT,
     RuntimeAccountSleeve,
     runtime_account_sleeves,
 )
@@ -113,8 +113,8 @@ def _risk_level(mapping: Mapping[str, Any]) -> str:
     return str(value or "").strip().lower()
 
 
-def _selected_targets(snapshot: Mapping[str, Any]) -> set[str]:
-    rows = snapshot.get("selected_targets")
+def _watch_targets(snapshot: Mapping[str, Any]) -> set[str]:
+    rows = snapshot.get("watch_targets")
     if not isinstance(rows, list):
         return set()
     values: set[str] = set()
@@ -124,6 +124,18 @@ def _selected_targets(snapshot: Mapping[str, Any]) -> set[str]:
             if ref:
                 values.add(ref)
     return values
+
+
+def _account_balance_status(account_sleeve_state: Mapping[str, Any]) -> dict[str, Any]:
+    balance_value = account_sleeve_state.get(
+        "available_cash_usd",
+        account_sleeve_state.get("buying_power_usd", account_sleeve_state.get("cash_usd")),
+    )
+    balance = _number(balance_value, default=0.0)
+    return {
+        "available_balance_usd": balance,
+        "new_position_balance_status": "has_balance" if balance > 0 else "no_available_balance",
+    }
 
 
 def _candidate_rows_for_sleeve(
@@ -171,38 +183,39 @@ def _candidate_rows_for_sleeve(
     return selected, blocked
 
 
-def build_target_allocation_snapshot(
+def build_execution_intake_snapshot(
     *,
     account_sleeve_id: str,
     market_universe: Any = None,
     account_sleeve_state: Mapping[str, Any] | None = None,
-    account_sleeve_risk_budget: Mapping[str, Any] | None = None,
     position_state: Any = None,
     market_context_state: Mapping[str, Any] | None = None,
     sector_context_state: Mapping[str, Any] | None = None,
     target_context_rows: Any = None,
-    dynamic_risk_policy_state: Mapping[str, Any] | None = None,
     generated_at_utc: str | None = None,
 ) -> dict[str, Any]:
-    """Build the target/risk allocation snapshot for one account sleeve."""
+    """Build the account and watch-target intake snapshot for one account sleeve."""
 
     sleeve = _sleeve(account_sleeve_id)
+    account_state = _as_mapping(account_sleeve_state)
+    balance_status = _account_balance_status(account_state)
     generated_at_utc = generated_at_utc or _utc_now_iso()
-    selected, blocked = _candidate_rows_for_sleeve(
+    watch_targets, blocked = _candidate_rows_for_sleeve(
         sleeve=sleeve,
         market_universe=market_universe,
         target_context_rows=target_context_rows,
     )
     positions = _as_rows(position_state)
     body = {
-        "contract_type": TARGET_ALLOCATION_SNAPSHOT_CONTRACT,
+        "contract_type": EXECUTION_INTAKE_SNAPSHOT_CONTRACT,
         "account_sleeve_id": sleeve.sleeve_id,
         "candidate_pool_policy": sleeve.candidate_pool_policy,
         "generated_at_utc": generated_at_utc,
-        "selected_targets": selected,
+        "watch_targets": watch_targets,
         "blocked_targets": blocked,
-        "risk_budget": dict(_as_mapping(account_sleeve_risk_budget)),
-        "account_state_ref": _as_mapping(account_sleeve_state).get("account_state_ref"),
+        "available_balance_usd": balance_status["available_balance_usd"],
+        "new_position_balance_status": balance_status["new_position_balance_status"],
+        "account_state_ref": account_state.get("account_state_ref"),
         "open_position_refs": [
             row.get("position_ref") or row.get("instrument_ref") or row.get("target_ref")
             for row in positions
@@ -211,17 +224,16 @@ def build_target_allocation_snapshot(
         "model_layer_refs": {
             "market_context_state": _as_mapping(market_context_state).get("model_ref"),
             "sector_context_state": _as_mapping(sector_context_state).get("model_ref"),
-            "dynamic_risk_policy_state": _as_mapping(dynamic_risk_policy_state).get("model_ref"),
         },
         "safety": _safety_flags(),
     }
-    body["allocation_snapshot_id"] = _stable_id("tas", body)
+    body["intake_snapshot_id"] = _stable_id("eis", body)
     return body
 
 
 def build_entry_decision(
     *,
-    target_allocation_snapshot: Mapping[str, Any],
+    execution_intake_snapshot: Mapping[str, Any],
     target_ref: str,
     account_sleeve_state: Mapping[str, Any] | None = None,
     account_sleeve_risk_budget: Mapping[str, Any] | None = None,
@@ -238,9 +250,9 @@ def build_entry_decision(
 
     generated_at_utc = generated_at_utc or _utc_now_iso()
     target_ref = target_ref.strip().upper()
-    sleeve_id = str(target_allocation_snapshot.get("account_sleeve_id") or "")
+    sleeve_id = str(execution_intake_snapshot.get("account_sleeve_id") or "")
     sleeve = _sleeve(sleeve_id)
-    selected = _selected_targets(target_allocation_snapshot)
+    selected = _watch_targets(execution_intake_snapshot)
     event_risk = _as_mapping(event_failure_risk_vector)
     alpha = _as_mapping(alpha_confidence_vector)
     policy = _as_mapping(dynamic_risk_policy_state)
@@ -256,7 +268,12 @@ def build_entry_decision(
     if target_ref not in selected:
         status = "blocked"
         action = "block_entry"
-        reasons.append("target_not_in_allocation_snapshot")
+        reasons.append("target_not_in_execution_intake_snapshot")
+
+    if execution_intake_snapshot.get("new_position_balance_status") == "no_available_balance":
+        status = "blocked"
+        action = "block_entry"
+        reasons.append("no_available_account_balance")
 
     if _bool_flag(event_risk, "block_new_entries", "halt_new_entries") or _risk_level(event_risk) in {"high", "critical"}:
         status = "blocked"
@@ -297,7 +314,7 @@ def build_entry_decision(
         "contract_type": ENTRY_DECISION_CONTRACT,
         "entry_decision_id": None,
         "account_sleeve_id": sleeve_id,
-        "source_allocation_snapshot_id": target_allocation_snapshot.get("allocation_snapshot_id"),
+        "source_intake_snapshot_id": execution_intake_snapshot.get("intake_snapshot_id"),
         "generated_at_utc": generated_at_utc,
         "target_ref": target_ref,
         "instrument_ref": instrument_ref,
@@ -697,11 +714,11 @@ def build_simulated_fill_event(
     return body
 
 
-def validate_target_allocation_snapshot(record: Mapping[str, Any]) -> dict[str, Any]:
+def validate_execution_intake_snapshot(record: Mapping[str, Any]) -> dict[str, Any]:
     return _validate_record(
         record,
-        contract_type=TARGET_ALLOCATION_SNAPSHOT_CONTRACT,
-        required_fields=("allocation_snapshot_id", "account_sleeve_id", "selected_targets", "safety"),
+        contract_type=EXECUTION_INTAKE_SNAPSHOT_CONTRACT,
+        required_fields=("intake_snapshot_id", "account_sleeve_id", "watch_targets", "safety"),
     )
 
 

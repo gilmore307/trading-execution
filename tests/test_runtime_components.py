@@ -33,8 +33,8 @@ class RuntimeComponentGraphTests(unittest.TestCase):
             [
                 {
                     "component_step": "C01",
-                    "component_name": "Allocation",
-                    "component_id": "component_01_allocation",
+                    "component_name": "Intake",
+                    "component_id": "component_01_intake",
                 },
                 {
                     "component_step": "C02",
@@ -96,7 +96,7 @@ class RuntimeComponentGraphTests(unittest.TestCase):
         self.assertEqual(
             graph["required_first_batch_contracts"],
             [
-                "target_allocation_snapshot",
+                "execution_intake_snapshot",
                 "entry_decision",
                 "position_lifecycle_decision",
                 "execution_order_intent",
@@ -137,7 +137,7 @@ class RuntimeComponentGraphTests(unittest.TestCase):
 
         rows = {component.component_id: component for component in runtime_components()}
         for component_id in (
-            "component_01_allocation",
+            "component_01_intake",
             "component_02_entry",
             "component_03_lifecycle",
             "component_06_order_intent",

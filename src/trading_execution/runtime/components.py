@@ -13,7 +13,7 @@ from typing import Any, Literal
 RUNTIME_COMPONENT_CONTRACT = "execution_runtime_component"
 RUNTIME_COMPONENT_GRAPH_CONTRACT = "execution_runtime_component_graph"
 
-TARGET_ALLOCATION_SNAPSHOT_CONTRACT = "target_allocation_snapshot"
+EXECUTION_INTAKE_SNAPSHOT_CONTRACT = "execution_intake_snapshot"
 ENTRY_DECISION_CONTRACT = "entry_decision"
 POSITION_LIFECYCLE_DECISION_CONTRACT = "position_lifecycle_decision"
 OPTION_REEXPRESSION_DECISION_CONTRACT = "option_reexpression_decision"
@@ -117,29 +117,26 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
     return (
         RuntimeComponent(
             component_step="C01",
-            component_name="Allocation",
-            component_id="component_01_allocation",
-            component_label="C01 Allocation",
+            component_name="Intake",
+            component_id="component_01_intake",
+            component_label="C01 Intake",
             purpose=(
-                "Select the current target pool and pre-allocate risk budget from "
-                "market, sector, target-state, account-sleeve, and existing-position evidence."
+                "Read account balance state, current holdings, and watch targets for one account sleeve "
+                "before downstream entry and lifecycle components make trading decisions."
             ),
             input_contracts=(
                 "market_universe_snapshot",
                 "account_sleeve_state_snapshot",
-                "account_sleeve_risk_budget_snapshot",
                 "position_state_snapshot",
                 "market_context_state",
                 "sector_context_state",
                 "target_context_state",
-                "dynamic_risk_policy_state",
             ),
-            output_contracts=(TARGET_ALLOCATION_SNAPSHOT_CONTRACT,),
+            output_contracts=(EXECUTION_INTAKE_SNAPSHOT_CONTRACT,),
             called_model_layers=(
                 "layer_01_market_regime",
                 "layer_02_sector_context",
                 "layer_03_target_state_vector",
-                "layer_06_dynamic_risk_policy",
             ),
             layer_10_policy="not_called",
         ),
@@ -153,7 +150,7 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
                 "option position, remain watch-only, defer, or be blocked."
             ),
             input_contracts=(
-                TARGET_ALLOCATION_SNAPSHOT_CONTRACT,
+                EXECUTION_INTAKE_SNAPSHOT_CONTRACT,
                 "account_sleeve_state_snapshot",
                 "account_sleeve_risk_budget_snapshot",
                 "position_state_snapshot",
@@ -331,7 +328,7 @@ def build_runtime_component_graph(*, mode: RuntimeMode) -> dict[str, Any]:
         ],
         "components": [component.to_dict() for component in runtime_components()],
         "required_first_batch_contracts": [
-            TARGET_ALLOCATION_SNAPSHOT_CONTRACT,
+            EXECUTION_INTAKE_SNAPSHOT_CONTRACT,
             ENTRY_DECISION_CONTRACT,
             POSITION_LIFECYCLE_DECISION_CONTRACT,
             EXECUTION_ORDER_INTENT_CONTRACT,

@@ -16,7 +16,7 @@ resulting decision, order-intent, fill, account, and position logs.
 
 The accepted runtime components are:
 
-- `C01 Allocation` / `component_01_allocation`
+- `C01 Intake` / `component_01_intake`
 - `C02 Entry` / `component_02_entry`
 - `C03 Lifecycle` / `component_03_lifecycle`
 - `C04 Option Review` / `component_04_option_review`
@@ -393,7 +393,7 @@ Status: Accepted
 
 Crypto spot trading and US equity/options trading are independent execution
 accounts. Runtime components may observe aggregate portfolio limits, but each
-target allocation, entry, lifecycle, option re-expression, and order-intent
+intake, entry, lifecycle, option re-expression, and order-intent
 record must belong to exactly one account sleeve.
 
 Accepted sleeves:

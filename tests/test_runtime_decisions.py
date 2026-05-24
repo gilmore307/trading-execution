@@ -9,14 +9,14 @@ from trading_execution.runtime import (
     build_option_reexpression_decision,
     build_position_lifecycle_decision,
     build_simulated_fill_event,
-    build_target_allocation_snapshot,
+    build_execution_intake_snapshot,
     validate_entry_decision,
     validate_execution_order_intent,
     validate_failure_explanation_packet,
     validate_option_reexpression_decision,
     validate_position_lifecycle_decision,
     validate_simulated_fill_event,
-    validate_target_allocation_snapshot,
+    validate_execution_intake_snapshot,
 )
 
 
@@ -34,23 +34,45 @@ VALID_STOCK_RISK_CAP = {
 
 
 class RuntimeDecisionTests(unittest.TestCase):
-    def test_crypto_allocation_uses_fixed_three_asset_pool(self) -> None:
-        snapshot = build_target_allocation_snapshot(
+    def test_crypto_intake_uses_fixed_three_asset_pool(self) -> None:
+        snapshot = build_execution_intake_snapshot(
             account_sleeve_id=CRYPTO_SPOT_ACCOUNT_SLEEVE,
+            account_sleeve_state={"available_cash_usd": 1000.0},
             market_universe={"targets": [{"symbol": "BTC"}, {"symbol": "DOGE"}]},
             generated_at_utc="2026-01-01T00:00:00Z",
         )
 
-        self.assertEqual(snapshot["contract_type"], "target_allocation_snapshot")
+        self.assertEqual(snapshot["contract_type"], "execution_intake_snapshot")
         self.assertEqual(snapshot["account_sleeve_id"], CRYPTO_SPOT_ACCOUNT_SLEEVE)
-        self.assertEqual([row["target_ref"] for row in snapshot["selected_targets"]], ["BTC"])
+        self.assertEqual([row["target_ref"] for row in snapshot["watch_targets"]], ["BTC"])
         self.assertEqual(snapshot["blocked_targets"], [{"target_ref": "DOGE", "reason_codes": ["outside_fixed_crypto_candidate_pool"]}])
-        self.assertEqual(validate_target_allocation_snapshot(snapshot)["validation_status"], "passed")
+        self.assertEqual(snapshot["new_position_balance_status"], "has_balance")
+        self.assertEqual(validate_execution_intake_snapshot(snapshot)["validation_status"], "passed")
         self.assertEqual(snapshot["safety"]["broker_calls_performed"], 0)
 
-    def test_equity_options_entry_can_open_option_when_allocated(self) -> None:
-        allocation = build_target_allocation_snapshot(
+    def test_intake_marks_no_available_balance_without_managing_risk(self) -> None:
+        snapshot = build_execution_intake_snapshot(
             account_sleeve_id=EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+            account_sleeve_state={"available_cash_usd": 0.0},
+            target_context_rows=[{"target_ref": "AAPL", "asset_class": "us_equity"}],
+            generated_at_utc="2026-01-01T00:00:00Z",
+        )
+        decision = build_entry_decision(
+            execution_intake_snapshot=snapshot,
+            target_ref="AAPL",
+            alpha_confidence_vector={"alpha_confidence_score": 0.95},
+            generated_at_utc="2026-01-01T00:01:00Z",
+        )
+
+        self.assertEqual(snapshot["new_position_balance_status"], "no_available_balance")
+        self.assertNotIn("risk_budget", snapshot)
+        self.assertEqual(decision["decision_status"], "blocked")
+        self.assertIn("no_available_account_balance", decision["reason_codes"])
+
+    def test_equity_options_entry_can_open_option_when_allocated(self) -> None:
+        allocation = build_execution_intake_snapshot(
+            account_sleeve_id=EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+            account_sleeve_state={"available_cash_usd": 1000.0},
             target_context_rows=[
                 {"target_ref": "AAPL", "instrument_ref": "AAPL", "asset_class": "us_equity"},
             ],
@@ -58,7 +80,7 @@ class RuntimeDecisionTests(unittest.TestCase):
         )
 
         decision = build_entry_decision(
-            target_allocation_snapshot=allocation,
+            execution_intake_snapshot=allocation,
             target_ref="AAPL",
             alpha_confidence_vector={"alpha_confidence_score": 0.80},
             event_failure_risk_vector={"risk_level": "low"},
@@ -75,13 +97,14 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(validate_entry_decision(decision)["validation_status"], "passed")
 
     def test_crypto_entry_blocks_options(self) -> None:
-        allocation = build_target_allocation_snapshot(
+        allocation = build_execution_intake_snapshot(
             account_sleeve_id=CRYPTO_SPOT_ACCOUNT_SLEEVE,
+            account_sleeve_state={"available_cash_usd": 1000.0},
             generated_at_utc="2026-01-01T00:00:00Z",
         )
 
         decision = build_entry_decision(
-            target_allocation_snapshot=allocation,
+            execution_intake_snapshot=allocation,
             target_ref="BTC",
             alpha_confidence_vector={"alpha_confidence_score": 0.95},
             option_expression_plan={"preferred_expression": "long_call", "instrument_ref": "BTC_OPTION"},
@@ -114,13 +137,14 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(validate_position_lifecycle_decision(decision)["validation_status"], "passed")
 
     def test_order_intent_is_broker_neutral_and_requires_valid_risk_cap(self) -> None:
-        allocation = build_target_allocation_snapshot(
+        allocation = build_execution_intake_snapshot(
             account_sleeve_id=EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+            account_sleeve_state={"available_cash_usd": 1000.0},
             target_context_rows=[{"target_ref": "MSFT", "asset_class": "us_equity"}],
             generated_at_utc="2026-01-01T00:00:00Z",
         )
         decision = build_entry_decision(
-            target_allocation_snapshot=allocation,
+            execution_intake_snapshot=allocation,
             target_ref="MSFT",
             alpha_confidence_vector={"alpha_confidence_score": 0.80},
             generated_at_utc="2026-01-01T00:01:00Z",
@@ -143,12 +167,13 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(validate_execution_order_intent(intent)["validation_status"], "passed")
 
     def test_order_intent_blocks_missing_risk_cap(self) -> None:
-        allocation = build_target_allocation_snapshot(
+        allocation = build_execution_intake_snapshot(
             account_sleeve_id=CRYPTO_SPOT_ACCOUNT_SLEEVE,
+            account_sleeve_state={"available_cash_usd": 1000.0},
             generated_at_utc="2026-01-01T00:00:00Z",
         )
         decision = build_entry_decision(
-            target_allocation_snapshot=allocation,
+            execution_intake_snapshot=allocation,
             target_ref="BTC",
             alpha_confidence_vector={"alpha_confidence_score": 0.85},
             generated_at_utc="2026-01-01T00:01:00Z",
@@ -222,12 +247,13 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(validate_failure_explanation_packet(packet)["validation_status"], "passed")
 
     def test_simulated_fill_event_consumes_ready_order_intent(self) -> None:
-        allocation = build_target_allocation_snapshot(
+        allocation = build_execution_intake_snapshot(
             account_sleeve_id=CRYPTO_SPOT_ACCOUNT_SLEEVE,
+            account_sleeve_state={"available_cash_usd": 1000.0},
             generated_at_utc="2026-01-01T00:00:00Z",
         )
         decision = build_entry_decision(
-            target_allocation_snapshot=allocation,
+            execution_intake_snapshot=allocation,
             target_ref="ETH",
             alpha_confidence_vector={"alpha_confidence_score": 0.90},
             generated_at_utc="2026-01-01T00:01:00Z",

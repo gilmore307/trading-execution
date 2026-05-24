@@ -41,7 +41,7 @@ Accepted sleeves:
     optionable underlyings
   - option re-expression is enabled
 
-Every `target_allocation_snapshot`, `entry_decision`,
+Every `execution_intake_snapshot`, `entry_decision`,
 `position_lifecycle_decision`, `option_reexpression_decision`, and
 `execution_order_intent` must carry exactly one account sleeve. Cross-account
 collateral, cross-account buying-power substitution, and cross-account position
@@ -50,7 +50,7 @@ netting are not accepted.
 ## Component Graph
 
 ```text
-C01 Allocation
+C01 Intake
   -> C02 Entry
   -> C03 Lifecycle
   -> C04 Option Review
@@ -65,7 +65,7 @@ The short numbered names are the intraday process order. The stable
 
 | Step | Short name | Stable `component_id` | Owns |
 |---|---|---|---|
-| `C01` | Allocation | `component_01_allocation` | `target_allocation_snapshot` |
+| `C01` | Intake | `component_01_intake` | `execution_intake_snapshot` |
 | `C02` | Entry | `component_02_entry` | `entry_decision` |
 | `C03` | Lifecycle | `component_03_lifecycle` | `position_lifecycle_decision` |
 | `C04` | Option Review | `component_04_option_review` | `option_reexpression_decision` |
@@ -73,35 +73,40 @@ The short numbered names are the intraday process order. The stable
 | `C06` | Order Intent | `component_06_order_intent` | `execution_order_intent` |
 | `C07` | Execution Gate | `component_07_execution_gate` | `broker_order_request` / `simulated_fill_event` |
 
-### C01 Allocation
+### C01 Intake
 
-Owns `target_allocation_snapshot`.
+Owns `execution_intake_snapshot`.
 
-Purpose: select the current target pool and pre-allocate risk budget from market,
-sector, target-state, account-sleeve, and existing-position evidence.
+Purpose: read account balance state, current holdings, and watch targets for one
+account sleeve before downstream entry and lifecycle components make trading
+decisions.
 
 Model inputs:
 
 - Layer 1 market regime.
 - Layer 2 sector context.
 - Layer 3 target state.
-- Layer 6 dynamic risk policy.
 
-It does not call Layer 8, Layer 9, or Layer 10.
+It does not call Layer 6, Layer 8, Layer 9, or Layer 10. C01 does not size
+positions, allocate risk budget, decide whether a thesis deserves a trade, or
+manage exits.
 
 Live application scenario:
 
-- At each live decision minute, C01 reads the current market universe, account
-  sleeve state, risk budget, open positions, and the latest M01/M02/M03/M06
-  outputs.
+- At each live decision minute, C01 reads account sleeve state, available
+  balance, current open positions, the market universe, watch targets, and the
+  latest M01/M02/M03 outputs.
 - For `crypto_spot_account`, it keeps the fixed crypto pool limited to `BTC`,
   `ETH`, and `SOL`, blocking other crypto symbols before later components see
   them.
-- For `equity_options_account`, it keeps only eligible reviewed equity, ETF, or
-  optionable-underlying candidates and leaves option expression to C02/C04.
-- The output `target_allocation_snapshot` is the minute's execution-ready target
-  pool and risk-budget context. It authorizes downstream evaluation, not order
-  construction or broker mutation.
+- For `equity_options_account`, it keeps only eligible equity, ETF, or
+  optionable-underlying watch targets and leaves option expression to C02/C04.
+- If the account has available balance, C01 may pass watch targets forward. It
+  does not block targets for concentration, position size, stop distance, or
+  risk-budget reasons; those decisions belong to downstream components.
+- The output `execution_intake_snapshot` is the minute's account-and-watchlist
+  entrance record. It authorizes downstream evaluation, not order construction,
+  position sizing, risk management, or broker mutation.
 
 ### C02 Entry
 
@@ -212,7 +217,7 @@ mutate account, order, or position state.
 
 Implemented and tested runtime dry-run contracts:
 
-- `target_allocation_snapshot`
+- `execution_intake_snapshot`
 - `entry_decision`
 - `position_lifecycle_decision`
 - `execution_order_intent`
