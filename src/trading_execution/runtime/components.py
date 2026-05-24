@@ -176,7 +176,7 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             purpose=(
                 "Manage already-open positions in underlying-thesis terms, deciding hold, "
                 "add, reduce, exit, stop, take-profit, or flatten-review actions with "
-                "model-stop and churn/cost controls."
+                "model-stop, reason-evidence, and portfolio constraint checks."
             ),
             input_contracts=(
                 "position_state_snapshot",

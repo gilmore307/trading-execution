@@ -202,18 +202,17 @@ Live application scenario:
   loss percentages. C03 follows the model-provided underlying hard stop and
   thesis invalidation lines. Option premium at risk limits capital committed;
   it is not an automatic mark-to-market exit trigger.
-- Hard risk exits are allowed to bypass churn controls: underlying hard stop,
-  thesis invalidation, critical event risk, or explicit underlying exit/stop
-  plans must still act.
-- Non-critical position changes must be cost-aware. Add and reduce signals are
-  dampened when same-day round-trip/PDT guards, minimum-hold guards, churn
-  guards, or transaction-cost/fee-drag guards are active. The default response
-  to a weak non-critical adjustment signal under those guards is `hold`, not
-  repeated in-and-out trading.
+- Every non-hold lifecycle action must carry explicit reason codes and model
+  evidence. C03 does not use fee, PDT, or churn formulas to override the thesis
+  decision; those facts are execution-review context for C07.
+- Add signals must respect the upstream sector/opportunity mix and portfolio
+  exposure constraints carried through C01/M07 context. If the target's sector
+  or exposure bucket is already filled, C03 keeps `hold` rather than adding
+  more exposure.
 - `reduce` is reserved for material risk reduction or thesis deterioration.
   It is not a reaction to every small price wiggle.
 - `add` requires a still-valid thesis, stronger alpha, acceptable projected
-  path after add, and no active non-critical churn/cost guard.
+  path after add, and compliance with the current sector/opportunity mix.
 
 ### C04 Option Review
 
@@ -283,6 +282,13 @@ request or a Replay simulated fill event.
 Live broker mutation remains disabled unless a reviewed execution gate enables
 it. Replay uses simulated adapters only; it must not submit broker requests or
 mutate account, order, or position state.
+
+Agent final review is a hard live-submission boundary. Any open, add, reduce,
+exit, stop, take-profit, roll, or stock-fallback order must present its C02/C03
+or C04 reason evidence to C07 and receive an approved agent review before a
+live broker order can be submitted. PDT/day-trade limits, minimum-hold context,
+fees, spread, and transaction-cost concerns are reviewed here as execution
+context; they are not hidden formulas inside C03.
 
 ## Implementation Status
 

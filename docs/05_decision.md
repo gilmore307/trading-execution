@@ -29,7 +29,7 @@ It is called only by `component_05_failure_review` after observed model or
 trade failure to connect the failure evidence to possible event causes and
 produce Layer 4 feedback candidates.
 
-## D012 - Position lifecycle decisions are underlying-first and cost-aware
+## D012 - Position lifecycle decisions are underlying-first and review-gated
 
 Date: 2026-05-24
 Status: Accepted
@@ -45,10 +45,17 @@ percentages as ordinary lifecycle exits. Stops and exits follow the
 model-provided underlying hard stop, thesis invalidation, critical event risk,
 or explicit underlying action plan.
 
-Non-critical position changes are dampened by same-day round-trip/PDT,
-minimum-hold, churn, and transaction-cost/fee-drag guards. Hard risk exits can
-bypass those guards, but ordinary add/reduce churn should not repeatedly enter
-and exit positions around small price noise.
+Every non-hold action must carry explicit reason evidence. C03 does not run
+hidden fee, PDT, or churn formulas to override lifecycle actions. Those facts
+belong in C07 execution-review context.
+
+Add decisions must respect the current upstream sector/opportunity mix and
+portfolio exposure constraints carried from C01/M07. If the target's sector or
+exposure bucket is already filled, C03 must hold instead of adding more
+exposure.
+
+All live open, add, reduce, exit, stop, take-profit, roll, or stock-fallback
+orders require C07 agent final review before broker submission.
 
 ## D001 - Execution consumes promoted decisions only
 

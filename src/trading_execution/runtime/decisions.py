@@ -211,21 +211,31 @@ def _price_reaches_upside(price: float | None, level: float | None, direction: s
     return price >= level if direction == "long" else price <= level
 
 
-def _lifecycle_cost_control_reasons(*sources: Mapping[str, Any]) -> list[str]:
-    checks = (
-        ("same_day_round_trip_restricted", "same_day_round_trip_restricted"),
-        ("day_trade_guard_active", "day_trade_guard_active"),
-        ("pdt_guard_active", "pattern_day_trade_guard_active"),
-        ("lifecycle_churn_guard_active", "lifecycle_churn_guard_active"),
-        ("min_lifecycle_hold_active", "minimum_lifecycle_hold_active"),
-        ("transaction_cost_drag_high", "transaction_cost_drag_high"),
-        ("fee_drag_high", "transaction_cost_drag_high"),
+def _lifecycle_add_constraint_reasons(projection: Mapping[str, Any], underlying_plan: Mapping[str, Any]) -> list[str]:
+    false_checks = (
+        ("c01_sector_opportunity_add_allowed", "sector_opportunity_mix_blocks_add"),
+        ("sector_mix_add_allowed", "sector_opportunity_mix_blocks_add"),
+        ("target_sector_add_allowed", "sector_opportunity_mix_blocks_add"),
+        ("portfolio_add_allowed", "portfolio_exposure_blocks_add"),
+        ("target_exposure_add_allowed", "target_exposure_blocks_add"),
+    )
+    true_checks = (
+        ("sector_opportunity_already_filled", "sector_opportunity_mix_blocks_add"),
+        ("target_sector_overfilled", "sector_opportunity_mix_blocks_add"),
+        ("portfolio_concentration_limit_reached", "portfolio_exposure_blocks_add"),
+        ("target_exposure_limit_reached", "target_exposure_blocks_add"),
     )
     reasons: list[str] = []
-    for source in sources:
-        for key, reason in checks:
+    for source in (projection, underlying_plan):
+        for key, reason in false_checks:
+            if source.get(key) is False and reason not in reasons:
+                reasons.append(reason)
+        for key, reason in true_checks:
             if source.get(key) is True and reason not in reasons:
                 reasons.append(reason)
+        remaining_weight = _number(source.get("sector_opportunity_remaining_weight"), default=-1.0)
+        if remaining_weight == 0.0 and "sector_opportunity_mix_blocks_add" not in reasons:
+            reasons.append("sector_opportunity_mix_blocks_add")
     return reasons
 
 
@@ -842,7 +852,7 @@ def build_position_lifecycle_decision(
         or _first_number(position, "take_profit_price", "target_price", "target_price_high", "target_price_low")
     )
     planned_action = _planned_lifecycle_action(underlying_plan)
-    cost_control_reasons = _lifecycle_cost_control_reasons(position, policy, projection, risk_budget)
+    add_constraint_reasons = _lifecycle_add_constraint_reasons(projection, underlying_plan)
 
     reasons: list[str] = []
     status: DecisionStatus = "monitor_only"
@@ -893,17 +903,9 @@ def build_position_lifecycle_decision(
             else:
                 action = "hold"
                 reasons.append("position_thesis_still_valid")
-        if action == "add" and cost_control_reasons:
+        if action == "add" and add_constraint_reasons:
             action = "hold"
-            reasons.append("lifecycle_cost_controls_defer_add")
-        elif (
-            action == "reduce"
-            and cost_control_reasons
-            and "event_failure_risk_requires_reduction" not in reasons
-            and "dynamic_risk_policy_requires_reduction" not in reasons
-        ):
-            action = "hold"
-            reasons.append("lifecycle_cost_controls_defer_noncritical_reduction")
+            reasons.append("add_blocked_by_portfolio_constraints")
         if risk_budget.get("max_position_loss_pct") is not None or position.get("unrealized_loss_pct") is not None:
             reasons.append("fixed_percentage_loss_not_lifecycle_stop")
 
@@ -924,9 +926,9 @@ def build_position_lifecycle_decision(
         "target_price": target_price,
         "reason_codes": reasons,
         "source_entry_decision_id": entry.get("entry_decision_id"),
-        "lifecycle_cost_controls": {
-            "active": bool(cost_control_reasons),
-            "reason_codes": cost_control_reasons,
+        "portfolio_constraint_checks": {
+            "add_blocked": bool(add_constraint_reasons),
+            "reason_codes": add_constraint_reasons,
         },
         "model_layer_refs": {
             "market_context_state": market.get("model_ref"),
@@ -1021,6 +1023,15 @@ def build_execution_order_intent(
         "trade_risk_cap": dict(trade_risk_cap),
         "risk_cap_validation": cap_validation,
         "execution_policy_ref": _as_mapping(execution_policy_snapshot).get("execution_policy_ref"),
+        "required_execution_gate_reviews": {
+            "agent_final_review_required": True,
+            "agent_final_review_status": _as_mapping(execution_policy_snapshot).get(
+                "agent_final_review_status",
+                "required_before_live_submission",
+            ),
+            "agent_final_review_ref": _as_mapping(execution_policy_snapshot).get("agent_final_review_ref"),
+            "review_scope": "open_add_reduce_exit_stop_take_profit_before_live_order_submission",
+        },
         "safety": _safety_flags(),
     }
     body["execution_order_intent_id"] = _stable_id("eoi", body)

@@ -324,7 +324,7 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertIn("model_underlying_hard_stop_reached", decision["reason_codes"])
         self.assertEqual(validate_position_lifecycle_decision(decision)["validation_status"], "passed")
 
-    def test_position_lifecycle_cost_controls_defer_noncritical_add(self) -> None:
+    def test_position_lifecycle_blocks_add_when_sector_mix_is_filled(self) -> None:
         decision = build_position_lifecycle_decision(
             position_state={
                 "position_ref": "pos-msft-1",
@@ -335,16 +335,20 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "current_underlying_price": 105.0,
             },
             alpha_confidence_vector={"alpha_confidence_score": 0.90},
-            dynamic_risk_policy_state={"minimum_add_alpha_confidence": 0.70, "day_trade_guard_active": True},
-            position_projection_vector={"add_allowed": True},
+            dynamic_risk_policy_state={"minimum_add_alpha_confidence": 0.70},
+            position_projection_vector={
+                "add_allowed": True,
+                "sector_mix_add_allowed": False,
+                "sector_opportunity_remaining_weight": 0.0,
+            },
             generated_at_utc="2026-01-01T00:02:00Z",
         )
 
         self.assertEqual(decision["decision_status"], "accepted")
         self.assertEqual(decision["decision_action"], "hold")
-        self.assertTrue(decision["lifecycle_cost_controls"]["active"])
-        self.assertIn("day_trade_guard_active", decision["lifecycle_cost_controls"]["reason_codes"])
-        self.assertIn("lifecycle_cost_controls_defer_add", decision["reason_codes"])
+        self.assertTrue(decision["portfolio_constraint_checks"]["add_blocked"])
+        self.assertIn("sector_opportunity_mix_blocks_add", decision["portfolio_constraint_checks"]["reason_codes"])
+        self.assertIn("add_blocked_by_portfolio_constraints", decision["reason_codes"])
 
     def test_order_intent_is_broker_neutral_and_requires_valid_risk_cap(self) -> None:
         decision = build_position_lifecycle_decision(
@@ -371,6 +375,11 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(intent["broker_neutral_order"]["instrument_ref"], "MSFT")
         self.assertEqual(intent["broker_neutral_order"]["side"], "sell")
         self.assertEqual(intent["risk_cap_validation"]["valid"], True)
+        self.assertTrue(intent["required_execution_gate_reviews"]["agent_final_review_required"])
+        self.assertEqual(
+            intent["required_execution_gate_reviews"]["agent_final_review_status"],
+            "required_before_live_submission",
+        )
         self.assertEqual(intent["safety"]["broker_calls_performed"], 0)
         self.assertFalse(intent["safety"]["account_mutation_performed"])
         self.assertEqual(validate_execution_order_intent(intent)["validation_status"], "passed")
