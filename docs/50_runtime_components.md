@@ -89,6 +89,20 @@ Model inputs:
 
 It does not call Layer 8, Layer 9, or Layer 10.
 
+Live application scenario:
+
+- At each live decision minute, C01 reads the current market universe, account
+  sleeve state, risk budget, open positions, and the latest M01/M02/M03/M06
+  outputs.
+- For `crypto_spot_account`, it keeps the fixed crypto pool limited to `BTC`,
+  `ETH`, and `SOL`, blocking other crypto symbols before later components see
+  them.
+- For `equity_options_account`, it keeps only eligible reviewed equity, ETF, or
+  optionable-underlying candidates and leaves option expression to C02/C04.
+- The output `target_allocation_snapshot` is the minute's execution-ready target
+  pool and risk-budget context. It authorizes downstream evaluation, not order
+  construction or broker mutation.
+
 ### C02 Entry
 
 Owns `entry_decision`.
