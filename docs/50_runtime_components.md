@@ -329,6 +329,13 @@ Purpose: after model or trade behavior has already failed or deviated, link the
 failure evidence to possible unscreened events and produce Layer 4 feedback
 candidates.
 
+Live timing: C07 is valid in live operation, but it should normally run after
+the regular session closes or in another accepted off-hours attribution window.
+It may inspect matured active and shadow decisions, fills, missed opportunities,
+open-position outcomes, overblocks, underblocks, option-expression drag, and
+event/co-event evidence. It must not mutate intraday C02-C06 decisions, submit
+orders, change position state, or switch active model pointers.
+
 Model input:
 
 - Layer 10 event risk governor.

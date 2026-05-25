@@ -440,6 +440,22 @@ Status: Accepted
 
 Active model selection is not broker execution. Selection records do not construct orders, submit broker calls, or mutate accounts.
 
+## D019 - Failure Attribution Runs After Close
+
+Date: 2026-05-25
+Status: Accepted
+
+Failure attribution is an execution-owned live component boundary as well as a
+Replay/evaluation boundary. After a regular session closes, or during another
+accepted off-hours attribution window, C07 may inspect matured active and shadow
+decisions, fills, missed opportunities, open-position outcomes, overblocks,
+underblocks, option-expression drag, and event/co-event evidence.
+
+C07 does not revise intraday C02-C06 decisions, submit orders, mutate broker or
+account state, or switch active model pointers. It produces attribution evidence
+for runtime lifecycle review, evaluation feedback, and Layer 4/Layer 10
+event-family work.
+
 ## D018 - Crypto And Equity Options Use Separate Account Sleeves
 
 Date: 2026-05-21

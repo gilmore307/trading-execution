@@ -81,7 +81,9 @@ Replay-only evidence and never represents a real broker/account fill or account,
 order, or position mutation.
 
 Layer 10 is only called by `component_07_failure_review` after observed model
-or trade failure. Normal entry decisions use Layer 4 for forward event risk.
+or trade failure. In live operation, C07 normally runs after the regular session
+closes or in another accepted off-hours attribution window. Normal entry
+decisions use Layer 4 for forward event risk.
 
 Runtime decisions must be scoped to one independent account sleeve:
 `crypto_spot_account` or `equity_options_account`. The crypto sleeve is limited

@@ -45,6 +45,14 @@ adapters are side-effect-free: they must not submit broker requests or mutate
 account, order, or position state. The components and decision contracts must
 remain identical across both modes.
 
+C07 is also part of live operation. It should normally run after the regular
+session closes, or in another accepted off-hours window, once decision outcomes,
+fills, open-position state, and relevant event evidence have matured enough to
+explain failures or deviations. C07 does not revise intraday decisions that have
+already passed through C02-C06; it produces attribution evidence for future
+model feedback, runtime lifecycle review, and Layer 4/Layer 10 event-family
+work.
+
 The account adapter exposes two independent sleeves: `crypto_spot_account` and
 `equity_options_account`. Runtime components must preserve that split through
 intake, entry, lifecycle, option re-expression, and order intent records. C01 is
