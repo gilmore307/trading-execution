@@ -20,21 +20,23 @@ This file defines the intended component workflow for `trading-execution`.
 promotion readiness -> active/shadow model roster -> realtime context snapshot -> execution plan -> safety checks -> paper/live adapter -> orders/fills/positions -> reconcile -> manifest/alert
 ```
 
-Shadow is its own intraday component:
+C08 is the realtime model-group comparison component:
 
 ```text
-S01 Shadow Model Comparison
-  -> active model over realtime snapshots
-  -> promoted shadow models over the same realtime snapshots
+C08 Model Group Shadow Comparison
+  -> active model group over realtime snapshots
+  -> eligible promoted shadow model groups over the same realtime snapshots
   -> shadow/runtime evidence
   -> post-cycle execution_shadow_cycle_selection
 ```
 
-S01 is not used by Replay. Replay is fixed historical evaluation for training
-outputs; S01 is realtime market-hours comparison for already-promoted models.
-Only the current active model's decisions may enter live C01-C06 trading
+C08 is not used by Replay. Replay is fixed historical evaluation for training
+outputs; C08 is realtime market-hours comparison for already-promoted model
+groups. Only the current active model's decisions may enter live C01-C06 trading
 authority. Shadow decisions are evidence until an active-pointer write gate
-changes the active model.
+changes the active model. C08 must be capacity-gated so model-group comparison
+does not degrade C01-C06 latency, market-data ingestion, broker gates, or
+account-state freshness.
 
 The trading runtime is component-centric, not layer-centric. Training may remain
 organized by model layer, but live trading and Replay run the same task-level
@@ -52,6 +54,9 @@ clock + market adapter + account adapter + frozen model bundle
 
 observed model/trade failure
   -> C07 Failure Review
+
+realtime model-group comparison
+  -> C08 Model Group Shadow Comparison
 ```
 
 Live mode uses live clock, realtime market data, live account snapshots, and a

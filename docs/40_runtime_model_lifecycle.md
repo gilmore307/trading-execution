@@ -2,35 +2,43 @@
 
 Runtime model lifecycle is execution-owned.
 
-`trading-evaluation` admits candidates through `promotion_readiness_record`. `trading-execution` then runs the current active model for trading and runs promoted-but-not-active models as shadow candidates during market hours.
+`trading-evaluation` admits candidates through `promotion_readiness_record`.
+`trading-execution` then runs the current active model for trading and runs
+eligible promoted model groups as realtime shadow candidates during market hours.
 
 Shadow is not Replay. Replay uses a fixed historical window and frozen historical
 data to judge whether a training output is meaningful enough for promotion
 readiness. Shadow uses realtime market data during live market hours to compare
-already-promoted models and choose which one should be active in production.
+already-promoted model groups and choose which one should be active in production.
 `execution_shadow_cycle_selection` must not be called during promotion Replay.
 
-## S01 Shadow Model Comparison
+## C08 Model Group Shadow Comparison
 
-Shadow is a separate intraday component, not part of the C01-C07 trading
-decision chain and not part of promotion Replay.
+Shadow is the C08 realtime component, not an after-hours replay mechanism and
+not part of promotion Replay.
 
-`execution_shadow_runtime_component` describes `S01 Shadow Model Comparison`.
-S01 runs during market hours over realtime snapshots. It feeds the current
-active model and promoted-but-not-active shadow models the same point-in-time
-inputs, records comparable shadow evidence, and later contributes mature
-evidence to `execution_shadow_cycle_selection`.
+`execution_shadow_runtime_component` describes `C08 Model Group Shadow
+Comparison`. C08 runs during market hours over realtime snapshots. It feeds the
+current active model group and eligible promoted shadow model groups the same
+point-in-time inputs, records comparable shadow evidence, and later contributes
+mature evidence to `execution_shadow_cycle_selection`.
 
-S01 never has trading authority. Only the current active model can route
+C08 never has trading authority. Only the current active model can route
 decisions into C01-C06 live trading. Shadow model decisions remain evidence only
 until a later `execution_active_model_config_write` changes the active pointer.
-S01 does not write active pointers, construct orders, call brokers, or mutate
+C08 does not write active pointers, construct orders, call brokers, or mutate
 accounts.
+
+C08 is hardware-capacity gated. It should run all eligible promoted model groups
+only when realtime latency, market-data ingestion, broker gates, and account
+freshness remain inside budget. When capacity is constrained, execution must
+throttle, sample, or rank the model groups rather than letting shadow comparison
+compete with the active trading path.
 
 ## Cycle
 
 1. Keep one active model as the trading authority.
-2. Run promoted-but-not-active models as shadow candidates during the same market-hours window.
+2. Run eligible promoted model groups as shadow candidates during the same market-hours window.
 3. Run realtime C07 failure/deviation watch during market hours for active and
    shadow decisions with open theses, open positions, material path deviations,
    new event evidence, or unexplained model drift.

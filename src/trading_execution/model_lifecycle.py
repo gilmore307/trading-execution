@@ -25,7 +25,7 @@ ACCEPTED_REVIEW_STATUSES = PASSING_STATUSES | ELIMINATION_STATUSES
 
 @dataclass(frozen=True)
 class ShadowRuntimeComponent:
-    """Intraday component for live/shadow model comparison evidence."""
+    """C08 intraday component for live/shadow model-group comparison evidence."""
 
     component_step: str
     component_name: str
@@ -36,6 +36,7 @@ class ShadowRuntimeComponent:
     input_contracts: tuple[str, ...]
     output_contracts: tuple[str, ...]
     active_trading_authority_policy: str
+    hardware_capacity_policy: str
     broker_mutation_allowed: bool = False
     account_mutation_allowed: bool = False
     active_pointer_write_allowed: bool = False
@@ -52,6 +53,7 @@ class ShadowRuntimeComponent:
             "input_contracts": list(self.input_contracts),
             "output_contracts": list(self.output_contracts),
             "active_trading_authority_policy": self.active_trading_authority_policy,
+            "hardware_capacity_policy": self.hardware_capacity_policy,
             "broker_mutation_allowed": self.broker_mutation_allowed,
             "account_mutation_allowed": self.account_mutation_allowed,
             "active_pointer_write_allowed": self.active_pointer_write_allowed,
@@ -61,25 +63,26 @@ class ShadowRuntimeComponent:
 def shadow_runtime_component() -> ShadowRuntimeComponent:
     """Return the accepted intraday Shadow component.
 
-    Shadow is separate from the live/Replay C01-C07 trading component graph. It
-    runs only during live market-hours evidence collection for promoted models.
+    C08 is realtime-only: it runs during market-hours evidence collection for
+    promoted model groups and is disabled in Replay.
     """
 
     return ShadowRuntimeComponent(
-        component_step="S01",
-        component_name="Shadow Model Comparison",
-        component_id="shadow_01_model_comparison",
+        component_step="C08",
+        component_name="Model Group Shadow Comparison",
+        component_id="component_08_model_group_shadow_comparison",
         purpose=(
-            "Run the active model and promoted-but-not-active shadow models over "
-            "the same realtime market-hours snapshots, collect comparable "
-            "decision-effectiveness evidence, and feed mature evidence into "
-            "execution_shadow_cycle_selection."
+            "Run the active model group and eligible promoted shadow model "
+            "groups over the same realtime market-hours snapshots, collect "
+            "comparable decision-effectiveness evidence, and feed mature "
+            "evidence into execution_shadow_cycle_selection."
         ),
         runtime_data_mode="realtime_market_hours_only",
         replay_allowed=False,
         input_contracts=(
             "promotion_readiness_record",
             ACTIVE_MODEL_CONFIG_WRITE_CONTRACT,
+            "runtime_capacity_snapshot",
             "realtime_feature_snapshot",
             "execution_model_decision_input_snapshot",
             "realtime_model_decision_effectiveness",
@@ -92,6 +95,11 @@ def shadow_runtime_component() -> ShadowRuntimeComponent:
             "Only the current active model may route decisions into live C01-C06 "
             "trading authority. Shadow model decisions are evidence only until "
             "a later execution_active_model_config_write gate changes the active pointer."
+        ),
+        hardware_capacity_policy=(
+            "C08 may run only as many promoted model groups as the realtime "
+            "capacity budget can support without degrading C01-C06 latency, "
+            "market-data ingestion, broker gates, or account-state freshness."
         ),
     )
 
