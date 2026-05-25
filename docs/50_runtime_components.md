@@ -307,10 +307,11 @@ Agent final review is a hard live-submission boundary. Any open, add, reduce,
 exit, stop, take-profit, roll, or stock-fallback order must present its C02/C03
 or C04 reason evidence to C06 and receive an approved agent review before a
 live broker order can be submitted. C06 only validates the C05 order intent,
-checks final missed-event review and broker/regulatory hard blocks, and then
-rejects the intent, approves it for live submission, or approves it for Replay
-simulation. C06 does not own position management, sizing, target exposure, or
-order-policy calculation.
+checks final missed-event review, C07 untrained-event risk review evidence when
+present, and broker/regulatory hard blocks, and then rejects the intent,
+approves it for live submission, or approves it for Replay simulation. C06 does
+not own position management, sizing, target exposure, or order-policy
+calculation.
 
 The C06 gate result must prove:
 
@@ -337,9 +338,16 @@ Live timing: C07 is valid in live operation in two modes:
 
 Realtime watch may inspect active and shadow decisions with an open thesis, open
 position, material path deviation, new event evidence, or unexplained model
-drift. It emits early warning or preliminary attribution evidence so C03/C05/C06
-can review protective reduce, exit, block, or human-review paths before losses
-compound.
+drift. When the event or anomaly has not been trained through Layer 10 and
+accepted into Layer 4, C07 must mark the evidence as untrained. It may estimate
+a provisional risk value from model-failure severity, path deviation, event
+proximity, exposure at risk, and evidence quality, but that value is review
+evidence only. It is not an alpha score, not a trained Layer 4 risk score, and
+not an order instruction.
+
+Realtime watch emits early warning or preliminary attribution evidence so
+C03/C05/C06 and the trading-review agent can review protective reduce, exit,
+block, or human-review paths before losses compound.
 
 Settlement attribution may inspect matured active and shadow decisions, fills,
 missed opportunities, open-position outcomes, overblocks, underblocks,
@@ -348,17 +356,35 @@ option-expression drag, and event/co-event evidence.
 C07 must not mutate intraday C02-C06 decisions, submit orders, change position
 state, or switch active model pointers.
 
+For untrained event-risk evidence, `failure_explanation_packet` must carry:
+
+- `event_training_status=untrained_or_not_accepted`;
+- model-failure severity evidence;
+- provisional risk estimate and confidence;
+- evidence-quality and freshness refs;
+- affected thesis, position, and candidate refs;
+- recommended review route such as `protective_review`, `reduce_review`,
+  `exit_review`, `block_new_entry_review`, or `human_review`.
+
+The trading-review agent owns the final judgment on whether that provisional
+risk warrants blocking, reducing, exiting, or escalation.
+
 Model input:
 
 - Layer 10 event risk governor.
 
 Layer 10 is not a standalone pre-entry veto. It is a residual event-risk
-explanation and deviation-watch model:
+explanation and deviation-watch model. If the observed event was not trained and
+accepted through Layer 10/Layer 4, C07 may only produce provisional untrained
+risk evidence:
 
 ```text
 active/shadow thesis or observed model/trade failure
-  -> possible event causes or model-invalidating context
-  -> C03/C05/C06 review evidence and Layer 4 feedback candidate
+  -> possible untrained event cause or model-invalidating context
+  -> provisional risk estimate from failure severity
+  -> trading-review agent judgment
+  -> C03/C05/C06 protective review evidence
+  -> later Layer 10/Layer 4 feedback candidate
 ```
 
 Layer 4 remains the forward event-risk model used in entry and position

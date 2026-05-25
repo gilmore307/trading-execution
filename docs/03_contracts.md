@@ -93,6 +93,14 @@ directly mutate intraday decisions, submit orders, mutate positions, or switch
 active model pointers. Normal new-entry decisions still use Layer 4 for forward
 event risk; C07 is not a standalone pre-entry alpha or generic news veto.
 
+When C07 observes an event, anomaly, or context that has not been trained and
+accepted through Layer 10/Layer 4, the packet must mark the event risk as
+untrained. C07 may estimate a provisional risk value from model-failure severity,
+path deviation, event proximity, exposure at risk, and evidence quality. That
+estimate is advisory review evidence only. It must be routed to the
+trading-review agent before it can affect a live block, reduce, exit, or
+human-review path.
+
 Runtime decisions must be scoped to one independent account sleeve:
 `crypto_spot_account` or `equity_options_account`. The crypto sleeve is limited
 to `BTC`, `ETH`, and `SOL` spot candidates. The equity/options sleeve uses the

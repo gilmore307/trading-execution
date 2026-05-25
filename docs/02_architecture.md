@@ -58,9 +58,15 @@ Realtime watch may surface early failure warnings or preliminary attribution so
 the runtime can avoid preventable loss. It does not revise intraday decisions
 directly, submit orders, mutate positions, or switch active model pointers. Any
 protective reduce, exit, block, or review action must still route through the
-normal C03, C05, and C06 decision gates. Settlement attribution produces the
-final evidence for model feedback, runtime lifecycle review, and Layer 4/Layer
-10 event-family work.
+normal C03, C05, and C06 decision gates.
+
+When C07 identifies a risk event that has not been trained and accepted through
+Layer 10/Layer 4, it must treat the event as untrained. It may estimate a
+provisional risk value from model-failure severity and supporting evidence, then
+hand that packet to the trading-review agent. The provisional value is not a
+trained event-risk score and cannot directly authorize an order. Settlement
+attribution produces the final evidence for model feedback, runtime lifecycle
+review, and Layer 4/Layer 10 event-family work.
 
 The account adapter exposes two independent sleeves: `crypto_spot_account` and
 `equity_options_account`. Runtime components must preserve that split through

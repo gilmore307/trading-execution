@@ -454,6 +454,13 @@ unexplained model drift. It may surface early failure warnings or preliminary
 attribution evidence so C03/C05/C06 can review protective reduce, exit, block,
 or human-review paths before losses compound.
 
+When C07 identifies an event, anomaly, or context that has not been trained and
+accepted through Layer 10/Layer 4, it must mark the event risk as untrained. C07
+may estimate a provisional risk value from model-failure severity, path
+deviation, event proximity, exposure at risk, and evidence quality. That value is
+advisory review evidence only and must be handed to the trading-review agent
+before it can affect any live protective action.
+
 Settlement attribution runs after a regular session closes, or during another
 accepted off-hours attribution window. It may inspect matured active and shadow
 decisions, fills, missed opportunities, open-position outcomes, overblocks,

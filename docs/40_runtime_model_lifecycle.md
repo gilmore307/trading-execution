@@ -37,6 +37,7 @@ Running many realtime strategies can compete with the active model for runtime c
 - eliminate candidates and reason evidence;
 - live/shadow realtime failure-watch refs when present;
 - live/shadow settlement-attribution refs when present;
+- untrained event-risk review refs when present;
 - whether an active switch is recommended.
 
 The contract records selection only. It does not write active config pointers, construct orders, submit broker calls, or mutate accounts.
