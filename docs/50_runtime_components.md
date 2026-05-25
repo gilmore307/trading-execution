@@ -4,6 +4,12 @@
 trading and Replay. Models are inputs to these components; they are not the
 runtime organizing unit.
 
+Shadow is separate from this graph. S01 Shadow Model Comparison is a market-hours
+runtime model-comparison component for already-promoted models. It runs active
+and shadow models on realtime snapshots, records evidence, and feeds mature
+evidence to `execution_shadow_cycle_selection`. S01 is not used by Replay and
+does not route shadow decisions into C01-C06 live trading authority.
+
 ## Hard Rule
 
 Live and Replay must use the same components, same decision logic, same model

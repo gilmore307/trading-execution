@@ -129,6 +129,20 @@ than the minimum advanced-management unit count, C05 records
 intent construction. Protective stops, exits, and risk reductions are still
 allowed; capacity rules only suppress tactical scaling.
 
+## Shadow Runtime Component Contract
+
+`execution_shadow_runtime_component` is the separate intraday Shadow component.
+It is not part of the C01-C07 trading decision graph and is not used by Replay.
+
+S01 Shadow Model Comparison runs during market hours on realtime data. It
+compares the current active model and already-promoted shadow models over the
+same realtime snapshots, emits `execution_shadow_model_runtime_evidence`, and
+feeds mature evidence into `execution_shadow_cycle_selection`.
+
+Only the current active model can route decisions into C01-C06 live trading.
+Shadow model outputs are evidence only. S01 must not write active pointers,
+construct orders, call brokers, or mutate accounts.
+
 `execution_gate_result` is C06-owned. It records whether the C05 intent is
 rejected, approved for Replay simulation, or approved for live broker submission.
 It must verify the order quantity matches the C05 `sizing_plan`, preserve the

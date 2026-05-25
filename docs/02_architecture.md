@@ -20,6 +20,22 @@ This file defines the intended component workflow for `trading-execution`.
 promotion readiness -> active/shadow model roster -> realtime context snapshot -> execution plan -> safety checks -> paper/live adapter -> orders/fills/positions -> reconcile -> manifest/alert
 ```
 
+Shadow is its own intraday component:
+
+```text
+S01 Shadow Model Comparison
+  -> active model over realtime snapshots
+  -> promoted shadow models over the same realtime snapshots
+  -> shadow/runtime evidence
+  -> post-cycle execution_shadow_cycle_selection
+```
+
+S01 is not used by Replay. Replay is fixed historical evaluation for training
+outputs; S01 is realtime market-hours comparison for already-promoted models.
+Only the current active model's decisions may enter live C01-C06 trading
+authority. Shadow decisions are evidence until an active-pointer write gate
+changes the active model.
+
 The trading runtime is component-centric, not layer-centric. Training may remain
 organized by model layer, but live trading and Replay run the same task-level
 component graph:

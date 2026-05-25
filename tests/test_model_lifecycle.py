@@ -8,12 +8,29 @@ from pathlib import Path
 from trading_execution.model_lifecycle import (
     build_active_model_config_write,
     build_shadow_cycle_selection,
+    shadow_runtime_component,
     validate_active_model_config_write,
     validate_shadow_cycle_selection,
 )
 
 
 class ModelLifecycleTests(unittest.TestCase):
+    def test_shadow_runtime_component_is_intraday_and_not_replay(self) -> None:
+        component = shadow_runtime_component().to_dict()
+
+        self.assertEqual(component["contract_type"], "execution_shadow_runtime_component")
+        self.assertEqual(component["component_step"], "S01")
+        self.assertEqual(component["component_id"], "shadow_01_model_comparison")
+        self.assertEqual(component["runtime_data_mode"], "realtime_market_hours_only")
+        self.assertFalse(component["replay_allowed"])
+        self.assertIn("promotion_readiness_record", component["input_contracts"])
+        self.assertIn("execution_shadow_model_runtime_evidence", component["output_contracts"])
+        self.assertIn("execution_shadow_cycle_selection", component["output_contracts"])
+        self.assertIn("Only the current active model", component["active_trading_authority_policy"])
+        self.assertFalse(component["broker_mutation_allowed"])
+        self.assertFalse(component["account_mutation_allowed"])
+        self.assertFalse(component["active_pointer_write_allowed"])
+
     def test_shadow_cycle_selection_assigns_active_realtime_and_eliminate(self) -> None:
         selection = build_shadow_cycle_selection(
             cycle_ref="cycle://2026-06",

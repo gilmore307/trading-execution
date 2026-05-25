@@ -10,6 +10,23 @@ readiness. Shadow uses realtime market data during live market hours to compare
 already-promoted models and choose which one should be active in production.
 `execution_shadow_cycle_selection` must not be called during promotion Replay.
 
+## S01 Shadow Model Comparison
+
+Shadow is a separate intraday component, not part of the C01-C07 trading
+decision chain and not part of promotion Replay.
+
+`execution_shadow_runtime_component` describes `S01 Shadow Model Comparison`.
+S01 runs during market hours over realtime snapshots. It feeds the current
+active model and promoted-but-not-active shadow models the same point-in-time
+inputs, records comparable shadow evidence, and later contributes mature
+evidence to `execution_shadow_cycle_selection`.
+
+S01 never has trading authority. Only the current active model can route
+decisions into C01-C06 live trading. Shadow model decisions remain evidence only
+until a later `execution_active_model_config_write` changes the active pointer.
+S01 does not write active pointers, construct orders, call brokers, or mutate
+accounts.
+
 ## Cycle
 
 1. Keep one active model as the trading authority.

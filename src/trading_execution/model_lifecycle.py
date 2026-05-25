@@ -10,6 +10,8 @@ from typing import Any, Mapping, Sequence
 
 SHADOW_CYCLE_SELECTION_CONTRACT = "execution_shadow_cycle_selection"
 ACTIVE_MODEL_CONFIG_WRITE_CONTRACT = "execution_active_model_config_write"
+SHADOW_RUNTIME_COMPONENT_CONTRACT = "execution_shadow_runtime_component"
+SHADOW_MODEL_RUNTIME_EVIDENCE_CONTRACT = "execution_shadow_model_runtime_evidence"
 REQUIRED_REVIEW_FIELDS = (
     "candidate_model_ref",
     "promotion_readiness_ref",
@@ -19,6 +21,79 @@ REQUIRED_REVIEW_FIELDS = (
 ELIMINATION_STATUSES = {"eliminate_candidate", "eliminate"}
 PASSING_STATUSES = {"active_candidate", "realtime_candidate", "shadow_continue", "incumbent_active"}
 ACCEPTED_REVIEW_STATUSES = PASSING_STATUSES | ELIMINATION_STATUSES
+
+
+@dataclass(frozen=True)
+class ShadowRuntimeComponent:
+    """Intraday component for live/shadow model comparison evidence."""
+
+    component_step: str
+    component_name: str
+    component_id: str
+    purpose: str
+    runtime_data_mode: str
+    replay_allowed: bool
+    input_contracts: tuple[str, ...]
+    output_contracts: tuple[str, ...]
+    active_trading_authority_policy: str
+    broker_mutation_allowed: bool = False
+    account_mutation_allowed: bool = False
+    active_pointer_write_allowed: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "contract_type": SHADOW_RUNTIME_COMPONENT_CONTRACT,
+            "component_step": self.component_step,
+            "component_name": self.component_name,
+            "component_id": self.component_id,
+            "purpose": self.purpose,
+            "runtime_data_mode": self.runtime_data_mode,
+            "replay_allowed": self.replay_allowed,
+            "input_contracts": list(self.input_contracts),
+            "output_contracts": list(self.output_contracts),
+            "active_trading_authority_policy": self.active_trading_authority_policy,
+            "broker_mutation_allowed": self.broker_mutation_allowed,
+            "account_mutation_allowed": self.account_mutation_allowed,
+            "active_pointer_write_allowed": self.active_pointer_write_allowed,
+        }
+
+
+def shadow_runtime_component() -> ShadowRuntimeComponent:
+    """Return the accepted intraday Shadow component.
+
+    Shadow is separate from the live/Replay C01-C07 trading component graph. It
+    runs only during live market-hours evidence collection for promoted models.
+    """
+
+    return ShadowRuntimeComponent(
+        component_step="S01",
+        component_name="Shadow Model Comparison",
+        component_id="shadow_01_model_comparison",
+        purpose=(
+            "Run the active model and promoted-but-not-active shadow models over "
+            "the same realtime market-hours snapshots, collect comparable "
+            "decision-effectiveness evidence, and feed mature evidence into "
+            "execution_shadow_cycle_selection."
+        ),
+        runtime_data_mode="realtime_market_hours_only",
+        replay_allowed=False,
+        input_contracts=(
+            "promotion_readiness_record",
+            ACTIVE_MODEL_CONFIG_WRITE_CONTRACT,
+            "realtime_feature_snapshot",
+            "execution_model_decision_input_snapshot",
+            "realtime_model_decision_effectiveness",
+        ),
+        output_contracts=(
+            SHADOW_MODEL_RUNTIME_EVIDENCE_CONTRACT,
+            SHADOW_CYCLE_SELECTION_CONTRACT,
+        ),
+        active_trading_authority_policy=(
+            "Only the current active model may route decisions into live C01-C06 "
+            "trading authority. Shadow model decisions are evidence only until "
+            "a later execution_active_model_config_write gate changes the active pointer."
+        ),
+    )
 
 
 @dataclass(frozen=True)

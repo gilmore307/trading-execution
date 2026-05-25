@@ -14,6 +14,13 @@ evaluation mechanism for training outputs. Shadow is a realtime live-market
 comparison mechanism for already-promoted models and is the only path that uses
 runtime model roster selection.
 
+Shadow is represented by a separate intraday component: S01 Shadow Model
+Comparison. S01 is outside the C01-C07 trading decision chain. It runs active
+and promoted shadow models over realtime market-hours snapshots, records
+evidence, and later supports `execution_shadow_cycle_selection`. It has no
+trading authority and cannot write active pointers, construct orders, call
+brokers, or mutate accounts.
+
 `trading-evaluation` owns Replay contracts, datasets, settlement, metrics, and
 promotion readiness. It does not own the trading decisions made during Replay;
 it calls the `trading-execution` runtime component graph and then evaluates the
