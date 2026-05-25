@@ -88,10 +88,13 @@ reviewed stock/ETF/optionable-underlying candidate process and owns option
 re-expression. Cross-account collateral, buying-power substitution, and position
 netting are not accepted.
 
-`execution_order_intent` is broker-neutral. A valid `trade_risk_cap` is required
-before an executable intent can reach `ready_for_execution_gate_not_submitted`;
-missing or invalid caps produce a blocked intent and never imply order
-submission permission.
+`execution_order_intent` is broker-neutral and C05-owned. It must contain the
+complete position-management result for the proposed operation: final quantity,
+target post-trade position when available, quantity source, sizing reason codes,
+broker-neutral price/order policy, and a valid `trade_risk_cap`. Missing or
+invalid sizing/cap evidence produces a blocked intent and never implies order
+submission permission. C06 validates and executes the intent; it must not
+recalculate, increase, or otherwise alter the C05 quantity.
 
 ## Verification Commands
 

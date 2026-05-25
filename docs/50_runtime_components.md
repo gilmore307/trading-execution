@@ -248,9 +248,20 @@ respect roll-count, liquidity, and risk-budget limits.
 Owns `execution_order_intent`.
 
 Purpose: convert accepted entry, lifecycle, or option re-expression decisions
-into broker-neutral execution order intents.
+into complete broker-neutral execution order intents.
 
-It calls no models and performs no broker/account mutation.
+C05 owns all position-management content needed for the order:
+
+- final order quantity;
+- target post-trade position or exposure when available;
+- add/reduce/exit/roll sizing reason codes;
+- premium/capital-at-risk packaging through `trade_risk_cap`;
+- broker-neutral order type, limit/stop reference, and time-in-force policy;
+- source decision refs from C02, C03, and C04.
+
+It calls no models and performs no broker/account mutation. It must not submit
+orders. Once C05 emits an executable `execution_order_intent`, C06 may reject or
+submit/simulate it, but must not recalculate or modify the quantity.
 
 ### C06 Execution Gate
 
@@ -264,9 +275,10 @@ mutate account, order, or position state.
 Agent final review is a hard live-submission boundary. Any open, add, reduce,
 exit, stop, take-profit, roll, or stock-fallback order must present its C02/C03
 or C04 reason evidence to C06 and receive an approved agent review before a
-live broker order can be submitted. C06 still reviews broker/regulatory context,
-minimum-hold context, fees, spread, and transaction-cost concerns before live
-submission; C03 does not contain a separate PDT/day-trade gate.
+live broker order can be submitted. C06 only validates the C05 order intent,
+checks final missed-event review and broker/regulatory hard blocks, and then
+submits or simulates execution. C06 does not own position management, sizing,
+target exposure, or order-policy calculation.
 
 ### C07 Failure Review
 

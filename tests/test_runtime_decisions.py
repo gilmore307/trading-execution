@@ -374,6 +374,11 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(intent["intent_status"], "ready_for_execution_gate_not_submitted")
         self.assertEqual(intent["broker_neutral_order"]["instrument_ref"], "MSFT")
         self.assertEqual(intent["broker_neutral_order"]["side"], "sell")
+        self.assertEqual(intent["broker_neutral_order"]["quantity"], VALID_STOCK_RISK_CAP["planned_quantity"])
+        self.assertEqual(intent["sizing_plan"]["position_management_owner"], "component_05_order_intent")
+        self.assertEqual(intent["sizing_plan"]["quantity"], VALID_STOCK_RISK_CAP["planned_quantity"])
+        self.assertEqual(intent["sizing_plan"]["quantity_source"], "trade_risk_cap.planned_quantity")
+        self.assertFalse(intent["sizing_plan"]["execution_gate_may_change_quantity"])
         self.assertEqual(intent["risk_cap_validation"]["valid"], True)
         self.assertTrue(intent["required_execution_gate_reviews"]["agent_final_review_required"])
         self.assertEqual(

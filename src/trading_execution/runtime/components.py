@@ -230,14 +230,18 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             component_id="component_05_order_intent",
             component_label="C05 Order Intent",
             purpose=(
-                "Convert accepted entry, lifecycle, or option re-expression decisions "
-                "into broker-neutral execution order intents."
+                "Convert accepted entry, lifecycle, or option re-expression decisions into complete "
+                "broker-neutral execution order intents, including final quantity, target post-trade "
+                "position, risk-cap packaging, and price/order policy."
             ),
             input_contracts=(
                 ENTRY_DECISION_CONTRACT,
                 POSITION_LIFECYCLE_DECISION_CONTRACT,
                 OPTION_REEXPRESSION_DECISION_CONTRACT,
                 "account_sleeve_state_snapshot",
+                "account_sleeve_risk_budget_snapshot",
+                "position_sizing_context",
+                "trade_risk_cap",
                 "execution_policy_snapshot",
             ),
             output_contracts=(EXECUTION_ORDER_INTENT_CONTRACT,),

@@ -57,8 +57,11 @@ portfolio exposure constraints carried from C01/M07. If the target's sector or
 exposure bucket is already filled, C03 must hold instead of adding more
 exposure.
 
-All live open, add, reduce, exit, stop, take-profit, roll, or stock-fallback
-orders require C06 agent final review before broker submission.
+All position-management and sizing decisions for live open, add, reduce, exit,
+stop, take-profit, roll, or stock-fallback operations are completed in C05 Order
+Intent. C06 Execution Gate requires agent final review before broker submission,
+but it validates and executes the C05 intent instead of changing the quantity,
+target exposure, or order policy.
 
 ## D001 - Execution consumes promoted decisions only
 

@@ -954,7 +954,7 @@ def build_execution_order_intent(
     execution_policy_snapshot: Mapping[str, Any] | None = None,
     generated_at_utc: str | None = None,
 ) -> dict[str, Any]:
-    """Convert an accepted decision into a broker-neutral order intent."""
+    """Convert an accepted decision into a complete broker-neutral order intent."""
 
     generated_at_utc = generated_at_utc or _utc_now_iso()
     decision = dict(decision_record)
@@ -988,9 +988,18 @@ def build_execution_order_intent(
     if not cap_validation["valid"]:
         reasons.extend(cap_validation["reason_codes"])
 
-    quantity = _number(decision_record.get("proposed_quantity", trade_risk_cap.get("planned_quantity")), default=0.0)
+    quantity_source = "decision_record.proposed_quantity"
+    quantity = _number(decision_record.get("proposed_quantity"), default=0.0)
+    if quantity <= 0:
+        quantity_source = "trade_risk_cap.planned_quantity"
+        quantity = _number(trade_risk_cap.get("planned_quantity"), default=0.0)
     if quantity <= 0 and not reasons:
         reasons.append("missing_positive_order_quantity")
+    current_position_quantity = _number(decision_record.get("current_position_quantity"), default=0.0)
+    target_position_quantity = _number(
+        decision_record.get("target_position_quantity", trade_risk_cap.get("planned_target_position_quantity")),
+        default=None,
+    )
 
     if not reasons:
         intent_status = "ready_for_execution_gate_not_submitted"
@@ -1020,6 +1029,22 @@ def build_execution_order_intent(
             "quantity": quantity if quantity > 0 else None,
             "limit_price": decision_record.get("limit_price") or trade_risk_cap.get("planned_limit_price"),
             "time_in_force": _as_mapping(execution_policy_snapshot).get("time_in_force", "day"),
+        },
+        "sizing_plan": {
+            "position_management_owner": "component_05_order_intent",
+            "quantity": quantity if quantity > 0 else None,
+            "quantity_source": quantity_source,
+            "current_position_quantity": current_position_quantity,
+            "target_position_quantity": target_position_quantity,
+            "planned_exposure_change": decision_record.get("planned_exposure_change")
+            or trade_risk_cap.get("planned_exposure_change"),
+            "sizing_reason_codes": list(
+                decision_record.get("sizing_reason_codes")
+                or trade_risk_cap.get("sizing_reason_codes")
+                or decision_record.get("reason_codes")
+                or ()
+            ),
+            "execution_gate_may_change_quantity": False,
         },
         "trade_risk_cap": dict(trade_risk_cap),
         "risk_cap_validation": cap_validation,
@@ -1286,6 +1311,7 @@ def validate_execution_order_intent(record: Mapping[str, Any]) -> dict[str, Any]
             "account_sleeve_id",
             "intent_status",
             "broker_neutral_order",
+            "sizing_plan",
             "trade_risk_cap",
             "risk_cap_validation",
             "safety",
