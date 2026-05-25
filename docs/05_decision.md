@@ -34,6 +34,11 @@ produce Layer 4 feedback candidates.
 Date: 2026-05-24
 Status: Accepted
 
+C01 Intake is the runtime split point. It emits a candidate-entry pool for C02
+and an open-position pool for C03. C02 and C03 are sibling branches: C02 selects
+which current candidates have suitable new-entry thesis, while C03 manages
+already-open positions without requiring C02 to re-approve entry.
+
 C03 Lifecycle computes open-position actions from the underlying thesis first.
 For option positions, C03 decides whether the underlying exposure should hold,
 add, reduce, stop, exit, or take profit; C04 then translates the accepted

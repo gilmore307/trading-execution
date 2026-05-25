@@ -51,8 +51,10 @@ netting are not accepted.
 
 ```text
 C01 Intake
-  -> C02 Entry
-  -> C03 Lifecycle
+  -> candidate_entry_pool -> C02 Entry
+  -> open_position_pool   -> C03 Lifecycle
+
+C02/C03 accepted underlying intents
   -> C04 Option Review
   -> C05 Order Intent
   -> C06 Execution Gate
@@ -61,7 +63,11 @@ observed model/trade failure
   -> C07 Failure Review
 ```
 
-The short numbered names are the intraday process order. The stable
+The short numbered names are the runtime component catalog order. The live and
+Replay execution path branches after C01: new opportunity candidates go through
+C02, while existing positions bypass C02 and go through C03. Both branches then
+converge at C04 expression review before C05 order intent and C06 execution
+gate review. The stable
 `component_id` values follow the same physical naming pattern as model ids:
 `component_01_*` through `component_07_*`.
 
@@ -79,9 +85,14 @@ The short numbered names are the intraday process order. The stable
 
 Owns `execution_intake_snapshot`.
 
-Purpose: read account balance state, current holdings, watch targets, and the
-strong-sector opportunity mix for one account sleeve before downstream entry and
-lifecycle components make trading decisions.
+Purpose: read account balance state, current holdings, target candidates, and
+the strong-sector opportunity mix for one account sleeve, then split the minute
+into the entry-candidate and open-position branches.
+
+C01 emits two downstream pools:
+
+- `candidate_entry_pool`: new-opportunity targets routed to C02 Entry.
+- `open_position_pool`: existing positions routed to C03 Lifecycle.
 
 Model inputs:
 
@@ -127,17 +138,18 @@ Live application scenario:
   does not block targets for concentration, position size, stop distance, or
   risk-budget reasons; those decisions belong to downstream components.
 - The output `execution_intake_snapshot` is the minute's account-and-watchlist
-  entrance record. It authorizes downstream evaluation, not order construction,
-  position sizing, risk management, or broker mutation.
+  entrance record. It includes both `candidate_entry_pool` and
+  `open_position_pool`; this authorizes downstream evaluation, not order
+  construction, position sizing, risk management, or broker mutation.
 
 ### C02 Entry
 
 Owns `entry_decision`.
 
-Purpose: decide whether each C01 watch target has a suitable underlying entry
-thesis for continued review. C02 does not choose option versus stock
-expression, choose contracts, size positions, check account balance, or build
-orders.
+Purpose: decide which targets in the C01 `candidate_entry_pool` have a suitable
+underlying entry thesis for continued review. C02 does not choose option versus
+stock expression, choose contracts, size positions, check account balance, or
+build orders.
 
 Model inputs:
 
@@ -152,9 +164,10 @@ C04 decision; pre-entry event risk is handled by Layer 4.
 
 Live application scenario:
 
-- C02 consumes only `execution_intake_snapshot.watch_targets` emitted by C01.
-  A target outside C01 is rejected as a defensive contract error, not actively
-  selected by C02.
+- C02 consumes only `execution_intake_snapshot.candidate_entry_pool` emitted by
+  C01. The compatibility alias `watch_targets` may carry the same rows, but the
+  accepted route is the candidate entry pool. A target outside C01 is rejected
+  as a defensive contract error, not actively discovered by C02.
 - C02 emits `entry_thesis_status` as `suitable`, `deferred`, or `rejected`.
   Only `suitable` proceeds to C04.
 - A suitable thesis must include a long or short underlying direction, entry
@@ -182,6 +195,9 @@ decide new-entry suitability, select option contracts, size positions, build
 orders, or execute broker/account mutations. For option positions, it evaluates
 the position's underlying exposure; C04 owns the later translation into option
 or stock expression.
+
+C03 consumes C01 `open_position_pool` records and the current model evidence for
+those already-open positions. It is a sibling of C02, not downstream of C02.
 
 Model inputs:
 

@@ -125,7 +125,7 @@ class RuntimeDecisionTests(unittest.TestCase):
             account_sleeve_id=EQUITY_OPTIONS_ACCOUNT_SLEEVE,
             account_sleeve_state={"available_cash_usd": 1000.0},
             position_state=[
-                {"position_ref": "pos-nvda", "sector_ref": "semiconductors", "portfolio_weight": 0.35},
+                {"position_ref": "pos-nvda", "target_ref": "NVDA", "sector_ref": "semiconductors", "portfolio_weight": 0.35},
             ],
             sector_context_state={
                 "strong_sector_threshold": 0.50,
@@ -166,7 +166,7 @@ class RuntimeDecisionTests(unittest.TestCase):
             account_sleeve_id=EQUITY_OPTIONS_ACCOUNT_SLEEVE,
             account_sleeve_state={"available_cash_usd": 1000.0},
             position_state=[
-                {"position_ref": "pos-nvda", "sector_ref": "semiconductors", "portfolio_weight": 0.35},
+                {"position_ref": "pos-nvda", "target_ref": "NVDA", "sector_ref": "semiconductors", "portfolio_weight": 0.35},
             ],
             sector_context_state={
                 "strong_sector_threshold": 0.50,
@@ -189,6 +189,19 @@ class RuntimeDecisionTests(unittest.TestCase):
         )
 
         self.assertEqual([row["target_ref"] for row in snapshot["watch_targets"]], ["NVDA", "MSFT", "LLY", "TSLA", "AAPL"])
+        self.assertEqual(snapshot["candidate_entry_pool"], snapshot["watch_targets"])
+        self.assertEqual(
+            snapshot["open_position_pool"],
+            [
+                {
+                    "position_ref": "pos-nvda",
+                    "target_ref": "NVDA",
+                    "instrument_ref": None,
+                    "quantity": None,
+                    "sector_ref": "semiconductors",
+                }
+            ],
+        )
         self.assertEqual(
             snapshot["blocked_targets"],
             [

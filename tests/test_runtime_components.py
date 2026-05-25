@@ -23,6 +23,7 @@ class RuntimeComponentGraphTests(unittest.TestCase):
         self.assertEqual(validation["validation_status"], "passed")
         self.assertEqual(live["component_order"], replay["component_order"])
         self.assertEqual(live["component_sequence"], replay["component_sequence"])
+        self.assertEqual(live["execution_paths"], replay["execution_paths"])
         self.assertEqual(live["account_sleeves"], replay["account_sleeves"])
 
     def test_components_have_intraday_step_numbers_and_short_names(self) -> None:
@@ -68,6 +69,31 @@ class RuntimeComponentGraphTests(unittest.TestCase):
                 },
             ],
         )
+
+    def test_c01_branches_entry_candidates_and_open_positions(self) -> None:
+        graph = build_runtime_component_graph(mode="replay")
+
+        paths = {row["path_id"]: row for row in graph["execution_paths"]}
+        self.assertEqual(
+            paths["candidate_entry_path"]["component_ids"],
+            [
+                "component_02_entry",
+                "component_04_option_review",
+                "component_05_order_intent",
+                "component_06_execution_gate",
+            ],
+        )
+        self.assertEqual(paths["candidate_entry_path"]["source_pool"], "candidate_entry_pool")
+        self.assertEqual(
+            paths["open_position_lifecycle_path"]["component_ids"],
+            [
+                "component_03_lifecycle",
+                "component_04_option_review",
+                "component_05_order_intent",
+                "component_06_execution_gate",
+            ],
+        )
+        self.assertEqual(paths["open_position_lifecycle_path"]["source_pool"], "open_position_pool")
 
     def test_entry_component_does_not_call_layer_10(self) -> None:
         rows = {component.component_id: component for component in runtime_components()}

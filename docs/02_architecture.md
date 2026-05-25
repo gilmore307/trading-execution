@@ -28,8 +28,8 @@ component graph:
 clock + market adapter + account adapter + frozen model bundle
   -> Account Sleeve Split
   -> C01 Intake
-  -> C02 Entry
-  -> C03 Lifecycle
+      -> candidate_entry_pool -> C02 Entry
+      -> open_position_pool   -> C03 Lifecycle
   -> C04 Option Review
   -> C05 Order Intent
   -> C06 Execution Gate
@@ -47,9 +47,13 @@ remain identical across both modes.
 
 The account adapter exposes two independent sleeves: `crypto_spot_account` and
 `equity_options_account`. Runtime components must preserve that split through
-intake, entry, lifecycle, option re-expression, and order intent records. Crypto
-candidates are fixed to `BTC`, `ETH`, and `SOL`; equity/options candidates come
-from the eligible equity/ETF/optionable-underlying universe.
+intake, entry, lifecycle, option re-expression, and order intent records. C01 is
+the runtime intake boundary: it receives model/candidate-policy targets and
+current open positions, then emits a `candidate_entry_pool` for C02 and an
+`open_position_pool` for C03. C02 and C03 are sibling branches, not a linear
+dependency. Crypto candidates are fixed to `BTC`, `ETH`, and `SOL`;
+equity/options candidates come from the eligible equity/ETF/optionable-underlying
+universe.
 
 ## Operating Principles
 

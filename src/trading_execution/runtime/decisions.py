@@ -692,7 +692,7 @@ def build_execution_intake_snapshot(
     target_context_rows: Any = None,
     generated_at_utc: str | None = None,
 ) -> dict[str, Any]:
-    """Build the account and watch-target intake snapshot for one account sleeve."""
+    """Build the account, entry-candidate, and open-position intake snapshot for one account sleeve."""
 
     sleeve = _sleeve(account_sleeve_id)
     account_state = _as_mapping(account_sleeve_state)
@@ -717,12 +717,25 @@ def build_execution_intake_snapshot(
         filled_sector_refs=_filled_sector_refs(sector_opportunity_rows),
     )
     positions = _as_rows(position_state)
+    open_position_pool = [
+        {
+            "position_ref": row.get("position_ref"),
+            "target_ref": _target_ref(row),
+            "instrument_ref": row.get("instrument_ref"),
+            "quantity": row.get("quantity"),
+            "sector_ref": _sector_ref(row),
+        }
+        for row in positions
+        if row.get("position_ref") or row.get("instrument_ref") or row.get("target_ref")
+    ]
     body = {
         "contract_type": EXECUTION_INTAKE_SNAPSHOT_CONTRACT,
         "account_sleeve_id": sleeve.sleeve_id,
         "candidate_pool_policy": sleeve.candidate_pool_policy,
         "generated_at_utc": generated_at_utc,
+        "candidate_entry_pool": watch_targets,
         "watch_targets": watch_targets,
+        "open_position_pool": open_position_pool,
         "blocked_targets": blocked,
         "sector_opportunity_mix": sector_opportunity_mix,
         "available_balance_usd": balance_status["available_balance_usd"],

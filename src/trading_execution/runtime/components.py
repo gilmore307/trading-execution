@@ -122,9 +122,9 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             component_id="component_01_intake",
             component_label="C01 Intake",
             purpose=(
-                "Read account balance state, current holdings, watch targets, and remaining sector "
-                "opportunity mix for one account sleeve before downstream entry and lifecycle components "
-                "make trading decisions."
+                "Read account balance state, current holdings, target candidates, and remaining sector "
+                "opportunity mix for one account sleeve, then split the minute into a candidate entry "
+                "pool for C02 and an open-position pool for C03."
             ),
             input_contracts=(
                 "market_universe_snapshot",
@@ -148,8 +148,8 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             component_id="component_02_entry",
             component_label="C02 Entry",
             purpose=(
-                "Decide whether a C01 watch target has a suitable underlying entry "
-                "thesis for continued expression review."
+                "Evaluate each target in the C01 candidate entry pool and decide which targets have "
+                "a suitable underlying entry thesis for continued expression review."
             ),
             input_contracts=(
                 EXECUTION_INTAKE_SNAPSHOT_CONTRACT,
@@ -208,7 +208,8 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             component_label="C04 Option Review",
             purpose=(
                 "Periodically review held option contracts for moneyness, greeks, "
-                "DTE, spread, liquidity, IV, payoff efficiency, and roll cost."
+                "DTE, spread, liquidity, IV, payoff efficiency, and roll cost, or translate accepted "
+                "C02/C03 underlying intents into the current option or underlying expression."
             ),
             input_contracts=(
                 "option_position_state_snapshot",
@@ -331,6 +332,39 @@ def build_runtime_component_graph(*, mode: RuntimeMode) -> dict[str, Any]:
                 "component_id": component.component_id,
             }
             for component in runtime_components()
+        ],
+        "execution_paths": [
+            {
+                "path_id": "candidate_entry_path",
+                "source_component_id": "component_01_intake",
+                "source_pool": "candidate_entry_pool",
+                "component_ids": [
+                    "component_02_entry",
+                    "component_04_option_review",
+                    "component_05_order_intent",
+                    "component_06_execution_gate",
+                ],
+                "description": "New opportunity candidates from C01 are evaluated by C02 before expression, sizing, and execution gate review.",
+            },
+            {
+                "path_id": "open_position_lifecycle_path",
+                "source_component_id": "component_01_intake",
+                "source_pool": "open_position_pool",
+                "component_ids": [
+                    "component_03_lifecycle",
+                    "component_04_option_review",
+                    "component_05_order_intent",
+                    "component_06_execution_gate",
+                ],
+                "description": "Existing positions from C01 bypass C02 and are managed by C03 before expression, sizing, and execution gate review.",
+            },
+            {
+                "path_id": "failure_review_path",
+                "source_component_id": "observed_model_or_trade_failure",
+                "source_pool": "failure_observations",
+                "component_ids": ["component_07_failure_review"],
+                "description": "Observed model or trade failures route to C07 for post-failure explanation only.",
+            },
         ],
         "components": [component.to_dict() for component in runtime_components()],
         "required_first_batch_contracts": [

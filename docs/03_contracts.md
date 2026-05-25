@@ -66,8 +66,9 @@ Graph/catalog contracts:
 - `execution_account_sleeve`
 
 The first-batch contracts are sufficient to build the initial dry-run lifecycle:
-select target/risk, decide entry, manage an existing position, and emit a
-broker-neutral order intent plus a C06 execution gate result. They are
+intake the runtime candidate and open-position pools, decide entries from the
+candidate pool, manage existing positions from the open-position pool, and emit
+a broker-neutral order intent plus a C06 execution gate result. They are
 implemented as side-effect-free runtime builders and validators in
 `trading_execution.runtime`: they may emit decision records for live or Replay,
 but they do not call providers, submit broker requests, construct broker-specific
@@ -88,6 +89,11 @@ to `BTC`, `ETH`, and `SOL` spot candidates. The equity/options sleeve uses the
 reviewed stock/ETF/optionable-underlying candidate process and owns option
 re-expression. Cross-account collateral, buying-power substitution, and position
 netting are not accepted.
+
+`execution_intake_snapshot` is C01-owned. It emits a `candidate_entry_pool` for
+C02 and an `open_position_pool` for C03. C02 and C03 are sibling branches:
+candidate entries do not flow through C03, and existing open positions do not
+need C02 re-entry approval before lifecycle review.
 
 `execution_order_intent` is broker-neutral and C05-owned. It must contain the
 complete position-management result for the proposed operation: final quantity,
