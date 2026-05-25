@@ -352,6 +352,60 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertIn("sector_opportunity_mix_blocks_add", decision["portfolio_constraint_checks"]["reason_codes"])
         self.assertIn("add_blocked_by_portfolio_constraints", decision["reason_codes"])
 
+    def test_position_lifecycle_skips_tactical_add_when_target_capacity_is_too_small(self) -> None:
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-aapl-1",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "target_ref": "AAPL",
+                "instrument_ref": "AAPL_20260220_120C",
+                "quantity": 2,
+                "current_underlying_price": 105.0,
+            },
+            underlying_action_plan={
+                "planned_action": "add",
+                "position_scaling_capacity_state": {
+                    "target_allocated_buying_power_usd": 3000.0,
+                    "estimated_contract_cost_usd": 1500.0,
+                },
+            },
+            generated_at_utc="2026-01-01T00:02:00Z",
+        )
+
+        self.assertEqual(decision["decision_status"], "accepted")
+        self.assertEqual(decision["decision_action"], "hold")
+        self.assertTrue(decision["position_scaling_capacity_checks"]["advanced_position_management_blocked"])
+        self.assertIn(
+            "insufficient_target_buying_power_for_advanced_position_management",
+            decision["position_scaling_capacity_checks"]["reason_codes"],
+        )
+        self.assertIn("advanced_position_management_blocked_by_target_capacity", decision["reason_codes"])
+
+    def test_position_lifecycle_keeps_risk_reduction_even_when_target_capacity_is_too_small(self) -> None:
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-aapl-1",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "target_ref": "AAPL",
+                "instrument_ref": "AAPL_20260220_120C",
+                "quantity": 2,
+            },
+            event_failure_risk_vector={"risk_level": "high"},
+            underlying_action_plan={
+                "position_scaling_capacity_state": {
+                    "target_allocated_buying_power_usd": 3000.0,
+                    "estimated_contract_cost_usd": 1500.0,
+                },
+            },
+            generated_at_utc="2026-01-01T00:02:00Z",
+        )
+
+        self.assertEqual(decision["decision_status"], "accepted")
+        self.assertEqual(decision["decision_action"], "reduce")
+        self.assertTrue(decision["position_scaling_capacity_checks"]["advanced_position_management_blocked"])
+        self.assertIn("event_failure_risk_requires_reduction", decision["reason_codes"])
+        self.assertNotIn("advanced_position_management_blocked_by_target_capacity", decision["reason_codes"])
+
     def test_order_intent_is_broker_neutral_and_requires_valid_risk_cap(self) -> None:
         decision = build_position_lifecycle_decision(
             position_state={
@@ -380,6 +434,7 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(intent["sizing_plan"]["position_management_owner"], "component_05_order_intent")
         self.assertEqual(intent["sizing_plan"]["quantity"], VALID_STOCK_RISK_CAP["planned_quantity"])
         self.assertEqual(intent["sizing_plan"]["quantity_source"], "trade_risk_cap.planned_quantity")
+        self.assertEqual(intent["sizing_plan"]["target_position_scaling_capacity"]["position_scaling_mode"], "position_scaling_capacity_unknown")
         self.assertFalse(intent["sizing_plan"]["execution_gate_may_change_quantity"])
         self.assertEqual(intent["risk_cap_validation"]["valid"], True)
         self.assertTrue(intent["required_execution_gate_reviews"]["agent_final_review_required"])
@@ -390,6 +445,68 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(intent["safety"]["broker_calls_performed"], 0)
         self.assertFalse(intent["safety"]["account_mutation_performed"])
         self.assertEqual(validate_execution_order_intent(intent)["validation_status"], "passed")
+
+    def test_order_intent_records_single_allocation_when_target_capacity_only_supports_two_contracts(self) -> None:
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-aapl-1",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "target_ref": "AAPL",
+                "instrument_ref": "AAPL_20260220_120C",
+                "quantity": 2,
+            },
+            event_failure_risk_vector={"risk_level": "high"},
+            generated_at_utc="2026-01-01T00:02:00Z",
+        )
+        risk_cap = {
+            **VALID_STOCK_RISK_CAP,
+            "planned_quantity": 2,
+            "target_allocated_buying_power_usd": 3000.0,
+            "estimated_contract_cost_usd": 1500.0,
+        }
+
+        intent = build_execution_order_intent(
+            decision_record=decision,
+            trade_risk_cap=risk_cap,
+            generated_at_utc="2026-01-01T00:03:00Z",
+        )
+        capacity = intent["sizing_plan"]["target_position_scaling_capacity"]
+
+        self.assertEqual(capacity["affordable_unit_count"], 2)
+        self.assertFalse(capacity["advanced_position_management_allowed"])
+        self.assertEqual(capacity["position_scaling_mode"], "single_allocation_no_advanced_scaling")
+        self.assertIn("insufficient_target_buying_power_for_advanced_position_management", capacity["reason_codes"])
+
+    def test_order_intent_allows_advanced_management_when_target_capacity_supports_many_contracts(self) -> None:
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-aapl-1",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "target_ref": "AAPL",
+                "instrument_ref": "AAPL_20260220_120C",
+                "quantity": 2,
+            },
+            event_failure_risk_vector={"risk_level": "high"},
+            generated_at_utc="2026-01-01T00:02:00Z",
+        )
+        risk_cap = {
+            **VALID_STOCK_RISK_CAP,
+            "planned_quantity": 4,
+            "target_allocated_buying_power_usd": 3000.0,
+            "estimated_contract_cost_usd": 200.0,
+        }
+
+        intent = build_execution_order_intent(
+            decision_record=decision,
+            trade_risk_cap=risk_cap,
+            generated_at_utc="2026-01-01T00:03:00Z",
+        )
+        capacity = intent["sizing_plan"]["target_position_scaling_capacity"]
+
+        self.assertEqual(capacity["affordable_unit_count"], 15)
+        self.assertTrue(capacity["advanced_position_management_allowed"])
+        self.assertEqual(capacity["position_scaling_mode"], "advanced_tranche_management_allowed")
+        self.assertIn("target_buying_power_supports_multiple_contract_tranches", capacity["reason_codes"])
 
     def test_order_intent_blocks_missing_risk_cap(self) -> None:
         decision = build_position_lifecycle_decision(

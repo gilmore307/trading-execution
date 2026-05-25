@@ -252,6 +252,120 @@ def _lifecycle_add_constraint_reasons(projection: Mapping[str, Any], underlying_
     return reasons
 
 
+def _first_positive_number(*sources: Mapping[str, Any], keys: tuple[str, ...]) -> float | None:
+    for source in sources:
+        for key in keys:
+            value = _number(source.get(key), default=0.0)
+            if value > 0:
+                return value
+    return None
+
+
+def _target_position_scaling_capacity(
+    *sources: Mapping[str, Any],
+    default_min_advanced_units: int = 3,
+) -> dict[str, Any]:
+    nested_sources: list[Mapping[str, Any]] = []
+    for source in sources:
+        nested_sources.append(source)
+        for key in (
+            "position_scaling_capacity_state",
+            "target_position_scaling_capacity",
+            "target_capacity_state",
+            "position_scaling_capacity",
+        ):
+            nested = source.get(key)
+            if isinstance(nested, Mapping):
+                nested_sources.append(nested)
+
+    min_units_value = _first_positive_number(
+        *nested_sources,
+        keys=(
+            "min_advanced_position_management_units",
+            "minimum_advanced_position_management_units",
+            "min_tranche_contract_count",
+            "min_scaling_units",
+        ),
+    )
+    min_units = max(int(min_units_value or default_min_advanced_units), 1)
+    allocated = _first_positive_number(
+        *nested_sources,
+        keys=(
+            "target_allocated_buying_power_usd",
+            "allocated_buying_power_usd",
+            "remaining_target_buying_power_usd",
+            "target_remaining_buying_power_usd",
+            "available_buying_power_usd",
+            "available_balance_usd",
+        ),
+    )
+    unit_cost = _first_positive_number(
+        *nested_sources,
+        keys=(
+            "estimated_unit_cost_usd",
+            "contract_unit_cost_usd",
+            "estimated_contract_cost_usd",
+            "planned_contract_cost_usd",
+            "planned_premium_per_contract_usd",
+            "premium_per_contract_usd",
+            "contract_premium_usd",
+        ),
+    )
+    if unit_cost is None:
+        premium = _first_positive_number(*nested_sources, keys=("planned_limit_price", "limit_price", "mark_price"))
+        multiplier = _first_positive_number(*nested_sources, keys=("contract_multiplier", "multiplier"))
+        if premium is not None:
+            unit_cost = premium * (multiplier or 1.0)
+
+    affordable_units = None
+    if allocated is not None and unit_cost is not None and unit_cost > 0:
+        affordable_units = int(allocated // unit_cost)
+
+    explicit_allowed = None
+    for source in nested_sources:
+        if source.get("advanced_position_management_allowed") is True:
+            explicit_allowed = True
+            break
+        if source.get("advanced_position_management_allowed") is False:
+            explicit_allowed = False
+            break
+
+    if explicit_allowed is not None:
+        advanced_allowed = explicit_allowed
+    elif affordable_units is None:
+        advanced_allowed = None
+    else:
+        advanced_allowed = affordable_units >= min_units
+
+    reason_codes: list[str] = []
+    if affordable_units is None:
+        mode = "position_scaling_capacity_unknown"
+        reason_codes.append("target_position_scaling_capacity_unknown")
+    elif advanced_allowed:
+        mode = "advanced_tranche_management_allowed"
+        reason_codes.append("target_buying_power_supports_multiple_contract_tranches")
+    else:
+        mode = "single_allocation_no_advanced_scaling"
+        reason_codes.append("insufficient_target_buying_power_for_advanced_position_management")
+
+    return {
+        "target_allocated_buying_power_usd": allocated,
+        "estimated_unit_cost_usd": unit_cost,
+        "affordable_unit_count": affordable_units,
+        "min_advanced_position_management_units": min_units,
+        "advanced_position_management_allowed": advanced_allowed,
+        "position_scaling_mode": mode,
+        "reason_codes": reason_codes,
+    }
+
+
+def _advanced_position_management_constraint_reasons(*sources: Mapping[str, Any]) -> list[str]:
+    capacity = _target_position_scaling_capacity(*sources)
+    if capacity["advanced_position_management_allowed"] is False:
+        return ["insufficient_target_buying_power_for_advanced_position_management"]
+    return []
+
+
 def _zone_from_fields(mapping: Mapping[str, Any], zone_key: str, low_keys: tuple[str, ...], high_keys: tuple[str, ...]) -> dict[str, float] | None:
     zone = mapping.get(zone_key)
     if isinstance(zone, Mapping):
@@ -867,10 +981,18 @@ def build_position_lifecycle_decision(
     )
     planned_action = _planned_lifecycle_action(underlying_plan)
     add_constraint_reasons = _lifecycle_add_constraint_reasons(projection, underlying_plan)
+    advanced_position_management_reasons = _advanced_position_management_constraint_reasons(
+        account,
+        risk_budget,
+        projection,
+        underlying_plan,
+        policy,
+    )
 
     reasons: list[str] = []
     status: DecisionStatus = "monitor_only"
     action = "hold"
+    action_source = "none"
 
     quantity = _number(position.get("quantity"), default=0.0)
     if quantity <= 0:
@@ -879,30 +1001,39 @@ def build_position_lifecycle_decision(
         status = "accepted"
         if _price_reaches_downside(current_underlying_price, hard_stop_price, position_side):
             action = "stop"
+            action_source = "protective_exit"
             reasons.append("model_underlying_hard_stop_reached")
         elif _price_reaches_downside(current_underlying_price, model_invalidation_price, position_side):
             action = "stop"
+            action_source = "protective_exit"
             reasons.append("model_underlying_invalidation_reached")
         elif _bool_flag(event_risk, "flatten_positions", "halt_exposure") or _risk_level(event_risk) == "critical":
             action = "exit"
+            action_source = "risk_exit"
             reasons.append("event_failure_risk_requires_exit")
         elif _bool_flag(policy, "flatten_positions", "halt_exposure", "force_exit_positions"):
             action = "exit"
+            action_source = "risk_exit"
             reasons.append("dynamic_risk_policy_requires_exit")
         elif planned_action in {"stop", "exit"}:
             action = planned_action
+            action_source = "underlying_action_risk_exit"
             reasons.append(f"underlying_action_plan_requires_{planned_action}")
         elif planned_action == "take_profit" or _price_reaches_upside(current_underlying_price, target_price, position_side):
             action = "take_profit"
+            action_source = "take_profit"
             reasons.append("underlying_target_or_take_profit_reached")
         elif _risk_level(event_risk) == "high":
             action = "reduce"
+            action_source = "risk_reduction"
             reasons.append("event_failure_risk_requires_reduction")
         elif _bool_flag(policy, "reduce_positions", "reduce_exposure"):
             action = "reduce"
+            action_source = "risk_reduction"
             reasons.append("dynamic_risk_policy_requires_reduction")
         elif planned_action in {"add", "reduce", "hold"}:
             action = planned_action
+            action_source = "tactical_position_management"
             reasons.append(f"underlying_action_plan_supports_{planned_action}")
         else:
             alpha_score = _number(alpha.get("alpha_confidence_score", alpha.get("score")), default=0.0)
@@ -910,16 +1041,22 @@ def build_position_lifecycle_decision(
             reduce_threshold = _number(policy.get("minimum_hold_alpha_confidence"), default=0.45)
             if alpha_score < reduce_threshold:
                 action = "reduce"
+                action_source = "alpha_deterioration"
                 reasons.append("alpha_confidence_below_hold_threshold")
             elif alpha_score >= add_threshold and _bool_flag(projection, "add_allowed", "position_can_add"):
                 action = "add"
+                action_source = "tactical_position_management"
                 reasons.append("alpha_confidence_supports_add")
             else:
                 action = "hold"
+                action_source = "maintain_position"
                 reasons.append("position_thesis_still_valid")
         if action == "add" and add_constraint_reasons:
             action = "hold"
             reasons.append("add_blocked_by_portfolio_constraints")
+        if action in {"add", "reduce"} and action_source == "tactical_position_management" and advanced_position_management_reasons:
+            action = "hold"
+            reasons.append("advanced_position_management_blocked_by_target_capacity")
         if risk_budget.get("max_position_loss_pct") is not None or position.get("unrealized_loss_pct") is not None:
             reasons.append("fixed_percentage_loss_not_lifecycle_stop")
 
@@ -943,6 +1080,10 @@ def build_position_lifecycle_decision(
         "portfolio_constraint_checks": {
             "add_blocked": bool(add_constraint_reasons),
             "reason_codes": add_constraint_reasons,
+        },
+        "position_scaling_capacity_checks": {
+            "advanced_position_management_blocked": bool(advanced_position_management_reasons),
+            "reason_codes": advanced_position_management_reasons,
         },
         "model_layer_refs": {
             "market_context_state": market.get("model_ref"),
@@ -1013,6 +1154,7 @@ def build_execution_order_intent(
         decision_record.get("target_position_quantity", trade_risk_cap.get("planned_target_position_quantity")),
         default=None,
     )
+    scaling_capacity = _target_position_scaling_capacity(decision_record, trade_risk_cap, _as_mapping(execution_policy_snapshot))
 
     if not reasons:
         intent_status = "ready_for_execution_gate_not_submitted"
@@ -1051,6 +1193,7 @@ def build_execution_order_intent(
             "target_position_quantity": target_position_quantity,
             "planned_exposure_change": decision_record.get("planned_exposure_change")
             or trade_risk_cap.get("planned_exposure_change"),
+            "target_position_scaling_capacity": scaling_capacity,
             "sizing_reason_codes": list(
                 decision_record.get("sizing_reason_codes")
                 or trade_risk_cap.get("sizing_reason_codes")

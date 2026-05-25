@@ -259,6 +259,8 @@ C05 owns all position-management content needed for the order:
 - final order quantity;
 - target post-trade position or exposure when available;
 - add/reduce/exit/roll sizing reason codes;
+- target-allocated buying power and estimated unit cost when available;
+- whether advanced tranche management is allowed for the target;
 - premium/capital-at-risk packaging through `trade_risk_cap`;
 - broker-neutral order type, limit/stop reference, and time-in-force policy;
 - source decision refs from C02, C03, and C04.
@@ -266,6 +268,15 @@ C05 owns all position-management content needed for the order:
 It calls no models and performs no broker/account mutation. It must not submit
 orders. Once C05 emits an executable `execution_order_intent`, C06 may reject or
 submit/simulate it, but must not recalculate or modify the quantity.
+
+If target-allocated buying power can only afford fewer than the configured
+advanced-management unit count, C05 records
+`single_allocation_no_advanced_scaling` in `sizing_plan`. In that state the
+execution path should express the available target allocation directly instead
+of trying to optimize a multi-step add/reduce curve. When the same target
+allocation can afford several contracts, C05 records
+`advanced_tranche_management_allowed` and downstream review may use model-backed
+staged entry, add, reduce, or staged exit evidence.
 
 ### C06 Execution Gate
 

@@ -92,9 +92,16 @@ netting are not accepted.
 `execution_order_intent` is broker-neutral and C05-owned. It must contain the
 complete position-management result for the proposed operation: final quantity,
 target post-trade position when available, quantity source, sizing reason codes,
-broker-neutral price/order policy, and a valid `trade_risk_cap`. Missing or
-invalid sizing/cap evidence produces a blocked intent and never implies order
-submission permission.
+broker-neutral price/order policy, target position-scaling capacity evidence,
+and a valid `trade_risk_cap`. Missing or invalid sizing/cap evidence produces a
+blocked intent and never implies order submission permission.
+
+Target position-scaling capacity is based on target-allocated buying power and
+estimated unit/contract cost. If the target allocation can afford fewer than the
+minimum advanced-management unit count, optional tranche add/reduce behavior
+must be skipped and C05 should record
+`single_allocation_no_advanced_scaling`. Protective stops, exits, and risk
+reductions are still allowed; capacity rules only suppress tactical scaling.
 
 `execution_gate_result` is C06-owned. It records whether the C05 intent is
 rejected, approved for Replay simulation, or approved for live broker submission.

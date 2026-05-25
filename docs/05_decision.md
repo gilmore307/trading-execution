@@ -67,6 +67,14 @@ final review before live broker submission, verifies the C05 quantity remains
 unchanged, applies final hard-block checks, and rejects or routes the intent
 without changing quantity, target exposure, or order policy.
 
+Target-level buying power determines whether advanced tranche management is
+worth using. If the allocation for the target can only afford one or two units,
+C03 skips tactical add/reduce steps and C05 records
+`single_allocation_no_advanced_scaling`; the order intent should express the
+available allocation directly. If the same allocation can afford several
+contracts, C03 may follow model-backed add/reduce and staged entry/exit evidence.
+This rule does not block protective stops, exits, or risk-driven reductions.
+
 ## D001 - Execution consumes promoted decisions only
 
 Date: 2026-04-25
