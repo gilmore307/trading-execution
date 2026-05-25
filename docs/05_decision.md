@@ -9,6 +9,11 @@ Live trading and Replay use the same execution-owned runtime component graph.
 They differ only by adapters: live clock/market/account/broker gate versus
 historical clock/market snapshot/simulated account/fill simulator.
 
+Replay and shadow remain separate mechanisms. Replay is a fixed historical
+evaluation mechanism for training outputs. Shadow is a realtime live-market
+comparison mechanism for already-promoted models and is the only path that uses
+runtime model roster selection.
+
 `trading-evaluation` owns Replay contracts, datasets, settlement, metrics, and
 promotion readiness. It does not own the trading decisions made during Replay;
 it calls the `trading-execution` runtime component graph and then evaluates the

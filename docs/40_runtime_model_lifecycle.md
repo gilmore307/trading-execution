@@ -4,6 +4,12 @@ Runtime model lifecycle is execution-owned.
 
 `trading-evaluation` admits candidates through `promotion_readiness_record`. `trading-execution` then runs the current active model for trading and runs promoted-but-not-active models as shadow candidates during market hours.
 
+Shadow is not Replay. Replay uses a fixed historical window and frozen historical
+data to judge whether a training output is meaningful enough for promotion
+readiness. Shadow uses realtime market data during live market hours to compare
+already-promoted models and choose which one should be active in production.
+`execution_shadow_cycle_selection` must not be called during promotion Replay.
+
 ## Cycle
 
 1. Keep one active model as the trading authority.
