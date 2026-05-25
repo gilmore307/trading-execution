@@ -440,14 +440,22 @@ Status: Accepted
 
 Active model selection is not broker execution. Selection records do not construct orders, submit broker calls, or mutate accounts.
 
-## D019 - Failure Attribution Runs After Close
+## D019 - Failure Attribution Has Realtime Watch And Settlement Modes
 
 Date: 2026-05-25
 Status: Accepted
 
 Failure attribution is an execution-owned live component boundary as well as a
-Replay/evaluation boundary. After a regular session closes, or during another
-accepted off-hours attribution window, C07 may inspect matured active and shadow
+Replay/evaluation boundary. C07 has two live modes.
+
+Realtime watch runs during market hours for active and shadow decisions with an
+open thesis, open position, material path deviation, new event evidence, or
+unexplained model drift. It may surface early failure warnings or preliminary
+attribution evidence so C03/C05/C06 can review protective reduce, exit, block,
+or human-review paths before losses compound.
+
+Settlement attribution runs after a regular session closes, or during another
+accepted off-hours attribution window. It may inspect matured active and shadow
 decisions, fills, missed opportunities, open-position outcomes, overblocks,
 underblocks, option-expression drag, and event/co-event evidence.
 

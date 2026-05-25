@@ -45,13 +45,22 @@ adapters are side-effect-free: they must not submit broker requests or mutate
 account, order, or position state. The components and decision contracts must
 remain identical across both modes.
 
-C07 is also part of live operation. It should normally run after the regular
-session closes, or in another accepted off-hours window, once decision outcomes,
-fills, open-position state, and relevant event evidence have matured enough to
-explain failures or deviations. C07 does not revise intraday decisions that have
-already passed through C02-C06; it produces attribution evidence for future
-model feedback, runtime lifecycle review, and Layer 4/Layer 10 event-family
-work.
+C07 is also part of live operation. It has two timing modes:
+
+- realtime watch during market hours for active and shadow decisions that have
+  an open thesis, open position, material path deviation, new event evidence, or
+  unexplained model drift;
+- settlement attribution after the regular session closes, or in another
+  accepted off-hours window, once decision outcomes, fills, open-position state,
+  and relevant event evidence have matured.
+
+Realtime watch may surface early failure warnings or preliminary attribution so
+the runtime can avoid preventable loss. It does not revise intraday decisions
+directly, submit orders, mutate positions, or switch active model pointers. Any
+protective reduce, exit, block, or review action must still route through the
+normal C03, C05, and C06 decision gates. Settlement attribution produces the
+final evidence for model feedback, runtime lifecycle review, and Layer 4/Layer
+10 event-family work.
 
 The account adapter exposes two independent sleeves: `crypto_spot_account` and
 `equity_options_account`. Runtime components must preserve that split through

@@ -329,21 +329,36 @@ Purpose: after model or trade behavior has already failed or deviated, link the
 failure evidence to possible unscreened events and produce Layer 4 feedback
 candidates.
 
-Live timing: C07 is valid in live operation, but it should normally run after
-the regular session closes or in another accepted off-hours attribution window.
-It may inspect matured active and shadow decisions, fills, missed opportunities,
-open-position outcomes, overblocks, underblocks, option-expression drag, and
-event/co-event evidence. It must not mutate intraday C02-C06 decisions, submit
-orders, change position state, or switch active model pointers.
+Live timing: C07 is valid in live operation in two modes:
+
+- realtime watch during market hours;
+- settlement attribution after the regular session closes or in another accepted
+  off-hours attribution window.
+
+Realtime watch may inspect active and shadow decisions with an open thesis, open
+position, material path deviation, new event evidence, or unexplained model
+drift. It emits early warning or preliminary attribution evidence so C03/C05/C06
+can review protective reduce, exit, block, or human-review paths before losses
+compound.
+
+Settlement attribution may inspect matured active and shadow decisions, fills,
+missed opportunities, open-position outcomes, overblocks, underblocks,
+option-expression drag, and event/co-event evidence.
+
+C07 must not mutate intraday C02-C06 decisions, submit orders, change position
+state, or switch active model pointers.
 
 Model input:
 
 - Layer 10 event risk governor.
 
-Layer 10 is not a pre-entry veto. It is a post-failure explanation model:
+Layer 10 is not a standalone pre-entry veto. It is a residual event-risk
+explanation and deviation-watch model:
 
 ```text
-observed model/trade failure -> possible event causes -> Layer 4 feedback candidate
+active/shadow thesis or observed model/trade failure
+  -> possible event causes or model-invalidating context
+  -> C03/C05/C06 review evidence and Layer 4 feedback candidate
 ```
 
 Layer 4 remains the forward event-risk model used in entry and position

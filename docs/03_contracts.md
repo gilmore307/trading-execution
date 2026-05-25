@@ -74,16 +74,24 @@ implemented as side-effect-free runtime builders and validators in
 but they do not call providers, submit broker requests, construct broker-specific
 payloads, or mutate account, order, or position state.
 
-The second-batch contracts add option roll review, post-failure Layer 10
-explanation, and Replay fill simulation. They are also implemented as
-side-effect-free runtime builders and validators. `simulated_fill_event` is
-Replay-only evidence and never represents a real broker/account fill or account,
-order, or position mutation.
+The second-batch contracts add option roll review, C07 realtime
+failure/deviation watch, C07 settlement attribution with Layer 10 explanation,
+and Replay fill simulation. They are also implemented as side-effect-free
+runtime builders and validators. `simulated_fill_event` is Replay-only evidence
+and never represents a real broker/account fill or account, order, or position
+mutation.
 
-Layer 10 is only called by `component_07_failure_review` after observed model
-or trade failure. In live operation, C07 normally runs after the regular session
-closes or in another accepted off-hours attribution window. Normal entry
-decisions use Layer 4 for forward event risk.
+Layer 10 is called by `component_07_failure_review` for residual event-risk
+explanation and failure/deviation watch. In live operation, C07 may run during
+market hours as a realtime watch over active or shadow decisions with an open
+thesis, open position, material path deviation, new event evidence, or
+unexplained model drift. C07 also runs settlement attribution after the regular
+session closes or in another accepted off-hours attribution window.
+
+Realtime C07 evidence may trigger C03/C05/C06 review paths, but it must not
+directly mutate intraday decisions, submit orders, mutate positions, or switch
+active model pointers. Normal new-entry decisions still use Layer 4 for forward
+event risk; C07 is not a standalone pre-entry alpha or generic news veto.
 
 Runtime decisions must be scoped to one independent account sleeve:
 `crypto_spot_account` or `equity_options_account`. The crypto sleeve is limited
