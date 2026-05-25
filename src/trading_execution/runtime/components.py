@@ -198,7 +198,7 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
                 "layer_07_position_projection",
                 "layer_08_underlying_action",
             ),
-            layer_10_policy="trigger_component_05_failure_review_only_after_observed_failure_or_abnormal_deviation",
+            layer_10_policy="trigger_component_07_failure_review_only_after_observed_failure_or_abnormal_deviation",
         ),
         RuntimeComponent(
             component_step="C04",
@@ -222,33 +222,13 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
                 "layer_09_option_expression",
             ),
             account_sleeves=(EQUITY_OPTIONS_ACCOUNT_SLEEVE,),
-            layer_10_policy="not_called; abnormal option or model behavior routes to component_05_failure_review",
+            layer_10_policy="not_called; abnormal option or model behavior routes to component_07_failure_review",
         ),
         RuntimeComponent(
             component_step="C05",
-            component_name="Failure Review",
-            component_id="component_05_failure_review",
-            component_label="C05 Failure Review",
-            purpose=(
-                "When model or trade behavior has already failed or deviated, link "
-                "the failure evidence to possible unscreened events and produce Layer 4 feedback candidates."
-            ),
-            input_contracts=(
-                "model_failure_observation",
-                "trade_failure_observation",
-                "actual_vs_expected_performance",
-                "unscreened_event_evidence",
-                "event_failure_risk_vector",
-            ),
-            output_contracts=(FAILURE_EXPLANATION_PACKET_CONTRACT,),
-            called_model_layers=("layer_10_event_risk_governor",),
-            layer_10_policy="called_only_after_observed_model_or_trade_failure",
-        ),
-        RuntimeComponent(
-            component_step="C06",
             component_name="Order Intent",
-            component_id="component_06_order_intent",
-            component_label="C06 Order Intent",
+            component_id="component_05_order_intent",
+            component_label="C05 Order Intent",
             purpose=(
                 "Convert accepted entry, lifecycle, or option re-expression decisions "
                 "into broker-neutral execution order intents."
@@ -265,10 +245,10 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             layer_10_policy="not_called",
         ),
         RuntimeComponent(
-            component_step="C07",
+            component_step="C06",
             component_name="Execution Gate",
-            component_id="component_07_execution_gate",
-            component_label="C07 Execution Gate",
+            component_id="component_06_execution_gate",
+            component_label="C06 Execution Gate",
             purpose=(
                 "Apply final execution gates to broker-neutral order intents. Live mode "
                 "routes to reviewed broker adapters; Replay mode routes to the fill simulator."
@@ -279,6 +259,26 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             layer_10_policy="not_called",
             broker_mutation_allowed=False,
             account_mutation_allowed=False,
+        ),
+        RuntimeComponent(
+            component_step="C07",
+            component_name="Failure Review",
+            component_id="component_07_failure_review",
+            component_label="C07 Failure Review",
+            purpose=(
+                "When model or trade behavior has already failed or deviated, link "
+                "the failure evidence to possible unscreened events and produce Layer 4 feedback candidates."
+            ),
+            input_contracts=(
+                "model_failure_observation",
+                "trade_failure_observation",
+                "actual_vs_expected_performance",
+                "unscreened_event_evidence",
+                "event_failure_risk_vector",
+            ),
+            output_contracts=(FAILURE_EXPLANATION_PACKET_CONTRACT,),
+            called_model_layers=("layer_10_event_risk_governor",),
+            layer_10_policy="called_only_after_observed_model_or_trade_failure",
         ),
     )
 

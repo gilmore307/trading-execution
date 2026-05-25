@@ -54,9 +54,11 @@ C01 Intake
   -> C02 Entry
   -> C03 Lifecycle
   -> C04 Option Review
-  -> C05 Failure Review when observed failure exists
-  -> C06 Order Intent
-  -> C07 Execution Gate
+  -> C05 Order Intent
+  -> C06 Execution Gate
+
+observed model/trade failure
+  -> C07 Failure Review
 ```
 
 The short numbered names are the intraday process order. The stable
@@ -69,9 +71,9 @@ The short numbered names are the intraday process order. The stable
 | `C02` | Entry | `component_02_entry` | `entry_decision` |
 | `C03` | Lifecycle | `component_03_lifecycle` | `position_lifecycle_decision` |
 | `C04` | Option Review | `component_04_option_review` | `option_reexpression_decision` |
-| `C05` | Failure Review | `component_05_failure_review` | `failure_explanation_packet` |
-| `C06` | Order Intent | `component_06_order_intent` | `execution_order_intent` |
-| `C07` | Execution Gate | `component_07_execution_gate` | `broker_order_request` / `simulated_fill_event` |
+| `C05` | Order Intent | `component_05_order_intent` | `execution_order_intent` |
+| `C06` | Execution Gate | `component_06_execution_gate` | `broker_order_request` / `simulated_fill_event` |
+| `C07` | Failure Review | `component_07_failure_review` | `failure_explanation_packet` |
 
 ### C01 Intake
 
@@ -164,7 +166,7 @@ Live application scenario:
 - `rejected` is used for event-risk blocks, dynamic-risk new-entry blocks,
   insufficient alpha, missing direction, missing model invalidation, missing
   hard stop, or invalid C01 source target.
-- `entry_decision` is not a direct order source for C06. It is an underlying
+- `entry_decision` is not a direct order source for C05. It is an underlying
   thesis handoff for C04 expression review.
 
 ### C03 Lifecycle
@@ -205,7 +207,7 @@ Live application scenario:
 - Every non-hold lifecycle action must carry explicit reason codes and model
   evidence. C03 does not use fee, PDT, day-trade, or churn formulas to
   override the thesis decision; those facts are execution-review context for
-  C07.
+  C06.
 - Add signals must respect the upstream sector/opportunity mix and portfolio
   exposure constraints carried through C01/M07 context. If the target's sector
   or exposure bucket is already filled, C03 keeps `hold` rather than adding
@@ -241,7 +243,32 @@ Model inputs:
 Roll decisions require a material improvement after roll-cost penalty and must
 respect roll-count, liquidity, and risk-budget limits.
 
-### C05 Failure Review
+### C05 Order Intent
+
+Owns `execution_order_intent`.
+
+Purpose: convert accepted entry, lifecycle, or option re-expression decisions
+into broker-neutral execution order intents.
+
+It calls no models and performs no broker/account mutation.
+
+### C06 Execution Gate
+
+Owns the boundary where `execution_order_intent` becomes either a live broker
+request or a Replay simulated fill event.
+
+Live broker mutation remains disabled unless a reviewed execution gate enables
+it. Replay uses simulated adapters only; it must not submit broker requests or
+mutate account, order, or position state.
+
+Agent final review is a hard live-submission boundary. Any open, add, reduce,
+exit, stop, take-profit, roll, or stock-fallback order must present its C02/C03
+or C04 reason evidence to C06 and receive an approved agent review before a
+live broker order can be submitted. C06 still reviews broker/regulatory context,
+minimum-hold context, fees, spread, and transaction-cost concerns before live
+submission; C03 does not contain a separate PDT/day-trade gate.
+
+### C07 Failure Review
 
 Owns `failure_explanation_packet`.
 
@@ -265,31 +292,6 @@ lifecycle decisions:
 ```text
 accepted event evidence -> model/trade risk
 ```
-
-### C06 Order Intent
-
-Owns `execution_order_intent`.
-
-Purpose: convert accepted entry, lifecycle, or option re-expression decisions
-into broker-neutral execution order intents.
-
-It calls no models and performs no broker/account mutation.
-
-### C07 Execution Gate
-
-Owns the boundary where `execution_order_intent` becomes either a live broker
-request or a Replay simulated fill event.
-
-Live broker mutation remains disabled unless a reviewed execution gate enables
-it. Replay uses simulated adapters only; it must not submit broker requests or
-mutate account, order, or position state.
-
-Agent final review is a hard live-submission boundary. Any open, add, reduce,
-exit, stop, take-profit, roll, or stock-fallback order must present its C02/C03
-or C04 reason evidence to C07 and receive an approved agent review before a
-live broker order can be submitted. C07 still reviews broker/regulatory context,
-minimum-hold context, fees, spread, and transaction-cost concerns before live
-submission; C03 does not contain a separate PDT/day-trade gate.
 
 ## Implementation Status
 

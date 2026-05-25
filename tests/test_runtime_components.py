@@ -53,18 +53,18 @@ class RuntimeComponentGraphTests(unittest.TestCase):
                 },
                 {
                     "component_step": "C05",
-                    "component_name": "Failure Review",
-                    "component_id": "component_05_failure_review",
+                    "component_name": "Order Intent",
+                    "component_id": "component_05_order_intent",
                 },
                 {
                     "component_step": "C06",
-                    "component_name": "Order Intent",
-                    "component_id": "component_06_order_intent",
+                    "component_name": "Execution Gate",
+                    "component_id": "component_06_execution_gate",
                 },
                 {
                     "component_step": "C07",
-                    "component_name": "Execution Gate",
-                    "component_id": "component_07_execution_gate",
+                    "component_name": "Failure Review",
+                    "component_id": "component_07_failure_review",
                 },
             ],
         )
@@ -78,13 +78,13 @@ class RuntimeComponentGraphTests(unittest.TestCase):
         self.assertIn("layer_04_event_failure_risk", entry.called_model_layers)
         self.assertIn("not_called", entry.layer_10_policy)
 
-        failure = rows["component_05_failure_review"]
+        failure = rows["component_07_failure_review"]
         self.assertEqual(failure.called_model_layers, ("layer_10_event_risk_governor",))
         self.assertIn("after_observed_model_or_trade_failure", failure.layer_10_policy)
 
     def test_order_intent_component_has_no_model_calls_or_mutation(self) -> None:
         rows = {component.component_id: component for component in runtime_components()}
-        order_builder = rows["component_06_order_intent"]
+        order_builder = rows["component_05_order_intent"]
 
         self.assertEqual(order_builder.called_model_layers, ())
         self.assertEqual(order_builder.output_contracts, ("execution_order_intent",))
@@ -140,7 +140,7 @@ class RuntimeComponentGraphTests(unittest.TestCase):
         for component_id in (
             "component_01_intake",
             "component_03_lifecycle",
-            "component_06_order_intent",
+            "component_05_order_intent",
         ):
             self.assertIn("account_sleeve_state_snapshot", rows[component_id].input_contracts)
         self.assertNotIn("account_sleeve_state_snapshot", rows["component_02_entry"].input_contracts)

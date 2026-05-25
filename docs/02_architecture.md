@@ -31,9 +31,11 @@ clock + market adapter + account adapter + frozen model bundle
   -> C02 Entry
   -> C03 Lifecycle
   -> C04 Option Review
-  -> C05 Failure Review when observed failure exists
-  -> C06 Order Intent
-  -> C07 Execution Gate
+  -> C05 Order Intent
+  -> C06 Execution Gate
+
+observed model/trade failure
+  -> C07 Failure Review
 ```
 
 Live mode uses live clock, realtime market data, live account snapshots, and a

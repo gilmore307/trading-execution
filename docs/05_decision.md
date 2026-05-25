@@ -20,12 +20,12 @@ The accepted runtime components are:
 - `C02 Entry` / `component_02_entry`
 - `C03 Lifecycle` / `component_03_lifecycle`
 - `C04 Option Review` / `component_04_option_review`
-- `C05 Failure Review` / `component_05_failure_review`
-- `C06 Order Intent` / `component_06_order_intent`
-- `C07 Execution Gate` / `component_07_execution_gate`
+- `C05 Order Intent` / `component_05_order_intent`
+- `C06 Execution Gate` / `component_06_execution_gate`
+- `C07 Failure Review` / `component_07_failure_review`
 
 Layer 10 remains an independent model, but it is not a normal pre-entry input.
-It is called only by `component_05_failure_review` after observed model or
+It is called only by `component_07_failure_review` after observed model or
 trade failure to connect the failure evidence to possible event causes and
 produce Layer 4 feedback candidates.
 
@@ -58,7 +58,7 @@ exposure bucket is already filled, C03 must hold instead of adding more
 exposure.
 
 All live open, add, reduce, exit, stop, take-profit, roll, or stock-fallback
-orders require C07 agent final review before broker submission.
+orders require C06 agent final review before broker submission.
 
 ## D001 - Execution consumes promoted decisions only
 
