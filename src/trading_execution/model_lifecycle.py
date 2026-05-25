@@ -20,7 +20,8 @@ REQUIRED_REVIEW_FIELDS = (
     "review_status",
 )
 ELIMINATION_STATUSES = {"eliminate_candidate", "eliminate"}
-PASSING_STATUSES = {"active_candidate", "realtime_candidate", "shadow_continue", "incumbent_active"}
+PROBATION_STATUSES = {"elimination_probation"}
+PASSING_STATUSES = {"active_candidate", "realtime_candidate", "stable_wingman", "rotating_challenger", "shadow_continue", "incumbent_active"} | PROBATION_STATUSES
 ACCEPTED_REVIEW_STATUSES = PASSING_STATUSES | ELIMINATION_STATUSES
 
 
@@ -331,6 +332,8 @@ def _review_rows_by_ref(rows: Sequence[Mapping[str, Any]], errors: list[str]) ->
             errors.append(f"candidate_review_rows[{index}].review_status is not accepted")
         if status in ELIMINATION_STATUSES and not (row.get("elimination_reason") or row.get("elimination_reason_refs")):
             errors.append(f"candidate_review_rows[{index}] eliminate candidate requires reason evidence")
+        if status in PROBATION_STATUSES and not (row.get("probation_reason") or row.get("probation_reason_refs") or row.get("elimination_reason") or row.get("elimination_reason_refs")):
+            errors.append(f"candidate_review_rows[{index}] probation candidate requires reason evidence")
     return by_ref
 
 
@@ -369,18 +372,34 @@ def build_shadow_cycle_selection(
         if not (row.get("elimination_reason") or row.get("elimination_reason_refs")):
             raise ValueError(f"eliminate candidate {row['candidate_model_ref']} requires sufficient reason evidence")
 
+    probation_ranked = [
+        row
+        for row in reviews
+        if row not in eliminated and str(row.get("review_status")).lower() in PROBATION_STATUSES
+    ]
+    if len(probation_ranked) > 1:
+        raise ValueError("only one elimination probation candidate can occupy a C08 wingman slot per cycle")
+    for row in probation_ranked:
+        if not (row.get("probation_reason") or row.get("probation_reason_refs") or row.get("elimination_reason") or row.get("elimination_reason_refs")):
+            raise ValueError(f"probation candidate {row['candidate_model_ref']} requires sufficient reason evidence")
+
     eligible_ranked = [
         row
         for row in reviews
-        if row not in eliminated and str(row.get("review_status")).lower() in PASSING_STATUSES
+        if row not in eliminated and row not in probation_ranked and str(row.get("review_status")).lower() in PASSING_STATUSES
     ]
     if not eligible_ranked:
         raise ValueError("at least one non-eliminated runtime candidate is required")
 
     active_row = eligible_ranked[0]
     active_model_ref = str(active_row["candidate_model_ref"])
-    realtime_rows = eligible_ranked[1:4]
-    shadow_rows = eligible_ranked[4:]
+    probation_rows = probation_ranked[:1]
+    stable_wingman_slots = 2 if probation_rows else 3
+    stable_wingman_rows = eligible_ranked[1 : 1 + stable_wingman_slots]
+    rotating_start = 1 + stable_wingman_slots
+    rotating_challenger_rows = eligible_ranked[rotating_start : rotating_start + 2]
+    realtime_rows = [*stable_wingman_rows, *probation_rows, *rotating_challenger_rows]
+    shadow_rows = eligible_ranked[rotating_start + 2 :]
     generated = generated_at_utc or _now_utc()
     selection = {
         "contract_type": SHADOW_CYCLE_SELECTION_CONTRACT,
@@ -391,14 +410,23 @@ def build_shadow_cycle_selection(
         "previous_active_model_ref": current_active_model_ref,
         "selected_active_model_ref": active_model_ref,
         "active_model_switch_recommended": active_model_ref != current_active_model_ref,
+        "roster_policy": "one_active_three_wingmen_two_rotating;probation_uses_one_wingman_slot;weekly_rerank",
+        "rerank_cadence": "weekly",
+        "active_runtime_slots": 1 + len(realtime_rows),
+        "stable_wingman_refs": [str(row["candidate_model_ref"]) for row in stable_wingman_rows],
+        "probation_wingman_refs": [str(row["candidate_model_ref"]) for row in probation_rows],
+        "rotating_challenger_refs": [str(row["candidate_model_ref"]) for row in rotating_challenger_rows],
         "realtime_candidate_refs": [str(row["candidate_model_ref"]) for row in realtime_rows],
         "shadow_only_candidate_refs": [str(row["candidate_model_ref"]) for row in shadow_rows],
         "eliminate_candidate_refs": [str(row["candidate_model_ref"]) for row in eliminated],
         "candidate_review_rows": reviews,
         "selection_basis": (
-            "Best overall market-hours shadow-cycle review becomes active. Ranks 2-4 remain realtime candidates; "
-            "lower-ranked candidates continue shadow-only unless sufficient elimination evidence is present."
+            "Best overall market-hours shadow-cycle review becomes active. "
+            "C08 normally runs three stable wingmen and two rotating challengers. "
+            "One elimination-probation candidate may use one stable wingman slot; "
+            "if it remains weak after the probation cycle it enters expedited elimination review."
         ),
+        "probation_exit_policy": "probation_failed_enters_expedited_elimination_review_after_evidence_coverage_check",
         "active_model_config_write_performed": False,
         "broker_order_construction_performed": False,
         "broker_execution_performed": False,
@@ -426,6 +454,12 @@ def validate_shadow_cycle_selection(payload: Mapping[str, Any]) -> RuntimeSelect
         "generated_at_utc",
         "previous_active_model_ref",
         "selected_active_model_ref",
+        "roster_policy",
+        "rerank_cadence",
+        "active_runtime_slots",
+        "stable_wingman_refs",
+        "probation_wingman_refs",
+        "rotating_challenger_refs",
         "realtime_candidate_refs",
         "shadow_only_candidate_refs",
         "eliminate_candidate_refs",
@@ -446,22 +480,48 @@ def validate_shadow_cycle_selection(payload: Mapping[str, Any]) -> RuntimeSelect
     realtime_refs = payload.get("realtime_candidate_refs")
     if not isinstance(realtime_refs, list):
         errors.append("realtime_candidate_refs must be a list")
-    elif len(realtime_refs) > 3:
-        errors.append("realtime_candidate_refs may contain only ranks 2-4")
-    for field in ("shadow_only_candidate_refs", "eliminate_candidate_refs", "candidate_review_rows"):
+    elif len(realtime_refs) > 5:
+        errors.append("realtime_candidate_refs may contain at most five C08 non-active slots")
+    for field in (
+        "stable_wingman_refs",
+        "probation_wingman_refs",
+        "rotating_challenger_refs",
+        "shadow_only_candidate_refs",
+        "eliminate_candidate_refs",
+        "candidate_review_rows",
+    ):
         if not isinstance(payload.get(field), list):
             errors.append(f"{field} must be a list")
+    if payload.get("roster_policy") != "one_active_three_wingmen_two_rotating;probation_uses_one_wingman_slot;weekly_rerank":
+        errors.append("roster_policy must match the accepted C08 roster policy")
+    if payload.get("rerank_cadence") != "weekly":
+        errors.append("rerank_cadence must be weekly")
     reviews = payload.get("candidate_review_rows")
     review_rows = reviews if isinstance(reviews, list) else []
     if not review_rows:
         errors.append("candidate_review_rows must be non-empty")
     rows_by_ref = _review_rows_by_ref(review_rows, errors)
     selected_ref = str(payload.get("selected_active_model_ref") or "")
+    probation_rows = [
+        row
+        for row in review_rows
+        if isinstance(row, Mapping)
+        and str(row.get("review_status") or "").lower() in PROBATION_STATUSES
+        and str(row.get("candidate_model_ref") or "")
+    ]
+    if len(probation_rows) > 1:
+        errors.append("probation_wingman_refs may contain at most one candidate")
+    for row in probation_rows:
+        if not (row.get("probation_reason") or row.get("probation_reason_refs") or row.get("elimination_reason") or row.get("elimination_reason_refs")):
+            errors.append(f"probation candidate {row.get('candidate_model_ref')} requires reason evidence")
+    probation_rows.sort(key=lambda row: (_review_rank(row), str(row.get("candidate_model_ref") or "")))
+
     eligible_rows = [
         row
         for row in review_rows
         if isinstance(row, Mapping)
         and str(row.get("review_status") or "").lower() in PASSING_STATUSES
+        and str(row.get("review_status") or "").lower() not in PROBATION_STATUSES
         and str(row.get("candidate_model_ref") or "")
     ]
     eligible_rows.sort(key=lambda row: (_review_rank(row), str(row.get("candidate_model_ref") or "")))
@@ -471,21 +531,42 @@ def validate_shadow_cycle_selection(payload: Mapping[str, Any]) -> RuntimeSelect
     elif not eligible_rows:
         errors.append("at least one non-eliminated runtime candidate is required")
     realtime_list = realtime_refs if isinstance(realtime_refs, list) else []
+    stable_list = payload.get("stable_wingman_refs") if isinstance(payload.get("stable_wingman_refs"), list) else []
+    probation_list = payload.get("probation_wingman_refs") if isinstance(payload.get("probation_wingman_refs"), list) else []
+    rotating_list = payload.get("rotating_challenger_refs") if isinstance(payload.get("rotating_challenger_refs"), list) else []
     shadow_list = payload.get("shadow_only_candidate_refs") if isinstance(payload.get("shadow_only_candidate_refs"), list) else []
     eliminate_list = payload.get("eliminate_candidate_refs") if isinstance(payload.get("eliminate_candidate_refs"), list) else []
-    expected_realtime = [str(row["candidate_model_ref"]) for row in eligible_rows[1:4]]
-    expected_shadow = [str(row["candidate_model_ref"]) for row in eligible_rows[4:]]
+    expected_probation = [str(row["candidate_model_ref"]) for row in probation_rows[:1]]
+    stable_wingman_slots = 2 if expected_probation else 3
+    expected_stable = [str(row["candidate_model_ref"]) for row in eligible_rows[1 : 1 + stable_wingman_slots]]
+    rotating_start = 1 + stable_wingman_slots
+    expected_rotating = [str(row["candidate_model_ref"]) for row in eligible_rows[rotating_start : rotating_start + 2]]
+    expected_realtime = [*expected_stable, *expected_probation, *expected_rotating]
+    expected_shadow = [str(row["candidate_model_ref"]) for row in eligible_rows[rotating_start + 2 :]]
     expected_eliminate = [
         str(row["candidate_model_ref"])
         for row in review_rows
-        if isinstance(row, Mapping) and str(row.get("review_status") or "").lower() in ELIMINATION_STATUSES
+        if isinstance(row, Mapping) and (str(row.get("review_status") or "").lower() in ELIMINATION_STATUSES or bool(row.get("eliminate_candidate")))
     ]
+    if stable_list != expected_stable:
+        errors.append("stable_wingman_refs must match the accepted stable wingman slots")
+    if probation_list != expected_probation:
+        errors.append("probation_wingman_refs must match the accepted probation slot")
+    if rotating_list != expected_rotating:
+        errors.append("rotating_challenger_refs must match the accepted rotating challenger slots")
     if realtime_list != expected_realtime:
-        errors.append("realtime_candidate_refs must match ranks 2-4 from eligible review rows")
+        errors.append("realtime_candidate_refs must match stable, probation, and rotating C08 slots")
     if shadow_list != expected_shadow:
-        errors.append("shadow_only_candidate_refs must match eligible review rows after rank 4")
+        errors.append("shadow_only_candidate_refs must match eligible review rows after active C08 slots")
     if eliminate_list != expected_eliminate:
         errors.append("eliminate_candidate_refs must match eliminated review rows")
+    try:
+        active_runtime_slots = int(payload.get("active_runtime_slots") or 0)
+    except (TypeError, ValueError):
+        active_runtime_slots = 0
+        errors.append("active_runtime_slots must be an integer")
+    if active_runtime_slots != 1 + len(expected_realtime):
+        errors.append("active_runtime_slots must equal active plus admitted C08 non-active slots")
     roster_refs = [selected_ref, *map(str, realtime_list), *map(str, shadow_list), *map(str, eliminate_list)]
     if len([ref for ref in roster_refs if ref]) != len(set(ref for ref in roster_refs if ref)):
         errors.append("roster model refs must be unique across active, realtime, shadow, and eliminate sets")

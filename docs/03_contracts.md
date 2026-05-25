@@ -153,6 +153,14 @@ contract. It records requested/admitted/throttled model-group counts, reserved
 live resources, estimated p95 latency, and reason codes. It assumes historical
 model tasks are paused during future live runtime.
 
+`execution_shadow_cycle_selection` owns the runtime roster policy. The accepted
+C08 roster is one active model group, three stable wingmen, and two rotating
+challengers. If one elimination-probation candidate needs a final realtime
+check, it occupies one stable wingman slot for that cycle. If that probation
+candidate remains weak and evidence coverage is valid, it enters expedited
+elimination review and can be removed from runtime promoted eligibility without
+reopening the full model-value debate.
+
 `execution_gate_result` is C06-owned. It records whether the C05 intent is
 rejected, approved for Replay simulation, or approved for live broker submission.
 It must verify the order quantity matches the C05 `sizing_plan`, preserve the

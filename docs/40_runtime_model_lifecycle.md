@@ -53,7 +53,8 @@ load is not part of the live budget.
 ## Cycle
 
 1. Keep one active model as the trading authority.
-2. Run eligible promoted model groups as shadow candidates during the same market-hours window.
+2. Run C08 with the accepted six-slot roster: one active model group, three
+   stable wingmen, and two rotating challengers.
 3. Run realtime C07 failure/deviation watch during market hours for active and
    shadow decisions with open theses, open positions, material path deviations,
    new event evidence, or unexplained model drift.
@@ -61,12 +62,21 @@ load is not part of the live budget.
    and shadow decisions when failures, deviations, overblocks, underblocks, or
    unexplained residuals are present.
 5. Aggregate matured live/shadow decision effectiveness and attribution evidence
-   for the cycle, normally about one month.
-6. Select the best overall candidate as the next active model.
-7. Keep ranks 2-4 as realtime candidates for ongoing comparison.
-8. Keep lower-ranked candidates shadow-only unless elimination evidence is sufficient.
-9. Mark weak candidates as eliminate candidates when there is a clear reason, not merely a low score.
-10. Retire a model only after repeated eliminate-candidate cycles or another accepted elimination policy.
+   for the cycle.
+6. Re-rank weekly. The best overall candidate becomes or remains active.
+7. Keep the next three accepted candidates as stable wingmen when no probation
+   candidate is present.
+8. Keep two rotating challenger slots for lower-ranked but still eligible
+   promoted model groups.
+9. If one elimination-probation candidate needs a final realtime check, it uses
+   one stable wingman slot for that cycle. The roster becomes one active, two
+   stable wingmen, one probation wingman, and two rotating challengers.
+10. If the probation wingman remains weak and evidence coverage is valid, it
+   enters expedited elimination review. The review still checks data quality and
+   coverage, but does not reopen the full model-value debate.
+11. Retire a model from runtime promoted eligibility only after accepted
+   elimination review. Historical artifacts and promotion history remain
+   auditable.
 
 ## Performance Boundary
 
@@ -78,9 +88,14 @@ Running many realtime strategies can compete with the active model for runtime c
 
 - previous active model;
 - selected active model;
-- ranks 2-4 realtime candidates;
+- stable wingmen;
+- probation wingman, when present;
+- rotating challengers;
+- complete realtime candidate refs for all admitted C08 non-active slots;
 - shadow-only candidates;
 - eliminate candidates and reason evidence;
+- weekly re-rank cadence and roster policy;
+- probation exit policy;
 - live/shadow realtime failure-watch refs when present;
 - live/shadow settlement-attribution refs when present;
 - untrained event-risk review refs when present;

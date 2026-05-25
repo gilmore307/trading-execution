@@ -112,12 +112,128 @@ class ModelLifecycleTests(unittest.TestCase):
         self.assertEqual(selection["selected_active_model_ref"], "model://winner")
         self.assertTrue(selection["active_model_switch_recommended"])
         self.assertEqual(selection["realtime_candidate_refs"], ["model://rank2", "model://rank3", "model://rank4"])
+        self.assertEqual(selection["stable_wingman_refs"], ["model://rank2", "model://rank3", "model://rank4"])
+        self.assertEqual(selection["probation_wingman_refs"], [])
+        self.assertEqual(selection["rotating_challenger_refs"], [])
+        self.assertEqual(selection["active_runtime_slots"], 4)
+        self.assertEqual(selection["rerank_cadence"], "weekly")
         self.assertEqual(selection["eliminate_candidate_refs"], ["model://bad"])
         self.assertFalse(selection["active_model_config_write_performed"])
         self.assertFalse(selection["broker_order_construction_performed"])
         self.assertFalse(selection["broker_execution_performed"])
         self.assertFalse(selection["account_mutation_performed"])
         self.assertEqual(validate_shadow_cycle_selection(selection).validation_status, "passed")
+
+    def test_shadow_cycle_selection_uses_one_wingman_slot_for_probation(self) -> None:
+        selection = build_shadow_cycle_selection(
+            cycle_ref="cycle://2026-07",
+            current_active_model_ref="model://incumbent",
+            candidate_reviews=[
+                {
+                    "candidate_model_ref": "model://winner",
+                    "promotion_readiness_ref": "ready://winner",
+                    "overall_rank": 1,
+                    "review_status": "active_candidate",
+                },
+                {
+                    "candidate_model_ref": "model://rank2",
+                    "promotion_readiness_ref": "ready://rank2",
+                    "overall_rank": 2,
+                    "review_status": "stable_wingman",
+                },
+                {
+                    "candidate_model_ref": "model://rank3",
+                    "promotion_readiness_ref": "ready://rank3",
+                    "overall_rank": 3,
+                    "review_status": "stable_wingman",
+                },
+                {
+                    "candidate_model_ref": "model://rank4",
+                    "promotion_readiness_ref": "ready://rank4",
+                    "overall_rank": 4,
+                    "review_status": "rotating_challenger",
+                },
+                {
+                    "candidate_model_ref": "model://rank5",
+                    "promotion_readiness_ref": "ready://rank5",
+                    "overall_rank": 5,
+                    "review_status": "rotating_challenger",
+                },
+                {
+                    "candidate_model_ref": "model://probation",
+                    "promotion_readiness_ref": "ready://probation",
+                    "overall_rank": 9,
+                    "review_status": "elimination_probation",
+                    "probation_reason": "candidate is under final realtime review before expedited elimination",
+                },
+                {
+                    "candidate_model_ref": "model://shadow",
+                    "promotion_readiness_ref": "ready://shadow",
+                    "overall_rank": 10,
+                    "review_status": "shadow_continue",
+                },
+            ],
+        )
+
+        self.assertEqual(selection["stable_wingman_refs"], ["model://rank2", "model://rank3"])
+        self.assertEqual(selection["probation_wingman_refs"], ["model://probation"])
+        self.assertEqual(selection["rotating_challenger_refs"], ["model://rank4", "model://rank5"])
+        self.assertEqual(
+            selection["realtime_candidate_refs"],
+            ["model://rank2", "model://rank3", "model://probation", "model://rank4", "model://rank5"],
+        )
+        self.assertEqual(selection["shadow_only_candidate_refs"], ["model://shadow"])
+        self.assertEqual(selection["active_runtime_slots"], 6)
+        self.assertIn("probation_failed_enters_expedited_elimination_review", selection["probation_exit_policy"])
+        self.assertEqual(validate_shadow_cycle_selection(selection).validation_status, "passed")
+
+    def test_probation_candidate_requires_reason_and_is_single_slot(self) -> None:
+        with self.assertRaisesRegex(ValueError, "requires sufficient reason"):
+            build_shadow_cycle_selection(
+                cycle_ref="cycle://2026-07",
+                current_active_model_ref="model://incumbent",
+                candidate_reviews=[
+                    {
+                        "candidate_model_ref": "model://winner",
+                        "promotion_readiness_ref": "ready://winner",
+                        "overall_rank": 1,
+                        "review_status": "active_candidate",
+                    },
+                    {
+                        "candidate_model_ref": "model://probation",
+                        "promotion_readiness_ref": "ready://probation",
+                        "overall_rank": 9,
+                        "review_status": "elimination_probation",
+                    },
+                ],
+            )
+        with self.assertRaisesRegex(ValueError, "only one elimination probation candidate"):
+            build_shadow_cycle_selection(
+                cycle_ref="cycle://2026-07",
+                current_active_model_ref="model://incumbent",
+                candidate_reviews=[
+                    {
+                        "candidate_model_ref": "model://winner",
+                        "promotion_readiness_ref": "ready://winner",
+                        "overall_rank": 1,
+                        "review_status": "active_candidate",
+                    },
+                    {
+                        "candidate_model_ref": "model://probation1",
+                        "promotion_readiness_ref": "ready://probation1",
+                        "overall_rank": 8,
+                        "review_status": "elimination_probation",
+                        "probation_reason": "first final review",
+                    },
+                    {
+                        "candidate_model_ref": "model://probation2",
+                        "promotion_readiness_ref": "ready://probation2",
+                        "overall_rank": 9,
+                        "review_status": "elimination_probation",
+                        "probation_reason": "second final review",
+                    },
+                ],
+            )
 
     def test_eliminate_candidate_requires_reason(self) -> None:
         with self.assertRaisesRegex(ValueError, "requires sufficient reason"):
