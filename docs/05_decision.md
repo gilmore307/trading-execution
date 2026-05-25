@@ -62,9 +62,10 @@ exposure.
 
 All position-management and sizing decisions for live open, add, reduce, exit,
 stop, take-profit, roll, or stock-fallback operations are completed in C05 Order
-Intent. C06 Execution Gate requires agent final review before broker submission,
-but it validates and executes the C05 intent instead of changing the quantity,
-target exposure, or order policy.
+Intent. C06 Execution Gate emits `execution_gate_result`: it requires agent
+final review before live broker submission, verifies the C05 quantity remains
+unchanged, applies final hard-block checks, and rejects or routes the intent
+without changing quantity, target exposure, or order policy.
 
 ## D001 - Execution consumes promoted decisions only
 

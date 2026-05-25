@@ -19,6 +19,7 @@ POSITION_LIFECYCLE_DECISION_CONTRACT = "position_lifecycle_decision"
 OPTION_REEXPRESSION_DECISION_CONTRACT = "option_reexpression_decision"
 FAILURE_EXPLANATION_PACKET_CONTRACT = "failure_explanation_packet"
 EXECUTION_ORDER_INTENT_CONTRACT = "execution_order_intent"
+EXECUTION_GATE_RESULT_CONTRACT = "execution_gate_result"
 SIMULATED_FILL_EVENT_CONTRACT = "simulated_fill_event"
 ACCOUNT_SLEEVE_CONTRACT = "execution_account_sleeve"
 
@@ -257,8 +258,12 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
                 "Apply final execution gates to broker-neutral order intents. Live mode "
                 "routes to reviewed broker adapters; Replay mode routes to the fill simulator."
             ),
-            input_contracts=(EXECUTION_ORDER_INTENT_CONTRACT, "trade_risk_cap"),
-            output_contracts=("broker_order_request", SIMULATED_FILL_EVENT_CONTRACT),
+            input_contracts=(
+                EXECUTION_ORDER_INTENT_CONTRACT,
+                "agent_final_review",
+                "execution_hard_block_checks",
+            ),
+            output_contracts=(EXECUTION_GATE_RESULT_CONTRACT, "broker_order_request", SIMULATED_FILL_EVENT_CONTRACT),
             called_model_layers=(),
             layer_10_policy="not_called",
             broker_mutation_allowed=False,
@@ -333,6 +338,7 @@ def build_runtime_component_graph(*, mode: RuntimeMode) -> dict[str, Any]:
             ENTRY_DECISION_CONTRACT,
             POSITION_LIFECYCLE_DECISION_CONTRACT,
             EXECUTION_ORDER_INTENT_CONTRACT,
+            EXECUTION_GATE_RESULT_CONTRACT,
         ],
         "required_second_batch_contracts": [
             OPTION_REEXPRESSION_DECISION_CONTRACT,

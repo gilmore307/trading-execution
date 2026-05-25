@@ -22,6 +22,7 @@ from .components import (
     CRYPTO_SPOT_INSTRUMENT_REFS,
     ENTRY_DECISION_CONTRACT,
     EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+    EXECUTION_GATE_RESULT_CONTRACT,
     EXECUTION_ORDER_INTENT_CONTRACT,
     FAILURE_EXPLANATION_PACKET_CONTRACT,
     OPTION_REEXPRESSION_DECISION_CONTRACT,
@@ -42,6 +43,7 @@ _EXECUTABLE_OPTION_REEXPRESSION_ACTIONS = {"roll_option", "exit_option", "reduce
 _HIGH_VOLUME_SCORE_THRESHOLD = 0.80
 _ABNORMAL_RELATIVE_VOLUME_THRESHOLD = 2.0
 _ABNORMAL_VOLUME_Z_SCORE_THRESHOLD = 2.0
+_APPROVED_AGENT_REVIEW_STATUSES = {"approved", "approve", "passed", "pass"}
 
 
 def _utc_now_iso() -> str:
@@ -109,6 +111,17 @@ def _number(value: Any, default: float = 0.0) -> float:
 
 def _bool_flag(mapping: Mapping[str, Any], *keys: str) -> bool:
     return any(mapping.get(key) is True for key in keys)
+
+
+def _agent_review_approved(review: Mapping[str, Any]) -> bool:
+    status = str(
+        review.get("review_status")
+        or review.get("review_decision")
+        or review.get("decision")
+        or review.get("status")
+        or ""
+    ).strip().lower()
+    return review.get("approved") is True or status in _APPROVED_AGENT_REVIEW_STATUSES
 
 
 def _risk_level(mapping: Mapping[str, Any]) -> str:
@@ -1139,6 +1152,113 @@ def build_option_reexpression_decision(
     return body
 
 
+def build_execution_gate_result(
+    *,
+    execution_order_intent: Mapping[str, Any],
+    mode: Literal["live", "replay"],
+    agent_final_review: Mapping[str, Any] | None = None,
+    execution_hard_block_checks: Mapping[str, Any] | None = None,
+    broker_submit_enabled: bool = False,
+    generated_at_utc: str | None = None,
+) -> dict[str, Any]:
+    """Apply C06 execution gates without changing the C05 order intent."""
+
+    if mode not in {"live", "replay"}:
+        raise ValueError("mode must be live or replay")
+
+    generated_at_utc = generated_at_utc or _utc_now_iso()
+    intent = _as_mapping(execution_order_intent)
+    order = _as_mapping(intent.get("broker_neutral_order"))
+    sizing = _as_mapping(intent.get("sizing_plan"))
+    review = _as_mapping(agent_final_review)
+    hard_blocks = _as_mapping(execution_hard_block_checks)
+    reasons: list[str] = []
+
+    if intent.get("contract_type") != EXECUTION_ORDER_INTENT_CONTRACT:
+        reasons.append("source_is_not_execution_order_intent")
+    if intent.get("intent_status") != "ready_for_execution_gate_not_submitted":
+        reasons.append("source_order_intent_not_ready")
+
+    order_quantity = _number(order.get("quantity"), default=0.0)
+    sizing_quantity = _number(sizing.get("quantity"), default=0.0)
+    if order_quantity <= 0:
+        reasons.append("missing_positive_order_quantity")
+    if sizing_quantity <= 0:
+        reasons.append("missing_positive_sizing_plan_quantity")
+    if order_quantity > 0 and sizing_quantity > 0 and abs(order_quantity - sizing_quantity) > 1e-9:
+        reasons.append("c06_quantity_mismatch_with_c05_sizing_plan")
+    if sizing.get("execution_gate_may_change_quantity") is not False:
+        reasons.append("execution_gate_quantity_change_not_allowed")
+
+    hard_block_keys = (
+        "broker_regulatory_hard_block",
+        "missed_event_hard_block",
+        "halt_hard_block",
+        "risk_cap_hard_block",
+        "buying_power_hard_block",
+    )
+    for key in hard_block_keys:
+        if hard_blocks.get(key) is True:
+            reasons.append(key)
+    for reason in hard_blocks.get("reason_codes") or ():
+        if isinstance(reason, str) and reason and reason not in reasons:
+            reasons.append(reason)
+
+    review_status = str(
+        review.get("review_status")
+        or review.get("review_decision")
+        or review.get("decision")
+        or review.get("status")
+        or ("approved" if review.get("approved") is True else "")
+        or "not_required_for_replay"
+    )
+    review_ref = review.get("agent_final_review_ref") or review.get("review_ref") or review.get("review_id")
+    if mode == "live":
+        if not _agent_review_approved(review):
+            reasons.append("agent_final_review_not_approved")
+        if not review_ref:
+            reasons.append("missing_agent_final_review_ref")
+        if not broker_submit_enabled:
+            reasons.append("broker_submit_disabled")
+
+    if reasons:
+        gate_status = "rejected_execution_gate"
+        gate_action = "reject"
+    elif mode == "replay":
+        gate_status = "approved_for_simulated_fill"
+        gate_action = "simulate_fill"
+    else:
+        gate_status = "approved_for_broker_submission"
+        gate_action = "approve_broker_submission"
+
+    body = {
+        "contract_type": EXECUTION_GATE_RESULT_CONTRACT,
+        "execution_gate_result_id": None,
+        "account_sleeve_id": intent.get("account_sleeve_id"),
+        "source_order_intent_id": intent.get("execution_order_intent_id"),
+        "generated_at_utc": generated_at_utc,
+        "mode": mode,
+        "execution_gate_status": gate_status,
+        "execution_action": gate_action,
+        "reason_codes": reasons,
+        "broker_neutral_order": dict(order),
+        "source_order_quantity": order_quantity if order_quantity > 0 else None,
+        "sizing_plan_quantity": sizing_quantity if sizing_quantity > 0 else None,
+        "quantity_unchanged_by_execution_gate": (
+            order_quantity > 0
+            and sizing_quantity > 0
+            and abs(order_quantity - sizing_quantity) <= 1e-9
+            and sizing.get("execution_gate_may_change_quantity") is False
+        ),
+        "agent_final_review_status": review_status,
+        "agent_final_review_ref": review_ref,
+        "execution_hard_block_checks": dict(hard_blocks),
+        "safety": _safety_flags(),
+    }
+    body["execution_gate_result_id"] = _stable_id("egr", body)
+    return body
+
+
 def build_failure_explanation_packet(
     *,
     failure_observation: Mapping[str, Any],
@@ -1206,14 +1326,16 @@ def build_failure_explanation_packet(
 def build_simulated_fill_event(
     *,
     execution_order_intent: Mapping[str, Any],
+    execution_gate_result: Mapping[str, Any],
     replay_fill_policy: Mapping[str, Any] | None = None,
     market_snapshot: Mapping[str, Any] | None = None,
     generated_at_utc: str | None = None,
 ) -> dict[str, Any]:
-    """Build a Replay-only simulated fill event from a broker-neutral intent."""
+    """Build a Replay-only fill event after C06 approves simulation."""
 
     generated_at_utc = generated_at_utc or _utc_now_iso()
     intent = _as_mapping(execution_order_intent)
+    gate = _as_mapping(execution_gate_result)
     policy = _as_mapping(replay_fill_policy)
     market = _as_mapping(market_snapshot)
     order = _as_mapping(intent.get("broker_neutral_order"))
@@ -1224,6 +1346,14 @@ def build_simulated_fill_event(
         reasons.append("source_is_not_execution_order_intent")
     if intent.get("intent_status") != "ready_for_execution_gate_not_submitted":
         reasons.append("source_order_intent_not_ready")
+    if gate.get("contract_type") != EXECUTION_GATE_RESULT_CONTRACT:
+        reasons.append("source_is_not_execution_gate_result")
+    if gate.get("source_order_intent_id") != intent.get("execution_order_intent_id"):
+        reasons.append("execution_gate_result_does_not_match_order_intent")
+    if gate.get("execution_gate_status") != "approved_for_simulated_fill":
+        reasons.append("execution_gate_not_approved_for_simulated_fill")
+    if gate.get("execution_action") != "simulate_fill":
+        reasons.append("execution_gate_action_not_simulate_fill")
 
     quantity = _number(order.get("quantity"), default=0.0)
     if quantity <= 0:
@@ -1247,6 +1377,7 @@ def build_simulated_fill_event(
         "simulated_fill_event_id": None,
         "account_sleeve_id": intent.get("account_sleeve_id"),
         "source_order_intent_id": intent.get("execution_order_intent_id"),
+        "source_execution_gate_result_id": gate.get("execution_gate_result_id"),
         "generated_at_utc": generated_at_utc,
         "fill_status": fill_status,
         "reason_codes": reasons,
@@ -1319,6 +1450,22 @@ def validate_execution_order_intent(record: Mapping[str, Any]) -> dict[str, Any]
     )
 
 
+def validate_execution_gate_result(record: Mapping[str, Any]) -> dict[str, Any]:
+    return _validate_record(
+        record,
+        contract_type=EXECUTION_GATE_RESULT_CONTRACT,
+        required_fields=(
+            "execution_gate_result_id",
+            "account_sleeve_id",
+            "source_order_intent_id",
+            "mode",
+            "execution_gate_status",
+            "execution_action",
+            "safety",
+        ),
+    )
+
+
 def validate_option_reexpression_decision(record: Mapping[str, Any]) -> dict[str, Any]:
     validation = _validate_record(
         record,
@@ -1360,6 +1507,7 @@ def validate_simulated_fill_event(record: Mapping[str, Any]) -> dict[str, Any]:
             "simulated_fill_event_id",
             "account_sleeve_id",
             "source_order_intent_id",
+            "source_execution_gate_result_id",
             "fill_status",
             "safety",
         ),

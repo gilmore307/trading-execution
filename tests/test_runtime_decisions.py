@@ -4,6 +4,7 @@ from trading_execution.runtime import (
     CRYPTO_SPOT_ACCOUNT_SLEEVE,
     EQUITY_OPTIONS_ACCOUNT_SLEEVE,
     build_entry_decision,
+    build_execution_gate_result,
     build_execution_order_intent,
     build_failure_explanation_packet,
     build_option_reexpression_decision,
@@ -11,6 +12,7 @@ from trading_execution.runtime import (
     build_simulated_fill_event,
     build_execution_intake_snapshot,
     validate_entry_decision,
+    validate_execution_gate_result,
     validate_execution_order_intent,
     validate_failure_explanation_packet,
     validate_option_reexpression_decision,
@@ -413,6 +415,104 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertTrue(intent["risk_cap_validation"]["reject_order"])
         self.assertEqual(validate_execution_order_intent(intent)["validation_status"], "passed")
 
+    def test_execution_gate_result_approves_replay_without_changing_quantity(self) -> None:
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-msft-1",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "target_ref": "MSFT",
+                "instrument_ref": "MSFT",
+                "quantity": 5,
+            },
+            event_failure_risk_vector={"risk_level": "high"},
+            generated_at_utc="2026-01-01T00:02:00Z",
+        )
+        intent = build_execution_order_intent(
+            decision_record=decision,
+            trade_risk_cap=VALID_STOCK_RISK_CAP,
+            generated_at_utc="2026-01-01T00:03:00Z",
+        )
+
+        gate = build_execution_gate_result(
+            execution_order_intent=intent,
+            mode="replay",
+            execution_hard_block_checks={"reason_codes": []},
+            generated_at_utc="2026-01-01T00:03:30Z",
+        )
+
+        self.assertEqual(gate["contract_type"], "execution_gate_result")
+        self.assertEqual(gate["execution_gate_status"], "approved_for_simulated_fill")
+        self.assertEqual(gate["execution_action"], "simulate_fill")
+        self.assertTrue(gate["quantity_unchanged_by_execution_gate"])
+        self.assertEqual(gate["source_order_quantity"], VALID_STOCK_RISK_CAP["planned_quantity"])
+        self.assertEqual(gate["sizing_plan_quantity"], VALID_STOCK_RISK_CAP["planned_quantity"])
+        self.assertEqual(gate["safety"]["broker_calls_performed"], 0)
+        self.assertEqual(validate_execution_gate_result(gate)["validation_status"], "passed")
+
+    def test_execution_gate_result_rejects_live_without_agent_review(self) -> None:
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-msft-1",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "target_ref": "MSFT",
+                "instrument_ref": "MSFT",
+                "quantity": 5,
+            },
+            event_failure_risk_vector={"risk_level": "high"},
+            generated_at_utc="2026-01-01T00:02:00Z",
+        )
+        intent = build_execution_order_intent(
+            decision_record=decision,
+            trade_risk_cap=VALID_STOCK_RISK_CAP,
+            generated_at_utc="2026-01-01T00:03:00Z",
+        )
+
+        gate = build_execution_gate_result(
+            execution_order_intent=intent,
+            mode="live",
+            agent_final_review={"review_status": "required_before_live_submission"},
+            broker_submit_enabled=False,
+            generated_at_utc="2026-01-01T00:03:30Z",
+        )
+
+        self.assertEqual(gate["execution_gate_status"], "rejected_execution_gate")
+        self.assertEqual(gate["execution_action"], "reject")
+        self.assertIn("agent_final_review_not_approved", gate["reason_codes"])
+        self.assertIn("missing_agent_final_review_ref", gate["reason_codes"])
+        self.assertIn("broker_submit_disabled", gate["reason_codes"])
+        self.assertTrue(gate["quantity_unchanged_by_execution_gate"])
+        self.assertEqual(validate_execution_gate_result(gate)["validation_status"], "passed")
+
+    def test_execution_gate_result_rejects_quantity_mismatch(self) -> None:
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-msft-1",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "target_ref": "MSFT",
+                "instrument_ref": "MSFT",
+                "quantity": 5,
+            },
+            event_failure_risk_vector={"risk_level": "high"},
+            generated_at_utc="2026-01-01T00:02:00Z",
+        )
+        intent = build_execution_order_intent(
+            decision_record=decision,
+            trade_risk_cap=VALID_STOCK_RISK_CAP,
+            generated_at_utc="2026-01-01T00:03:00Z",
+        )
+        intent["broker_neutral_order"]["quantity"] = 4
+
+        gate = build_execution_gate_result(
+            execution_order_intent=intent,
+            mode="replay",
+            generated_at_utc="2026-01-01T00:03:30Z",
+        )
+
+        self.assertEqual(gate["execution_gate_status"], "rejected_execution_gate")
+        self.assertIn("c06_quantity_mismatch_with_c05_sizing_plan", gate["reason_codes"])
+        self.assertFalse(gate["quantity_unchanged_by_execution_gate"])
+        self.assertEqual(validate_execution_gate_result(gate)["validation_status"], "passed")
+
     def test_option_reexpression_rolls_only_for_equity_options_sleeve(self) -> None:
         decision = build_option_reexpression_decision(
             option_position_state={
@@ -496,8 +596,15 @@ class RuntimeDecisionTests(unittest.TestCase):
             },
             generated_at_utc="2026-01-01T00:03:00Z",
         )
+        gate = build_execution_gate_result(
+            execution_order_intent=intent,
+            mode="replay",
+            execution_hard_block_checks={"reason_codes": []},
+            generated_at_utc="2026-01-01T00:03:30Z",
+        )
         fill = build_simulated_fill_event(
             execution_order_intent=intent,
+            execution_gate_result=gate,
             replay_fill_policy={"slippage_bps": 5, "fee_bps": 10, "replay_fill_policy_ref": "policy://fixture"},
             market_snapshot={"reference_price": 3190.0, "market_snapshot_ref": "snapshot://eth"},
             generated_at_utc="2026-01-01T00:04:00Z",
@@ -505,6 +612,7 @@ class RuntimeDecisionTests(unittest.TestCase):
 
         self.assertEqual(fill["contract_type"], "simulated_fill_event")
         self.assertEqual(fill["fill_status"], "simulated_filled")
+        self.assertEqual(fill["source_execution_gate_result_id"], gate["execution_gate_result_id"])
         self.assertEqual(fill["instrument_ref"], "ETH-USDT")
         self.assertAlmostEqual(fill["simulated_fill_price"], 3188.405)
         self.assertEqual(fill["safety"]["broker_calls_performed"], 0)

@@ -72,7 +72,7 @@ The short numbered names are the intraday process order. The stable
 | `C03` | Lifecycle | `component_03_lifecycle` | `position_lifecycle_decision` |
 | `C04` | Option Review | `component_04_option_review` | `option_reexpression_decision` |
 | `C05` | Order Intent | `component_05_order_intent` | `execution_order_intent` |
-| `C06` | Execution Gate | `component_06_execution_gate` | `broker_order_request` / `simulated_fill_event` |
+| `C06` | Execution Gate | `component_06_execution_gate` | `execution_gate_result` / `broker_order_request` / `simulated_fill_event` |
 | `C07` | Failure Review | `component_07_failure_review` | `failure_explanation_packet` |
 
 ### C01 Intake
@@ -269,8 +269,8 @@ submit/simulate it, but must not recalculate or modify the quantity.
 
 ### C06 Execution Gate
 
-Owns the boundary where `execution_order_intent` becomes either a live broker
-request or a Replay simulated fill event.
+Owns `execution_gate_result`, the boundary where `execution_order_intent`
+becomes either a live broker request candidate or a Replay simulated fill event.
 
 Live broker mutation remains disabled unless a reviewed execution gate enables
 it. Replay uses simulated adapters only; it must not submit broker requests or
@@ -281,8 +281,18 @@ exit, stop, take-profit, roll, or stock-fallback order must present its C02/C03
 or C04 reason evidence to C06 and receive an approved agent review before a
 live broker order can be submitted. C06 only validates the C05 order intent,
 checks final missed-event review and broker/regulatory hard blocks, and then
-submits or simulates execution. C06 does not own position management, sizing,
-target exposure, or order-policy calculation.
+rejects the intent, approves it for live submission, or approves it for Replay
+simulation. C06 does not own position management, sizing, target exposure, or
+order-policy calculation.
+
+The C06 gate result must prove:
+
+- the source `execution_order_intent` is ready for execution gate review;
+- the broker-neutral order quantity equals the C05 `sizing_plan` quantity;
+- `execution_gate_may_change_quantity` is false;
+- hard-block checks do not reject the order;
+- live mode has an approved `agent_final_review_ref`;
+- Replay simulated fills cite the approving `execution_gate_result`.
 
 ### C07 Failure Review
 
@@ -317,6 +327,7 @@ Implemented and tested runtime dry-run contracts:
 - `entry_decision`
 - `position_lifecycle_decision`
 - `execution_order_intent`
+- `execution_gate_result`
 - `option_reexpression_decision`
 - `failure_explanation_packet`
 - `simulated_fill_event`

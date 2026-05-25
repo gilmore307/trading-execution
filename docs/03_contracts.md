@@ -50,6 +50,7 @@ First-batch contracts:
 - `entry_decision`
 - `position_lifecycle_decision`
 - `execution_order_intent`
+- `execution_gate_result`
 
 Second-batch contracts:
 
@@ -66,11 +67,11 @@ Graph/catalog contracts:
 
 The first-batch contracts are sufficient to build the initial dry-run lifecycle:
 select target/risk, decide entry, manage an existing position, and emit a
-broker-neutral order intent. They are implemented as side-effect-free runtime
-builders and validators in `trading_execution.runtime`: they may emit decision
-records for live or Replay, but they do not call providers, submit broker
-requests, construct broker-specific payloads, or mutate account, order, or
-position state.
+broker-neutral order intent plus a C06 execution gate result. They are
+implemented as side-effect-free runtime builders and validators in
+`trading_execution.runtime`: they may emit decision records for live or Replay,
+but they do not call providers, submit broker requests, construct broker-specific
+payloads, or mutate account, order, or position state.
 
 The second-batch contracts add option roll review, post-failure Layer 10
 explanation, and Replay fill simulation. They are also implemented as
@@ -93,8 +94,18 @@ complete position-management result for the proposed operation: final quantity,
 target post-trade position when available, quantity source, sizing reason codes,
 broker-neutral price/order policy, and a valid `trade_risk_cap`. Missing or
 invalid sizing/cap evidence produces a blocked intent and never implies order
-submission permission. C06 validates and executes the intent; it must not
-recalculate, increase, or otherwise alter the C05 quantity.
+submission permission.
+
+`execution_gate_result` is C06-owned. It records whether the C05 intent is
+rejected, approved for Replay simulation, or approved for live broker submission.
+It must verify the order quantity matches the C05 `sizing_plan`, preserve the
+broker-neutral order unchanged, apply final hard-block checks, and require an
+approved agent final review before live submission. C06 must not recalculate,
+increase, reduce, or otherwise alter the C05 quantity or order policy.
+
+`simulated_fill_event` must cite both the source `execution_order_intent` and
+the approving `execution_gate_result`. Replay fill simulation is not valid from
+an intent alone.
 
 ## Verification Commands
 

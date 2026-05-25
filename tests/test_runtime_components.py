@@ -91,6 +91,12 @@ class RuntimeComponentGraphTests(unittest.TestCase):
         self.assertFalse(order_builder.broker_mutation_allowed)
         self.assertFalse(order_builder.account_mutation_allowed)
 
+        execution_gate = rows["component_06_execution_gate"]
+        self.assertIn("execution_gate_result", execution_gate.output_contracts)
+        self.assertIn("agent_final_review", execution_gate.input_contracts)
+        self.assertFalse(execution_gate.broker_mutation_allowed)
+        self.assertFalse(execution_gate.account_mutation_allowed)
+
     def test_first_batch_contracts_are_declared(self) -> None:
         graph = build_runtime_component_graph(mode="replay")
 
@@ -101,6 +107,7 @@ class RuntimeComponentGraphTests(unittest.TestCase):
                 "entry_decision",
                 "position_lifecycle_decision",
                 "execution_order_intent",
+                "execution_gate_result",
             ],
         )
         self.assertIn("option_reexpression_decision", graph["required_second_batch_contracts"])
