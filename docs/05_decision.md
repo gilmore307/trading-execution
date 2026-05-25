@@ -49,8 +49,11 @@ Every non-hold action must carry explicit reason evidence. C03 does not run
 hidden fee, PDT, day-trade, or churn formulas to override lifecycle actions.
 Because live launch is not expected before the 2026-06-04 PDT framework change,
 PDT is removed from C03 gating. C03 still treats add/reduce churn cautiously:
-the action must be justified by model evidence, thesis state, and portfolio
-constraints rather than small short-term noise.
+the action must be justified by model evidence, thesis state, portfolio
+constraints, and tranche/tactical exposure-management evidence rather than
+small short-term noise. Risk-based add/reduce and thesis-aware high-sell/low-buy
+style trims/adds are allowed only when trained model outputs support them; they
+are not ad hoc execution rules.
 
 Add decisions must respect the current upstream sector/opportunity mix and
 portfolio exposure constraints carried from C01/M07. If the target's sector or

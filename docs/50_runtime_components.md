@@ -208,6 +208,10 @@ Live application scenario:
   evidence. C03 does not use fee, PDT, day-trade, or churn formulas to
   override the thesis decision; those facts are execution-review context for
   C06.
+- Risk-based add/reduce, staged entry/exit, and thesis-aware high-sell/low-buy
+  style exposure adjustments are valid only when carried by trained model
+  evidence from M07/M08. C03 should not invent tactical trades from raw price
+  movement.
 - Add signals must respect the upstream sector/opportunity mix and portfolio
   exposure constraints carried through C01/M07 context. If the target's sector
   or exposure bucket is already filled, C03 keeps `hold` rather than adding
