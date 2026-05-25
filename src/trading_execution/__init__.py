@@ -24,6 +24,8 @@ from .market_data import (
 )
 from .model_lifecycle import (
     ACTIVE_MODEL_CONFIG_WRITE_CONTRACT,
+    C08_CAPACITY_SIMULATION_CONTRACT,
+    C08CapacitySimulation,
     SHADOW_MODEL_RUNTIME_EVIDENCE_CONTRACT,
     SHADOW_CYCLE_SELECTION_CONTRACT,
     SHADOW_RUNTIME_COMPONENT_CONTRACT,
@@ -32,6 +34,7 @@ from .model_lifecycle import (
     build_active_model_config_write,
     build_shadow_cycle_selection,
     shadow_runtime_component,
+    simulate_c08_capacity,
     validate_active_model_config_write,
     validate_shadow_cycle_selection,
 )
@@ -91,6 +94,8 @@ __all__ = [
     "RuntimeSelectionValidation",
     "ACCOUNT_SLEEVE_CONTRACT",
     "ACTIVE_MODEL_CONFIG_WRITE_CONTRACT",
+    "C08_CAPACITY_SIMULATION_CONTRACT",
+    "C08CapacitySimulation",
     "SHADOW_MODEL_RUNTIME_EVIDENCE_CONTRACT",
     "SHADOW_RUNTIME_COMPONENT_CONTRACT",
     "CRYPTO_CANDIDATE_SYMBOLS",
@@ -130,6 +135,7 @@ __all__ = [
     "build_active_model_config_write",
     "build_shadow_cycle_selection",
     "shadow_runtime_component",
+    "simulate_c08_capacity",
     "model_decision_input_snapshot_contract",
     "realtime_capture_contract",
     "realtime_data_interfaces",

@@ -148,6 +148,11 @@ C08 must be hardware-capacity gated. The runtime may run only as many model
 groups as it can support without degrading C01-C06 latency, market-data
 ingestion, broker gates, or account-state freshness.
 
+`execution_c08_capacity_simulation` is the side-effect-free C08 capacity estimate
+contract. It records requested/admitted/throttled model-group counts, reserved
+live resources, estimated p95 latency, and reason codes. It assumes historical
+model tasks are paused during future live runtime.
+
 `execution_gate_result` is C06-owned. It records whether the C05 intent is
 rejected, approved for Replay simulation, or approved for live broker submission.
 It must verify the order quantity matches the C05 `sizing_plan`, preserve the

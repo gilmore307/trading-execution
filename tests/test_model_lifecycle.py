@@ -9,12 +9,48 @@ from trading_execution.model_lifecycle import (
     build_active_model_config_write,
     build_shadow_cycle_selection,
     shadow_runtime_component,
+    simulate_c08_capacity,
     validate_active_model_config_write,
     validate_shadow_cycle_selection,
 )
 
 
 class ModelLifecycleTests(unittest.TestCase):
+    def test_c08_capacity_simulation_admits_only_safe_parallel_groups(self) -> None:
+        simulation = simulate_c08_capacity(
+            requested_model_group_count=8,
+            cpu_count=16,
+            available_memory_mb=32768,
+            live_reserved_cpu_count=4,
+            per_group_worker_count=2,
+            reserved_memory_mb=4096,
+            per_group_memory_mb=2048,
+            active_path_p95_ms=250,
+            per_group_p95_ms=120,
+            orchestration_overhead_ms=40,
+            realtime_tick_budget_ms=1000,
+        ).to_dict()
+
+        self.assertEqual(simulation["contract_type"], "execution_c08_capacity_simulation")
+        self.assertEqual(simulation["admitted_model_group_count"], 6)
+        self.assertEqual(simulation["throttled_model_group_count"], 2)
+        self.assertEqual(simulation["decision_status"], "capacity_limited")
+        self.assertIn("cpu_capacity_limited", simulation["reason_codes"])
+        self.assertEqual(simulation["historical_model_tasks_policy"], "pause_historical_model_tasks_during_live_runtime")
+
+    def test_c08_capacity_simulation_blocks_when_live_path_uses_host(self) -> None:
+        simulation = simulate_c08_capacity(
+            requested_model_group_count=3,
+            cpu_count=4,
+            available_memory_mb=2048,
+            live_reserved_cpu_count=4,
+            reserved_memory_mb=2048,
+        ).to_dict()
+
+        self.assertEqual(simulation["admitted_model_group_count"], 0)
+        self.assertEqual(simulation["decision_status"], "blocked")
+        self.assertIn("no_shadow_model_group_capacity_available", simulation["reason_codes"])
+
     def test_shadow_runtime_component_is_intraday_and_not_replay(self) -> None:
         component = shadow_runtime_component().to_dict()
 

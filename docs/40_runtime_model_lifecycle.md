@@ -35,6 +35,21 @@ freshness remain inside budget. When capacity is constrained, execution must
 throttle, sample, or rank the model groups rather than letting shadow comparison
 compete with the active trading path.
 
+The side-effect-free local simulator is:
+
+```bash
+PYTHONPATH=src python3 scripts/execution/simulate_c08_capacity.py
+```
+
+The simulator emits `execution_c08_capacity_simulation`: requested model groups,
+admitted model groups, throttled model groups, p95 latency estimate, CPU/memory
+limits, and reason codes. Its result is an estimate, not an activation decision.
+Production admission still depends on real runtime telemetry.
+
+During future live runtime, historical model tasks are paused by manager policy.
+C08 capacity should be measured after that pause because historical training
+load is not part of the live budget.
+
 ## Cycle
 
 1. Keep one active model as the trading authority.

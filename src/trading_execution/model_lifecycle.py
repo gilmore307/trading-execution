@@ -12,6 +12,7 @@ SHADOW_CYCLE_SELECTION_CONTRACT = "execution_shadow_cycle_selection"
 ACTIVE_MODEL_CONFIG_WRITE_CONTRACT = "execution_active_model_config_write"
 SHADOW_RUNTIME_COMPONENT_CONTRACT = "execution_shadow_runtime_component"
 SHADOW_MODEL_RUNTIME_EVIDENCE_CONTRACT = "execution_shadow_model_runtime_evidence"
+C08_CAPACITY_SIMULATION_CONTRACT = "execution_c08_capacity_simulation"
 REQUIRED_REVIEW_FIELDS = (
     "candidate_model_ref",
     "promotion_readiness_ref",
@@ -21,6 +22,153 @@ REQUIRED_REVIEW_FIELDS = (
 ELIMINATION_STATUSES = {"eliminate_candidate", "eliminate"}
 PASSING_STATUSES = {"active_candidate", "realtime_candidate", "shadow_continue", "incumbent_active"}
 ACCEPTED_REVIEW_STATUSES = PASSING_STATUSES | ELIMINATION_STATUSES
+
+
+@dataclass(frozen=True)
+class C08CapacitySimulation:
+    """Side-effect-free capacity estimate for realtime model-group comparison."""
+
+    requested_model_group_count: int
+    admitted_model_group_count: int
+    throttled_model_group_count: int
+    cpu_count: int
+    live_reserved_cpu_count: int
+    usable_cpu_count: int
+    per_group_worker_count: int
+    available_memory_mb: int
+    reserved_memory_mb: int
+    per_group_memory_mb: int
+    realtime_tick_budget_ms: float
+    active_path_p95_ms: float
+    per_group_p95_ms: float
+    orchestration_overhead_ms: float
+    estimated_cycle_p95_ms: float
+    decision_status: str
+    reason_codes: tuple[str, ...]
+    historical_model_tasks_policy: str = "pause_historical_model_tasks_during_live_runtime"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "contract_type": C08_CAPACITY_SIMULATION_CONTRACT,
+            "requested_model_group_count": self.requested_model_group_count,
+            "admitted_model_group_count": self.admitted_model_group_count,
+            "throttled_model_group_count": self.throttled_model_group_count,
+            "cpu_count": self.cpu_count,
+            "live_reserved_cpu_count": self.live_reserved_cpu_count,
+            "usable_cpu_count": self.usable_cpu_count,
+            "per_group_worker_count": self.per_group_worker_count,
+            "available_memory_mb": self.available_memory_mb,
+            "reserved_memory_mb": self.reserved_memory_mb,
+            "per_group_memory_mb": self.per_group_memory_mb,
+            "realtime_tick_budget_ms": self.realtime_tick_budget_ms,
+            "active_path_p95_ms": self.active_path_p95_ms,
+            "per_group_p95_ms": self.per_group_p95_ms,
+            "orchestration_overhead_ms": self.orchestration_overhead_ms,
+            "estimated_cycle_p95_ms": self.estimated_cycle_p95_ms,
+            "decision_status": self.decision_status,
+            "reason_codes": list(self.reason_codes),
+            "historical_model_tasks_policy": self.historical_model_tasks_policy,
+        }
+
+
+def simulate_c08_capacity(
+    *,
+    requested_model_group_count: int,
+    cpu_count: int,
+    available_memory_mb: int,
+    realtime_tick_budget_ms: float = 1000.0,
+    active_path_p95_ms: float = 250.0,
+    per_group_p95_ms: float = 120.0,
+    orchestration_overhead_ms: float = 40.0,
+    live_reserved_cpu_count: int = 4,
+    per_group_worker_count: int = 2,
+    reserved_memory_mb: int = 4096,
+    per_group_memory_mb: int = 1024,
+) -> C08CapacitySimulation:
+    """Estimate how many promoted model groups C08 may run in realtime.
+
+    The estimate is intentionally conservative and side-effect-free. It assumes
+    C01-C06 and provider/broker/account freshness have reserved CPU and memory
+    first, then admits only the number of model groups that fit the remaining
+    realtime budget.
+    """
+
+    if requested_model_group_count < 0:
+        raise ValueError("requested_model_group_count must be non-negative")
+    if cpu_count < 1:
+        raise ValueError("cpu_count must be positive")
+    if available_memory_mb < 0:
+        raise ValueError("available_memory_mb must be non-negative")
+    if realtime_tick_budget_ms <= 0:
+        raise ValueError("realtime_tick_budget_ms must be positive")
+    if active_path_p95_ms < 0 or per_group_p95_ms < 0 or orchestration_overhead_ms < 0:
+        raise ValueError("latency values must be non-negative")
+    if live_reserved_cpu_count < 0 or per_group_worker_count < 1:
+        raise ValueError("CPU reservation and worker counts are invalid")
+    if reserved_memory_mb < 0 or per_group_memory_mb < 1:
+        raise ValueError("memory reservation and per-group memory values are invalid")
+
+    usable_cpu_count = max(cpu_count - live_reserved_cpu_count, 0)
+    max_by_cpu = usable_cpu_count // per_group_worker_count
+    max_by_memory = max((available_memory_mb - reserved_memory_mb) // per_group_memory_mb, 0)
+    structural_limit = min(requested_model_group_count, max_by_cpu, max_by_memory)
+
+    def estimated_latency(group_count: int) -> float:
+        if group_count <= 0:
+            return active_path_p95_ms
+        parallel_slots = max(min(group_count, max_by_cpu), 1)
+        batches = (group_count + parallel_slots - 1) // parallel_slots
+        return active_path_p95_ms + orchestration_overhead_ms + batches * per_group_p95_ms
+
+    admitted = 0
+    estimated = active_path_p95_ms
+    for candidate in range(structural_limit, -1, -1):
+        candidate_latency = estimated_latency(candidate)
+        if candidate_latency <= realtime_tick_budget_ms:
+            admitted = candidate
+            estimated = candidate_latency
+            break
+
+    reasons: list[str] = []
+    if requested_model_group_count == 0:
+        status = "no_model_groups_requested"
+        reasons.append("no_model_groups_requested")
+    elif admitted == requested_model_group_count:
+        status = "all_groups_admitted"
+        reasons.append("capacity_budget_admits_all_requested_model_groups")
+    elif admitted > 0:
+        status = "capacity_limited"
+        reasons.append("requested_model_groups_exceed_realtime_capacity")
+    else:
+        status = "blocked"
+        reasons.append("no_shadow_model_group_capacity_available")
+
+    if max_by_cpu < requested_model_group_count:
+        reasons.append("cpu_capacity_limited")
+    if max_by_memory < requested_model_group_count:
+        reasons.append("memory_capacity_limited")
+    if estimated_latency(structural_limit) > realtime_tick_budget_ms and structural_limit > admitted:
+        reasons.append("latency_budget_limited")
+
+    return C08CapacitySimulation(
+        requested_model_group_count=requested_model_group_count,
+        admitted_model_group_count=admitted,
+        throttled_model_group_count=max(requested_model_group_count - admitted, 0),
+        cpu_count=cpu_count,
+        live_reserved_cpu_count=live_reserved_cpu_count,
+        usable_cpu_count=usable_cpu_count,
+        per_group_worker_count=per_group_worker_count,
+        available_memory_mb=available_memory_mb,
+        reserved_memory_mb=reserved_memory_mb,
+        per_group_memory_mb=per_group_memory_mb,
+        realtime_tick_budget_ms=float(realtime_tick_budget_ms),
+        active_path_p95_ms=float(active_path_p95_ms),
+        per_group_p95_ms=float(per_group_p95_ms),
+        orchestration_overhead_ms=float(orchestration_overhead_ms),
+        estimated_cycle_p95_ms=float(estimated),
+        decision_status=status,
+        reason_codes=tuple(dict.fromkeys(reasons)),
+    )
 
 
 @dataclass(frozen=True)
@@ -480,9 +628,12 @@ def validate_active_model_config_write(payload: Mapping[str, Any]) -> RuntimeSel
 __all__ = [
     "SHADOW_CYCLE_SELECTION_CONTRACT",
     "ACTIVE_MODEL_CONFIG_WRITE_CONTRACT",
+    "C08_CAPACITY_SIMULATION_CONTRACT",
+    "C08CapacitySimulation",
     "RuntimeSelectionValidation",
     "build_active_model_config_write",
     "build_shadow_cycle_selection",
+    "simulate_c08_capacity",
     "validate_active_model_config_write",
     "validate_shadow_cycle_selection",
 ]
