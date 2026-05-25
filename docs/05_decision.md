@@ -69,11 +69,14 @@ without changing quantity, target exposure, or order policy.
 
 Target-level buying power determines whether advanced tranche management is
 worth using. If the allocation for the target can only afford one or two units,
-C03 skips tactical add/reduce steps and C05 records
-`single_allocation_no_advanced_scaling`; the order intent should express the
-available allocation directly. If the same allocation can afford several
-contracts, C03 may follow model-backed add/reduce and staged entry/exit evidence.
-This rule does not block protective stops, exits, or risk-driven reductions.
+C03 still emits only underlying lifecycle intent and reason evidence; it does
+not inspect option contract cost or final target buying-power capacity. C05
+records `single_allocation_no_advanced_scaling` and blocks tactical add/reduce
+order-intent construction when the selected expression cannot support advanced
+management. If the same allocation can afford several contracts, C05 records
+`advanced_tranche_management_allowed` and may construct the current tranche from
+model-backed staged entry/exit evidence. This rule does not block protective
+stops, exits, or risk-driven reductions.
 
 ## D001 - Execution consumes promoted decisions only
 

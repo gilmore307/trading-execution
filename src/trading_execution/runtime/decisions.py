@@ -359,11 +359,14 @@ def _target_position_scaling_capacity(
     }
 
 
-def _advanced_position_management_constraint_reasons(*sources: Mapping[str, Any]) -> list[str]:
-    capacity = _target_position_scaling_capacity(*sources)
-    if capacity["advanced_position_management_allowed"] is False:
-        return ["insufficient_target_buying_power_for_advanced_position_management"]
-    return []
+def _is_tactical_position_scaling_decision(decision_record: Mapping[str, Any]) -> bool:
+    action = str(decision_record.get("decision_action") or "").lower()
+    if action not in {"add", "reduce"}:
+        return False
+    reasons = set(decision_record.get("reason_codes") or ())
+    if action == "add":
+        return True
+    return "underlying_action_plan_supports_reduce" in reasons
 
 
 def _zone_from_fields(mapping: Mapping[str, Any], zone_key: str, low_keys: tuple[str, ...], high_keys: tuple[str, ...]) -> dict[str, float] | None:
@@ -981,18 +984,10 @@ def build_position_lifecycle_decision(
     )
     planned_action = _planned_lifecycle_action(underlying_plan)
     add_constraint_reasons = _lifecycle_add_constraint_reasons(projection, underlying_plan)
-    advanced_position_management_reasons = _advanced_position_management_constraint_reasons(
-        account,
-        risk_budget,
-        projection,
-        underlying_plan,
-        policy,
-    )
 
     reasons: list[str] = []
     status: DecisionStatus = "monitor_only"
     action = "hold"
-    action_source = "none"
 
     quantity = _number(position.get("quantity"), default=0.0)
     if quantity <= 0:
@@ -1001,39 +996,30 @@ def build_position_lifecycle_decision(
         status = "accepted"
         if _price_reaches_downside(current_underlying_price, hard_stop_price, position_side):
             action = "stop"
-            action_source = "protective_exit"
             reasons.append("model_underlying_hard_stop_reached")
         elif _price_reaches_downside(current_underlying_price, model_invalidation_price, position_side):
             action = "stop"
-            action_source = "protective_exit"
             reasons.append("model_underlying_invalidation_reached")
         elif _bool_flag(event_risk, "flatten_positions", "halt_exposure") or _risk_level(event_risk) == "critical":
             action = "exit"
-            action_source = "risk_exit"
             reasons.append("event_failure_risk_requires_exit")
         elif _bool_flag(policy, "flatten_positions", "halt_exposure", "force_exit_positions"):
             action = "exit"
-            action_source = "risk_exit"
             reasons.append("dynamic_risk_policy_requires_exit")
         elif planned_action in {"stop", "exit"}:
             action = planned_action
-            action_source = "underlying_action_risk_exit"
             reasons.append(f"underlying_action_plan_requires_{planned_action}")
         elif planned_action == "take_profit" or _price_reaches_upside(current_underlying_price, target_price, position_side):
             action = "take_profit"
-            action_source = "take_profit"
             reasons.append("underlying_target_or_take_profit_reached")
         elif _risk_level(event_risk) == "high":
             action = "reduce"
-            action_source = "risk_reduction"
             reasons.append("event_failure_risk_requires_reduction")
         elif _bool_flag(policy, "reduce_positions", "reduce_exposure"):
             action = "reduce"
-            action_source = "risk_reduction"
             reasons.append("dynamic_risk_policy_requires_reduction")
         elif planned_action in {"add", "reduce", "hold"}:
             action = planned_action
-            action_source = "tactical_position_management"
             reasons.append(f"underlying_action_plan_supports_{planned_action}")
         else:
             alpha_score = _number(alpha.get("alpha_confidence_score", alpha.get("score")), default=0.0)
@@ -1041,22 +1027,16 @@ def build_position_lifecycle_decision(
             reduce_threshold = _number(policy.get("minimum_hold_alpha_confidence"), default=0.45)
             if alpha_score < reduce_threshold:
                 action = "reduce"
-                action_source = "alpha_deterioration"
                 reasons.append("alpha_confidence_below_hold_threshold")
             elif alpha_score >= add_threshold and _bool_flag(projection, "add_allowed", "position_can_add"):
                 action = "add"
-                action_source = "tactical_position_management"
                 reasons.append("alpha_confidence_supports_add")
             else:
                 action = "hold"
-                action_source = "maintain_position"
                 reasons.append("position_thesis_still_valid")
         if action == "add" and add_constraint_reasons:
             action = "hold"
             reasons.append("add_blocked_by_portfolio_constraints")
-        if action in {"add", "reduce"} and action_source == "tactical_position_management" and advanced_position_management_reasons:
-            action = "hold"
-            reasons.append("advanced_position_management_blocked_by_target_capacity")
         if risk_budget.get("max_position_loss_pct") is not None or position.get("unrealized_loss_pct") is not None:
             reasons.append("fixed_percentage_loss_not_lifecycle_stop")
 
@@ -1080,10 +1060,6 @@ def build_position_lifecycle_decision(
         "portfolio_constraint_checks": {
             "add_blocked": bool(add_constraint_reasons),
             "reason_codes": add_constraint_reasons,
-        },
-        "position_scaling_capacity_checks": {
-            "advanced_position_management_blocked": bool(advanced_position_management_reasons),
-            "reason_codes": advanced_position_management_reasons,
         },
         "model_layer_refs": {
             "market_context_state": market.get("model_ref"),
@@ -1155,6 +1131,13 @@ def build_execution_order_intent(
         default=None,
     )
     scaling_capacity = _target_position_scaling_capacity(decision_record, trade_risk_cap, _as_mapping(execution_policy_snapshot))
+    if (
+        contract_type == POSITION_LIFECYCLE_DECISION_CONTRACT
+        and scaling_capacity["advanced_position_management_allowed"] is False
+        and _is_tactical_position_scaling_decision(decision_record)
+    ):
+        reasons.append("insufficient_target_buying_power_for_advanced_position_management")
+        reasons.append("tactical_position_management_blocked_by_target_capacity")
 
     if not reasons:
         intent_status = "ready_for_execution_gate_not_submitted"

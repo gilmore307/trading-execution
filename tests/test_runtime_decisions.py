@@ -352,7 +352,7 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertIn("sector_opportunity_mix_blocks_add", decision["portfolio_constraint_checks"]["reason_codes"])
         self.assertIn("add_blocked_by_portfolio_constraints", decision["reason_codes"])
 
-    def test_position_lifecycle_skips_tactical_add_when_target_capacity_is_too_small(self) -> None:
+    def test_position_lifecycle_does_not_read_option_capacity_for_tactical_add(self) -> None:
         decision = build_position_lifecycle_decision(
             position_state={
                 "position_ref": "pos-aapl-1",
@@ -373,37 +373,9 @@ class RuntimeDecisionTests(unittest.TestCase):
         )
 
         self.assertEqual(decision["decision_status"], "accepted")
-        self.assertEqual(decision["decision_action"], "hold")
-        self.assertTrue(decision["position_scaling_capacity_checks"]["advanced_position_management_blocked"])
-        self.assertIn(
-            "insufficient_target_buying_power_for_advanced_position_management",
-            decision["position_scaling_capacity_checks"]["reason_codes"],
-        )
-        self.assertIn("advanced_position_management_blocked_by_target_capacity", decision["reason_codes"])
-
-    def test_position_lifecycle_keeps_risk_reduction_even_when_target_capacity_is_too_small(self) -> None:
-        decision = build_position_lifecycle_decision(
-            position_state={
-                "position_ref": "pos-aapl-1",
-                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
-                "target_ref": "AAPL",
-                "instrument_ref": "AAPL_20260220_120C",
-                "quantity": 2,
-            },
-            event_failure_risk_vector={"risk_level": "high"},
-            underlying_action_plan={
-                "position_scaling_capacity_state": {
-                    "target_allocated_buying_power_usd": 3000.0,
-                    "estimated_contract_cost_usd": 1500.0,
-                },
-            },
-            generated_at_utc="2026-01-01T00:02:00Z",
-        )
-
-        self.assertEqual(decision["decision_status"], "accepted")
-        self.assertEqual(decision["decision_action"], "reduce")
-        self.assertTrue(decision["position_scaling_capacity_checks"]["advanced_position_management_blocked"])
-        self.assertIn("event_failure_risk_requires_reduction", decision["reason_codes"])
+        self.assertEqual(decision["decision_action"], "add")
+        self.assertIn("underlying_action_plan_supports_add", decision["reason_codes"])
+        self.assertNotIn("position_scaling_capacity_checks", decision)
         self.assertNotIn("advanced_position_management_blocked_by_target_capacity", decision["reason_codes"])
 
     def test_order_intent_is_broker_neutral_and_requires_valid_risk_cap(self) -> None:
@@ -476,6 +448,64 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertFalse(capacity["advanced_position_management_allowed"])
         self.assertEqual(capacity["position_scaling_mode"], "single_allocation_no_advanced_scaling")
         self.assertIn("insufficient_target_buying_power_for_advanced_position_management", capacity["reason_codes"])
+
+    def test_order_intent_blocks_tactical_add_when_target_capacity_is_too_small(self) -> None:
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-aapl-1",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "target_ref": "AAPL",
+                "instrument_ref": "AAPL_20260220_120C",
+                "quantity": 2,
+            },
+            underlying_action_plan={"planned_action": "add"},
+            generated_at_utc="2026-01-01T00:02:00Z",
+        )
+        risk_cap = {
+            **VALID_STOCK_RISK_CAP,
+            "planned_quantity": 1,
+            "target_allocated_buying_power_usd": 3000.0,
+            "estimated_contract_cost_usd": 1500.0,
+        }
+
+        intent = build_execution_order_intent(
+            decision_record=decision,
+            trade_risk_cap=risk_cap,
+            generated_at_utc="2026-01-01T00:03:00Z",
+        )
+
+        self.assertEqual(decision["decision_action"], "add")
+        self.assertEqual(intent["intent_status"], "blocked_order_intent")
+        self.assertIn("tactical_position_management_blocked_by_target_capacity", intent["reason_codes"])
+
+    def test_order_intent_allows_risk_reduction_when_target_capacity_is_too_small(self) -> None:
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-aapl-1",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "target_ref": "AAPL",
+                "instrument_ref": "AAPL_20260220_120C",
+                "quantity": 2,
+            },
+            event_failure_risk_vector={"risk_level": "high"},
+            generated_at_utc="2026-01-01T00:02:00Z",
+        )
+        risk_cap = {
+            **VALID_STOCK_RISK_CAP,
+            "planned_quantity": 1,
+            "target_allocated_buying_power_usd": 3000.0,
+            "estimated_contract_cost_usd": 1500.0,
+        }
+
+        intent = build_execution_order_intent(
+            decision_record=decision,
+            trade_risk_cap=risk_cap,
+            generated_at_utc="2026-01-01T00:03:00Z",
+        )
+
+        self.assertEqual(decision["decision_action"], "reduce")
+        self.assertEqual(intent["intent_status"], "ready_for_execution_gate_not_submitted")
+        self.assertNotIn("tactical_position_management_blocked_by_target_capacity", intent["reason_codes"])
 
     def test_order_intent_allows_advanced_management_when_target_capacity_supports_many_contracts(self) -> None:
         decision = build_position_lifecycle_decision(

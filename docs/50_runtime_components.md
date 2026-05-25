@@ -271,12 +271,12 @@ submit/simulate it, but must not recalculate or modify the quantity.
 
 If target-allocated buying power can only afford fewer than the configured
 advanced-management unit count, C05 records
-`single_allocation_no_advanced_scaling` in `sizing_plan`. In that state the
-execution path should express the available target allocation directly instead
-of trying to optimize a multi-step add/reduce curve. When the same target
-allocation can afford several contracts, C05 records
-`advanced_tranche_management_allowed` and downstream review may use model-backed
-staged entry, add, reduce, or staged exit evidence.
+`single_allocation_no_advanced_scaling` in `sizing_plan` and blocks tactical
+add/reduce order-intent construction. C03 must not make this capacity decision:
+it has not yet resolved final option expression cost and does not own final
+sizing. When the same target allocation can afford several contracts, C05
+records `advanced_tranche_management_allowed` and may construct the current
+tranche from model-backed staged entry, add, reduce, or staged exit evidence.
 
 ### C06 Execution Gate
 
