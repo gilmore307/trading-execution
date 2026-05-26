@@ -119,7 +119,8 @@ def build_realtime_subscription_plan(request: Mapping[str, Any]) -> dict[str, An
     requested_layers = _coerce_string_list(request.get("model_layers"), default=all_layers)
     instruments = _coerce_instruments(request)
 
-    unknown_sources = sorted(set(requested_sources) - set(all_sources) - {"derived_model_context", "execution_account_state", "calendar_discovery"})
+    context_sources = {"derived_model_context", "derived_governance_context", "execution_account_state", "calendar_discovery"}
+    unknown_sources = sorted(set(requested_sources) - set(all_sources) - context_sources)
     if unknown_sources:
         raise ValueError(f"unknown realtime source ids: {', '.join(unknown_sources)}")
     unknown_layers = sorted(set(requested_layers) - set(all_layers))

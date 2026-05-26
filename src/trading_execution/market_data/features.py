@@ -232,9 +232,11 @@ def build_realtime_feature_snapshot(request: Mapping[str, Any]) -> dict[str, Any
     feature_refs = _dict_string_map(request.get("feature_refs"))
     upstream_refs = _dict_string_map(request.get("upstream_context_refs"))
     source_capture_refs = _capture_refs(request.get("source_capture_refs") or request.get("captures"))
-    allow_placeholder_context_refs = bool(request.get("allow_placeholder_context_refs", True))
+    allow_placeholder_context_refs = bool(request.get("allow_placeholder_context_refs", False))
 
     rows: list[RealtimeFeatureSnapshotRow] = []
+    missing_context_ref_layers: list[str] = []
+    placeholder_context_layers: list[str] = []
     coverage_rows = {row.model_layer: row for row in realtime_input_coverage_matrix()}
     for layer in requested_layers:
         coverage = coverage_rows[layer]
@@ -242,6 +244,9 @@ def build_realtime_feature_snapshot(request: Mapping[str, Any]) -> dict[str, Any
         upstream_ref = upstream_refs.get(layer)
         if not upstream_ref and allow_placeholder_context_refs and layer not in ("layer_01_market_regime",):
             upstream_ref = f"placeholder://upstream-context/{snapshot_id}/{layer}"
+            placeholder_context_layers.append(layer)
+        if not upstream_ref and layer not in ("layer_01_market_regime",):
+            missing_context_ref_layers.append(layer)
         row = RealtimeFeatureSnapshotRow(
             contract_type="realtime_feature_snapshot_row",
             snapshot_id=snapshot_id,
@@ -268,7 +273,7 @@ def build_realtime_feature_snapshot(request: Mapping[str, Any]) -> dict[str, Any
     requested_actions = set(request.get("requested_actions") or [])
     forbidden_actions_present = sorted(requested_actions.intersection(FORBIDDEN_REALTIME_DECISION_ACTIONS))
     valid_role = dataset_role in ACCEPTED_DATASET_ROLES
-    ready = not missing_layers and not forbidden_actions_present and valid_role
+    ready = not missing_layers and not forbidden_actions_present and valid_role and not missing_context_ref_layers
 
     return {
         "contract_type": "realtime_feature_snapshot",
@@ -283,6 +288,8 @@ def build_realtime_feature_snapshot(request: Mapping[str, Any]) -> dict[str, Any
         "frozen_model_config_ref": frozen_model_config_ref,
         "feature_rows": [row.summary_row() for row in rows],
         "missing_model_layers": missing_layers,
+        "missing_context_ref_layers": missing_context_ref_layers,
+        "placeholder_context_layers": placeholder_context_layers,
         "forbidden_actions_present": forbidden_actions_present,
         "readiness_status": "ready_for_fixture_or_shadow_model_decision_input" if ready else "blocked_missing_realtime_feature_requirements",
         "provider_calls_performed": 0,
@@ -323,6 +330,7 @@ def validate_realtime_feature_snapshot(snapshot: Mapping[str, Any]) -> dict[str,
     rows = snapshot.get("feature_rows") or []
     layer_set = {str(row.get("model_layer")) for row in rows if isinstance(row, Mapping)} if isinstance(rows, Sequence) else set()
     missing_layer_rows = sorted(set(MODEL_LAYER_ORDER) - layer_set)
+    missing_context_ref_layers = sorted(str(layer) for layer in snapshot.get("missing_context_ref_layers") or [])
     row_errors: list[str] = []
     if not isinstance(rows, Sequence) or isinstance(rows, (str, bytes, bytearray)):
         row_errors.append("feature_rows must be a list")
@@ -342,6 +350,7 @@ def validate_realtime_feature_snapshot(snapshot: Mapping[str, Any]) -> dict[str,
         and not invalid_time_fields
         and no_future_leakage_timing
         and not missing_layer_rows
+        and not missing_context_ref_layers
         and not row_errors
     )
     return {
@@ -354,6 +363,7 @@ def validate_realtime_feature_snapshot(snapshot: Mapping[str, Any]) -> dict[str,
         "invalid_time_fields": invalid_time_fields,
         "no_future_leakage_timing": no_future_leakage_timing,
         "missing_layer_rows": missing_layer_rows,
+        "missing_context_ref_layers": missing_context_ref_layers,
         "row_errors": row_errors,
         "provider_calls_performed": 0,
         "broker_calls_performed": 0,

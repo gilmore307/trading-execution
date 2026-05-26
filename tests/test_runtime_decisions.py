@@ -640,8 +640,68 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertIn("agent_final_review_not_approved", gate["reason_codes"])
         self.assertIn("missing_agent_final_review_ref", gate["reason_codes"])
         self.assertIn("broker_submit_disabled", gate["reason_codes"])
+        self.assertIn("live_broker_execution_disabled", gate["reason_codes"])
         self.assertTrue(gate["quantity_unchanged_by_execution_gate"])
         self.assertEqual(validate_execution_gate_result(gate)["validation_status"], "passed")
+
+    def test_execution_gate_result_rejects_live_even_with_submit_flag(self) -> None:
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-msft-1",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "target_ref": "MSFT",
+                "instrument_ref": "MSFT",
+                "quantity": 5,
+            },
+            event_failure_risk_vector={"risk_level": "low"},
+            generated_at_utc="2026-01-01T00:02:00Z",
+        )
+        intent = build_execution_order_intent(
+            decision_record=decision,
+            trade_risk_cap=VALID_STOCK_RISK_CAP,
+            generated_at_utc="2026-01-01T00:03:00Z",
+        )
+
+        gate = build_execution_gate_result(
+            execution_order_intent=intent,
+            mode="live",
+            agent_final_review={"review_status": "approved", "agent_final_review_ref": "review://unit"},
+            broker_submit_enabled=True,
+            generated_at_utc="2026-01-01T00:03:30Z",
+        )
+
+        self.assertEqual(gate["execution_gate_status"], "rejected_execution_gate")
+        self.assertIn("live_broker_execution_disabled", gate["reason_codes"])
+        self.assertIn("use_paper_mode_for_alpaca_simulated_trading", gate["reason_codes"])
+
+    def test_execution_gate_result_allows_explicit_paper_submission(self) -> None:
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-msft-1",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "target_ref": "MSFT",
+                "instrument_ref": "MSFT",
+                "quantity": 5,
+            },
+            event_failure_risk_vector={"risk_level": "low"},
+            generated_at_utc="2026-01-01T00:02:00Z",
+        )
+        intent = build_execution_order_intent(
+            decision_record=decision,
+            trade_risk_cap=VALID_STOCK_RISK_CAP,
+            generated_at_utc="2026-01-01T00:03:00Z",
+        )
+
+        gate = build_execution_gate_result(
+            execution_order_intent=intent,
+            mode="paper",
+            agent_final_review={"review_status": "approved", "agent_final_review_ref": "review://unit"},
+            broker_submit_enabled=True,
+            generated_at_utc="2026-01-01T00:03:30Z",
+        )
+
+        self.assertEqual(gate["execution_gate_status"], "approved_for_paper_broker_submission")
+        self.assertEqual(gate["execution_action"], "submit_paper_broker_order")
 
     def test_execution_gate_result_rejects_quantity_mismatch(self) -> None:
         decision = build_position_lifecycle_decision(

@@ -756,6 +756,33 @@ def build_execution_intake_snapshot(
     return body
 
 
+def build_target_allocation_snapshot(
+    *,
+    account_sleeve_id: str,
+    market_universe: Any = None,
+    account_sleeve_state: Mapping[str, Any] | None = None,
+    account_sleeve_risk_budget: Mapping[str, Any] | None = None,
+    position_state: Any = None,
+    target_context_rows: Any = None,
+    dynamic_risk_policy_state: Mapping[str, Any] | None = None,
+    generated_at_utc: str | None = None,
+) -> dict[str, Any]:
+    """Build the C01-compatible replay allocation snapshot expected by evaluation."""
+
+    intake = build_execution_intake_snapshot(
+        account_sleeve_id=account_sleeve_id,
+        market_universe=market_universe,
+        account_sleeve_state=account_sleeve_state,
+        position_state=position_state,
+        target_context_rows=target_context_rows,
+        generated_at_utc=generated_at_utc,
+    )
+    body = dict(intake)
+    body["contract_type"] = "target_allocation_snapshot"
+    body["target_allocation_snapshot_id"] = _stable_id("tas", body)
+    return body
+
+
 def build_entry_decision(
     *,
     execution_intake_snapshot: Mapping[str, Any],
@@ -1294,7 +1321,7 @@ def build_option_reexpression_decision(
 def build_execution_gate_result(
     *,
     execution_order_intent: Mapping[str, Any],
-    mode: Literal["live", "replay"],
+    mode: Literal["live", "paper", "replay"],
     agent_final_review: Mapping[str, Any] | None = None,
     execution_hard_block_checks: Mapping[str, Any] | None = None,
     broker_submit_enabled: bool = False,
@@ -1302,8 +1329,8 @@ def build_execution_gate_result(
 ) -> dict[str, Any]:
     """Apply C06 execution gates without changing the C05 order intent."""
 
-    if mode not in {"live", "replay"}:
-        raise ValueError("mode must be live or replay")
+    if mode not in {"live", "paper", "replay"}:
+        raise ValueError("mode must be live, paper, or replay")
 
     generated_at_utc = generated_at_utc or _utc_now_iso()
     intent = _as_mapping(execution_order_intent)
@@ -1353,6 +1380,10 @@ def build_execution_gate_result(
     )
     review_ref = review.get("agent_final_review_ref") or review.get("review_ref") or review.get("review_id")
     if mode == "live":
+        reasons.append("live_broker_execution_disabled")
+        if broker_submit_enabled:
+            reasons.append("use_paper_mode_for_alpaca_simulated_trading")
+    if mode in {"live", "paper"}:
         if not _agent_review_approved(review):
             reasons.append("agent_final_review_not_approved")
         if not review_ref:
@@ -1366,6 +1397,9 @@ def build_execution_gate_result(
     elif mode == "replay":
         gate_status = "approved_for_simulated_fill"
         gate_action = "simulate_fill"
+    elif mode == "paper":
+        gate_status = "approved_for_paper_broker_submission"
+        gate_action = "submit_paper_broker_order"
     else:
         gate_status = "approved_for_broker_submission"
         gate_action = "approve_broker_submission"
@@ -1584,6 +1618,20 @@ def validate_execution_order_intent(record: Mapping[str, Any]) -> dict[str, Any]
             "sizing_plan",
             "trade_risk_cap",
             "risk_cap_validation",
+            "safety",
+        ),
+    )
+
+
+def validate_target_allocation_snapshot(record: Mapping[str, Any]) -> dict[str, Any]:
+    return _validate_record(
+        record,
+        contract_type="target_allocation_snapshot",
+        required_fields=(
+            "target_allocation_snapshot_id",
+            "account_sleeve_id",
+            "candidate_entry_pool",
+            "watch_targets",
             "safety",
         ),
     )

@@ -22,6 +22,7 @@ LIVE_OBSERVE_SOURCES = (
     "okx",
     "calendar_discovery",
     "execution_account_state",
+    "derived_governance_context",
     "derived_model_context",
 )
 
@@ -55,6 +56,11 @@ _PROVIDER_INTERFACE_HINTS = {
         "execution_account_state.restriction_snapshot_ref",
         "execution_account_state.risk_budget_ref",
     ),
+    "derived_governance_context": (
+        "derived_governance_context.event_failure_risk_review_ref",
+        "derived_governance_context.strategy_failure_packet_ref",
+        "derived_governance_context.freshness_quality_diagnostics_ref",
+    ),
     "derived_model_context": (
         "derived_model_context.layer_state_stack_ref",
         "derived_model_context.freshness_quality_diagnostics_ref",
@@ -67,6 +73,7 @@ _SOURCE_ASSET_CLASS = {
     "okx": "crypto_spot",
     "calendar_discovery": "event_context",
     "execution_account_state": "account_context_ref",
+    "derived_governance_context": "governance_context_ref",
     "derived_model_context": "model_context_ref",
 }
 
@@ -76,6 +83,7 @@ _SOURCE_APPROVAL_GATES = {
     "okx": ("live_stream_approval_ref", "okx_public_market_data_policy_review", "runtime_adapter_acceptance"),
     "calendar_discovery": ("event_adapter_policy_review", "runtime_adapter_acceptance"),
     "execution_account_state": ("read_only_account_context_policy_review", "broker_account_no_mutation_invariant", "runtime_adapter_acceptance"),
+    "derived_governance_context": ("event_failure_risk_review_ref", "strategy_failure_packet_review", "runtime_adapter_acceptance"),
     "derived_model_context": ("frozen_model_output_ref_review", "runtime_adapter_acceptance"),
 }
 
@@ -358,7 +366,7 @@ def build_realtime_shadow_fixture_bundle(request: Mapping[str, Any]) -> dict[str
     plan_set = build_live_observe_adapter_plan(request)
     capture_fixture = build_realtime_capture_fixture({**dict(request), "adapter_plan_set": plan_set})
     source_capture_refs = capture_fixture.get("capture_refs") or ["fixture://realtime-capture/reviewed-runtime-universe"]
-    feature_snapshot = build_realtime_feature_snapshot({**dict(request), "source_capture_refs": source_capture_refs})
+    feature_snapshot = build_realtime_feature_snapshot({**dict(request), "source_capture_refs": source_capture_refs, "allow_placeholder_context_refs": True})
     decision_input = build_model_decision_input_snapshot({"feature_snapshot": feature_snapshot})
     return {
         "contract_type": "execution_realtime_shadow_fixture_bundle",

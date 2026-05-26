@@ -31,6 +31,7 @@ from .decisions import (
     build_option_reexpression_decision,
     build_position_lifecycle_decision,
     build_simulated_fill_event,
+    build_target_allocation_snapshot,
     build_execution_intake_snapshot,
     validate_entry_decision,
     validate_execution_gate_result,
@@ -39,6 +40,7 @@ from .decisions import (
     validate_option_reexpression_decision,
     validate_position_lifecycle_decision,
     validate_simulated_fill_event,
+    validate_target_allocation_snapshot,
     validate_execution_intake_snapshot,
 )
 from .orchestrator import (
@@ -77,6 +79,7 @@ __all__ = [
     "build_position_lifecycle_decision",
     "build_realtime_trading_runtime_status",
     "build_simulated_fill_event",
+    "build_target_allocation_snapshot",
     "build_execution_intake_snapshot",
     "runtime_account_sleeves",
     "runtime_components",
@@ -88,6 +91,7 @@ __all__ = [
     "validate_option_reexpression_decision",
     "validate_position_lifecycle_decision",
     "validate_simulated_fill_event",
+    "validate_target_allocation_snapshot",
     "validate_same_component_graph",
     "validate_execution_intake_snapshot",
 ]

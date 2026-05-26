@@ -30,6 +30,7 @@ def _payload_from_args(args: argparse.Namespace) -> dict[str, Any]:
                 "frozen_model_config_ref": args.frozen_model_config_ref,
                 "model_layers": args.model_layer,
                 "source_capture_refs": args.source_capture_ref,
+                "allow_placeholder_context_refs": args.allow_placeholder_context_refs,
             }.items()
             if value not in (None, [], "")
         }
@@ -51,6 +52,7 @@ def main() -> int:
     parser.add_argument("--frozen-model-config-ref", required=True)
     parser.add_argument("--model-layer", action="append", dest="model_layer")
     parser.add_argument("--source-capture-ref", action="append", dest="source_capture_ref")
+    parser.add_argument("--allow-placeholder-context-refs", action="store_true", help="Allow fixture/shadow placeholder upstream refs for layers without reviewed context refs.")
     args = parser.parse_args()
 
     print(json.dumps(build_realtime_feature_snapshot(_payload_from_args(args)), indent=2, sort_keys=True))

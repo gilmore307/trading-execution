@@ -65,6 +65,29 @@ def broker_interfaces() -> tuple[BrokerInterface, ...]:
         ),
         BrokerInterface(
             contract_type="execution_broker_interface",
+            broker_id="alpaca_paper",
+            execution_use="us_equity_etf_option_paper_order_execution",
+            asset_classes=("us_equity", "us_etf", "us_option"),
+            official_api_status="official_paper_trading_api_available",
+            interface_kind="alpaca_trading_api_paper_endpoint",
+            credential_alias="alpaca",
+            implementation_status="paper_adapter_allowed_live_money_order_mutation_disabled",
+            order_mutation_enabled=True,
+            required_pre_order_gates=(
+                "paper_trading_mode_explicit",
+                "promoted_or_shadow_decision_ref",
+                "trade_risk_cap_valid",
+                "agent_final_review_approved",
+                "idempotency_key",
+            ),
+            official_docs_url="https://docs.alpaca.markets/v1.4.2/docs/paper-trading",
+            boundary_note=(
+                "Alpaca paper trading is the accepted simulated broker route for US equities, ETFs, and options. "
+                "It must use paper credentials and the paper endpoint only; live-money Alpaca order submission remains disabled."
+            ),
+        ),
+        BrokerInterface(
+            contract_type="execution_broker_interface",
             broker_id="firstrade",
             execution_use="us_equity_and_option_order_execution",
             asset_classes=("us_equity", "us_etf", "us_option"),
@@ -103,6 +126,7 @@ def build_execution_capability_catalog() -> dict[str, Any]:
         "model_decision_input_snapshot_contract": model_decision_input_snapshot_contract(),
         "broker_interfaces": [interface.summary_row() for interface in broker_interfaces()],
         "order_mutation_enabled": False,
+        "paper_order_mutation_enabled": any(interface.broker_id == "alpaca_paper" and interface.order_mutation_enabled for interface in broker_interfaces()),
         "provider_calls_performed": 0,
         "broker_calls_performed": 0,
     }

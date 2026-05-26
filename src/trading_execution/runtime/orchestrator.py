@@ -88,6 +88,7 @@ def build_realtime_trading_runtime_status(
     allow_model_activation: bool = False,
     allow_order_construction: bool = False,
     allow_broker_execution: bool = False,
+    allow_paper_broker_execution: bool = False,
     generated_at_utc: str | None = None,
 ) -> dict[str, Any]:
     """Build a side-effect-free runtime status record for live trading readiness."""
@@ -127,6 +128,7 @@ def build_realtime_trading_runtime_status(
             "active_model_config_write": True,
             "trade_risk_cap_validation": True,
             "broker_order_intent_construction": True,
+            "paper_broker_submit_adapter": True,
             "broker_submit_adapter": False,
             "account_mutation_adapter": False,
             "trading_economics_recent_calendar_refresh": True,
@@ -137,6 +139,7 @@ def build_realtime_trading_runtime_status(
             "active_model_config_write": active_ready,
             "trade_risk_cap_validation": bool(trade_risk_cap_validation_ref),
             "broker_order_intent_construction": bool(order_construction_approval_ref),
+            "paper_broker_submit_adapter": bool(allow_paper_broker_execution and order_construction_approval_ref),
             "broker_submit_adapter": False,
             "account_mutation_adapter": False,
             "trading_economics_recent_calendar_refresh": bool(te_calendar_refresh_ref),
@@ -152,6 +155,7 @@ def build_realtime_trading_runtime_status(
             "live_provider_observation_allowed_by_this_record": False,
             "model_activation_allowed": bool(allow_model_activation and active_ready),
             "broker_order_construction_allowed": bool(allow_model_activation and allow_order_construction and active_ready),
+            "paper_broker_execution_allowed": bool(allow_paper_broker_execution and allow_model_activation and allow_order_construction and active_ready),
             "broker_execution_allowed": False,
             "account_mutation_allowed": False,
         },

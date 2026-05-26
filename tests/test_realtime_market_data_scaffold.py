@@ -268,6 +268,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                 "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
                 "frozen_model_config_ref": "trading-model://configs/frozen/unit",
                 "source_capture_refs": ["capture://alpaca/aapl/unit"],
+                "allow_placeholder_context_refs": True,
             }
         )
 
@@ -280,6 +281,22 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertTrue(validation["valid"])
         self.assertEqual(validation["missing_layer_rows"], [])
 
+    def test_realtime_feature_snapshot_blocks_missing_context_refs_by_default(self) -> None:
+        snapshot = build_realtime_feature_snapshot(
+            {
+                "decision_time": "2026-05-11T13:30:00+00:00",
+                "available_time": "2026-05-11T13:30:01+00:00",
+                "tradeable_time": "2026-05-11T13:30:02+00:00",
+                "instrument_ref": "AAPL",
+                "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
+                "frozen_model_config_ref": "trading-model://configs/frozen/unit",
+                "source_capture_refs": ["capture://alpaca/aapl/unit"],
+            }
+        )
+
+        self.assertEqual(snapshot["readiness_status"], "blocked_missing_realtime_feature_requirements")
+        self.assertIn("layer_04_event_failure_risk", snapshot["missing_context_ref_layers"])
+
     def test_build_model_decision_input_snapshot_from_realtime_features(self) -> None:
         decision_input = build_model_decision_input_snapshot(
             {
@@ -290,6 +307,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                 "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
                 "frozen_model_config_ref": "trading-model://configs/frozen/unit",
                 "source_capture_refs": ["capture://alpaca/aapl/unit"],
+                "allow_placeholder_context_refs": True,
             }
         )
 
@@ -408,8 +426,8 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertEqual(receipt["summary"]["provider_calls_performed"], 2)
         self.assertEqual(receipt["summary"]["observation_count"], 2)
         self.assertEqual(receipt["summary"]["provider_status_counts"], {"observed": 2})
-        self.assertEqual(receipt["summary"]["feature_snapshot_readiness"], "ready_for_fixture_or_shadow_model_decision_input")
-        self.assertEqual(receipt["summary"]["decision_input_readiness"], "ready_for_historical_model_decision_handoff")
+        self.assertEqual(receipt["summary"]["feature_snapshot_readiness"], "blocked_missing_realtime_feature_requirements")
+        self.assertEqual(receipt["summary"]["decision_input_readiness"], "blocked_missing_model_decision_input_requirements")
         self.assertEqual(len(receipt["result"]["feature_snapshot"]["feature_rows"]), 10)
         self.assertEqual(len(receipt["result"]["decision_input_snapshot"]["layer_input_refs"]), 10)
         self.assertEqual(receipt["summary"]["broker_calls_performed"], 0)
@@ -539,8 +557,8 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             self.assertEqual(receipt["provider_calls_performed"], 4)
             self.assertEqual(receipt["broker_calls_performed"], 0)
             for row in receipt["cycle_summaries"]:
-                self.assertEqual(row["summary"]["feature_snapshot_readiness"], "ready_for_fixture_or_shadow_model_decision_input")
-                self.assertEqual(row["summary"]["decision_input_readiness"], "ready_for_historical_model_decision_handoff")
+                self.assertEqual(row["summary"]["feature_snapshot_readiness"], "blocked_missing_realtime_feature_requirements")
+                self.assertEqual(row["summary"]["decision_input_readiness"], "blocked_missing_model_decision_input_requirements")
             self.assertFalse(receipt["model_activation_performed"])
             self.assertFalse(receipt["broker_order_construction_performed"])
             self.assertFalse(receipt["account_mutation_performed"])
@@ -845,6 +863,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                     "trading-model://configs/frozen/unit",
                     "--source-capture-ref",
                     "capture://alpaca/aapl/unit",
+                    "--allow-placeholder-context-refs",
                 ],
                 check=True,
                 cwd="/root/projects/trading-execution",

@@ -82,6 +82,8 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
             "deferred_do_not_automate_reverse_engineered_login_or_order_flow",
         )
         self.assertFalse(brokers["firstrade"].order_mutation_enabled)
+        self.assertEqual(brokers["alpaca_paper"].official_api_status, "official_paper_trading_api_available")
+        self.assertTrue(brokers["alpaca_paper"].order_mutation_enabled)
 
     def test_combined_catalog_has_no_side_effects_or_mutation_enabled(self) -> None:
         catalog = build_execution_capability_catalog()
@@ -98,6 +100,7 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
             "execution_model_decision_input_snapshot_contract",
         )
         self.assertFalse(catalog["order_mutation_enabled"])
+        self.assertTrue(catalog["paper_order_mutation_enabled"])
         self.assertEqual(catalog["provider_calls_performed"], 0)
         self.assertEqual(catalog["broker_calls_performed"], 0)
 
