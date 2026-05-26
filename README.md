@@ -34,6 +34,7 @@ docs/
   30_broker_interfaces.md
   40_runtime_model_lifecycle.md
   50_runtime_components.md
+  60_runtime_data_outputs.md
 ```
 
 ## Verification
@@ -51,7 +52,7 @@ python3 -m compileall -q src scripts
 - `trading_execution.model_lifecycle` owns the execution-side post-shadow-cycle model roster selection contract. It records active, realtime-candidate, shadow-only, and eliminate-candidate recommendations without writing active pointers, constructing orders, submitting broker calls, or mutating accounts.
 - `trading_execution.runtime` owns the live/Replay shared runtime component graph and side-effect-free decision builders. Replay uses the same components through historical market, simulated account, and simulated execution adapters; it must not submit broker requests or mutate account, order, or position state.
 - `trading_execution.broker` owns the side-effect-free broker/exchange interface catalog and gated broker-order intent construction. OKX order intents may be constructed after approval and risk-cap validation, but live broker submission and account mutation remain disabled; Firstrade equity/options execution is deferred because no official trading API is accepted.
-- `docs/11_execution_acceptance.md` records the prior execution-preparation closeout. Current runtime, realtime, broker, and Replay surfaces are documented in `docs/20_realtime_data.md`, `docs/30_broker_interfaces.md`, `docs/40_runtime_model_lifecycle.md`, and `docs/50_runtime_components.md`.
+- `docs/11_execution_acceptance.md` records the prior execution-preparation closeout. Current runtime, realtime, broker, Replay, and runtime-output surfaces are documented in `docs/20_realtime_data.md`, `docs/30_broker_interfaces.md`, `docs/40_runtime_model_lifecycle.md`, `docs/50_runtime_components.md`, and `docs/60_runtime_data_outputs.md`.
 
 ## Platform Dependencies
 

@@ -44,6 +44,11 @@ The live and Replay runtime component graph is accepted as the execution-owned
 decision surface. `trading-evaluation` may orchestrate Replay runs and judge
 results, but it must call this graph instead of duplicating trading decisions.
 
+Runtime output persistence follows `docs/60_runtime_data_outputs.md`: durable
+queryable runtime state is SQL-backed under `trading_execution`; large payloads
+use SQL rows plus storage artifact refs; and future broker/account mutation
+tables remain gated until reviewed submit/reconcile contracts exist.
+
 First-batch contracts:
 
 - `execution_intake_snapshot`

@@ -9,6 +9,7 @@
 | `30_*` | `src/trading_execution/broker/` | Broker interface contracts and non-mutation gates. |
 | `40_*` | `src/trading_execution/model_lifecycle.py` | Active/shadow runtime model roster selection. |
 | `50_*` | `src/trading_execution/runtime/` | Live/Replay runtime component graph and trading lifecycle contracts. |
+| `60_*` | Runtime SQL/artifact output surfaces | Live execution output format and table-boundary charter. |
 
 ## Purpose
 
@@ -139,6 +140,11 @@ The active route is a side-effect-controlled runtime surface:
 - `execution_shadow_cycle_selection` and `execution_active_model_config_write` record execution-owned active/shadow roster decisions and active-pointer writes.
 - `execution_runtime_component_graph` and the runtime decision builders provide the shared live/Replay trading component graph.
 - `execution_order_construction_approval` and `execution_broker_order_intent` support approved broker-shaped order-intent construction without submission.
+
+`docs/60_runtime_data_outputs.md` owns the runtime data-output charter. Durable
+queryable runtime state is SQL-backed under `trading_execution`; large realtime
+payloads use SQL rows plus storage artifact refs; broker submission, fills,
+account mutation, position mutation, and reconciliation remain future-gated.
 
 Live broker submission, live fills, live position/account mutation, and reconciliation remain closed until separate reviewed gates exist. Replay remains simulated and side-effect-free.
 
