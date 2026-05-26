@@ -10,7 +10,8 @@ Execution owns broker/exchange mutation, but broker interfaces are not market-da
 This document records the first accepted broker posture:
 
 - OKX is the crypto execution venue because it has an official API.
-- Firstrade is the intended US equity/options broker, but implementation is deferred because no official trading API is accepted.
+- Alpaca paper trading is the accepted simulated broker route for US equities, ETFs, and options.
+- Firstrade remains deferred because no official trading API is accepted.
 
 ## Hard boundary
 
@@ -45,6 +46,7 @@ The resulting intent is `constructed_not_submitted`: it contains the broker-shap
 | Broker/exchange | Asset classes | Official API status | Current status | Mutation enabled |
 |---|---|---|---|---|
 | OKX | Crypto spot / crypto derivatives | Official API available | Adapter scaffold allowed; live order mutation disabled | No |
+| Alpaca paper | US equities / ETFs / options | Official paper Trading API available | Paper adapter allowed behind explicit paper gates; live-money mutation disabled | Paper only |
 | Firstrade | US equities / ETFs / options | No official trading API accepted | Deferred; do not automate reverse-engineered login or order flow | No |
 
 ## OKX notes from official docs checks
@@ -58,6 +60,20 @@ Accepted initial OKX development path:
 3. request signing unit tests with fixed fixtures only;
 4. paper/simulated order lifecycle;
 5. live order mutation only after explicit activation gate.
+
+## Alpaca paper trading posture
+
+Alpaca official documentation says paper trading uses separate paper credentials and the paper API endpoint, normally `https://paper-api.alpaca.markets`; the Trading API spec is shared between paper and live accounts. Alpaca's options documentation also states that options trading is enabled by default in the paper environment, and options orders use the same Orders API with options-specific validations.
+
+Accepted paper path:
+
+1. use only the external `alpaca` secret alias and paper endpoint configuration;
+2. require explicit `paper_trading_mode_explicit`;
+3. require a promoted or shadow decision ref, valid `trade_risk_cap`, final agent/operator approval, and idempotency key before paper order mutation;
+4. emit order/fill/position/reconcile artifacts through accepted manager/storage contracts;
+5. keep live-money Alpaca order submission disabled until a separate live activation decision exists.
+
+Paper trading is still broker/order/account mutation. It is allowed only inside the reviewed paper route; server-error repair and ordinary runtime smoke must not submit paper orders as a side effect.
 
 ## Firstrade posture
 
