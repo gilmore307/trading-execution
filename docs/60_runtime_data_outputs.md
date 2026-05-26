@@ -32,8 +32,8 @@ refs, but realtime capture does not replace the historical backfill pipeline.
   call brokers, or mutate accounts. C08's component output is the cycle
   selection table; model-group runtime evidence belongs to `performance_*` rows.
 - Broker submission, broker order state, fills, account mutation, position
-  mutation, and reconciliation are future-gated SQL surfaces until reviewed
-  submit/reconcile gates exist.
+  mutation, and reconciliation are future-gated `trade_*` SQL surfaces until
+  reviewed submit/reconcile gates exist.
 - Runtime outputs must live outside Git-tracked source paths.
 
 ## Current SQL Tables
@@ -96,7 +96,6 @@ Realtime effectiveness and attribution:
 - `trading_execution.performance_model_runtime_evidence`
 - `trading_execution.performance_model_decision_effectiveness`
 - `trading_execution.performance_model_decision_effectiveness_row`
-- `trading_execution.performance_c07_failure_attribution`
 - `trading_execution.performance_runtime_model_lifecycle_review`
 
 `performance_model_runtime_evidence` stores all active, wingman, challenger,
@@ -110,12 +109,19 @@ role.
 These table names are reserved for the future live broker/account path. They are
 not active runtime outputs until the matching gates exist:
 
-- `trading_execution.broker_order_submission`
-- `trading_execution.broker_order_state`
-- `trading_execution.broker_fill`
-- `trading_execution.account_state_snapshot`
-- `trading_execution.position_state_snapshot`
-- `trading_execution.execution_reconciliation_result`
+- `trading_execution.trade_broker_order_submission`
+- `trading_execution.trade_broker_order_state`
+- `trading_execution.trade_broker_fill`
+- `trading_execution.trade_account_state_snapshot`
+- `trading_execution.trade_position_state_snapshot`
+- `trading_execution.trade_reconciliation_result`
+
+C07 attribution is not a realtime feature table and is not a separate
+performance table. It is a result block inside
+`trading_execution.c07_failure_explanation_packet`: realtime watch produces
+preliminary attribution evidence, and settlement attribution produces mature
+attribution evidence. Performance and lifecycle review tables reference those
+C07 packets when comparing models or deciding runtime roles.
 
 ## Non-SQL Payloads
 
