@@ -7,7 +7,7 @@ runtime organizing unit.
 C08 Model Group Shadow Comparison is a market-hours runtime comparison component
 for already-promoted model groups. It runs the active model group and eligible
 shadow model groups on realtime snapshots, records evidence, and feeds mature
-evidence to `execution_shadow_cycle_selection`. C08 is not used by Replay and
+evidence to `c08_shadow_cycle_selection`. C08 is not used by Replay and
 does not route shadow decisions into C01-C06 live trading authority. It must be
 capacity-gated so model comparison does not degrade the active trading path.
 

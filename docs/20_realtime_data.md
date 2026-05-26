@@ -68,9 +68,9 @@ The realtime monitor does not create historical test/holdout/training rows by de
 
 ## Realtime model effectiveness metrics
 
-`realtime_model_decision_effectiveness` is the accepted monitoring surface for model quality in live/shadow operation. It summarizes whether the model's decisions were correct after the relevant outcome horizon matures. These metrics may inform promotion review, drift review, trust reduction, and retraining planning, but they are not historical test-set rows and should not force the realtime monitor to run the historical dataset-processing ladder. `scripts/execution/aggregate_realtime_decision_effectiveness.py` builds this aggregate from matured decision records without provider calls, model activation, persistence, broker/order construction, or account mutation.
+`performance_model_decision_effectiveness` is the accepted monitoring surface for model quality in live/shadow operation. It summarizes whether the model's decisions were correct after the relevant outcome horizon matures. These metrics may inform promotion review, drift review, trust reduction, and retraining planning, but they are not historical test-set rows and should not force the realtime monitor to run the historical dataset-processing ladder. `scripts/execution/aggregate_realtime_decision_effectiveness.py` builds this aggregate from matured decision records without provider calls, model activation, persistence, broker/order construction, or account mutation.
 
-After a market-hours cycle matures, runtime roster selection is handled by `execution_shadow_cycle_selection` in `docs/40_runtime_model_lifecycle.md`. Decision-effectiveness metrics feed that review, but the realtime monitor itself still does not switch active pointers.
+After a market-hours cycle matures, runtime roster selection is handled by `c08_shadow_cycle_selection` in `docs/40_runtime_model_lifecycle.md`. Decision-effectiveness metrics feed that review, but the realtime monitor itself still does not switch active pointers.
 
 ## Adapter scaffold
 
@@ -168,13 +168,13 @@ Realtime capture is still too raw for the model stack. The accepted handoff chai
 ```text
 realtime_capture_contract
   -> realtime_feature_snapshot
-  -> execution_model_decision_input_snapshot
+  -> realtime_model_decision_input_snapshot
   -> historical-model decision stack fixture/shadow route
 ```
 
 `realtime_feature_snapshot` preserves the same point-in-time timing discipline as historical features: `feature_time <= available_time <= tradeable_time`, plus historical feature parity refs, frozen model/config refs, dataset snapshot refs, source capture refs, and per-layer feature refs. It is not a new training substrate by itself.
 
-`execution_model_decision_input_snapshot` packages all Layer 1-10 feature refs into the shape needed by the historical model decision stack. It is intentionally fixture/shadow-ready only: it does not activate a model, construct an order, mutate an account, or authorize provider streams.
+`realtime_model_decision_input_snapshot` packages all Layer 1-10 feature refs into the shape needed by the historical model decision stack. It is intentionally fixture/shadow-ready only: it does not activate a model, construct an order, mutate an account, or authorize provider streams.
 
 Example:
 
@@ -198,7 +198,7 @@ This makes the bridge to historical model data decision routing explicit while k
 
 ## Implementation hook
 
-`src/trading_execution/market_data/contracts.py` owns the side-effect-free `execution_realtime_data_interface`, `execution_realtime_input_coverage`, and `realtime_capture_contract` catalogs. `adapters.py` owns `execution_realtime_subscription_plan` planning; `live_observe.py` owns concrete provider/account/event fixture adapter plans, capture-fixture rows, and execution-side realtime shadow fixture bundles; `capture.py` owns `realtime_capture_validation`; `features.py` owns `realtime_feature_snapshot` and `execution_model_decision_input_snapshot` builders/validators.
+`src/trading_execution/market_data/contracts.py` owns the side-effect-free `status_realtime_data_interface`, `realtime_input_coverage`, and `realtime_capture_contract` catalogs. `adapters.py` owns `realtime_subscription_plan` planning; `live_observe.py` owns concrete provider/account/event fixture adapter plans, capture-fixture rows, and execution-side realtime shadow fixture bundles; `capture.py` owns `realtime_capture_validation`; `features.py` owns `realtime_feature_snapshot` and `realtime_model_decision_input_snapshot` builders/validators.
 
 The current implementation covers catalogs, planning, fixture handoff, bounded read-only provider observation, feature/model-input snapshots, monitor receipts, and decision-effectiveness aggregation. Live provider observation is allowed only behind `realtime_live_observe_approval` and an explicit execute flag. Broker execution, order submission, model activation, and account mutation remain outside this surface.
 

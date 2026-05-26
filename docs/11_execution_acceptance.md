@@ -42,7 +42,7 @@ src/trading_execution/runtime/orchestrator.py
 scripts/execution/run_realtime_trading_runtime_check.py
 ```
 
-It reports `waiting_for_promoted_model` until a valid `execution_active_model_config_write` pointer exists. After a pointer exists, it can report readiness for model activation and order-intent construction gates, but broker submission remains closed.
+It reports `waiting_for_promoted_model` until a valid active pointer exists through `c08_shadow_cycle_selection` active-pointer fields. After a pointer exists, it can report readiness for model activation and order-intent construction gates, but broker submission remains closed.
 
 ## Boundaries Preserved
 

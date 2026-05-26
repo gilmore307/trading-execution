@@ -17,7 +17,7 @@ runtime model roster selection.
 Shadow is represented by C08 Model Group Shadow Comparison. C08 is realtime-only
 and is not an after-hours replay mechanism. It runs the active model group and
 eligible promoted shadow model groups over the same realtime market-hours
-snapshots, records evidence, and later supports `execution_shadow_cycle_selection`.
+snapshots, records evidence, and later supports `c08_shadow_cycle_selection`.
 It has no trading authority and cannot write active pointers, construct orders,
 call brokers, or mutate accounts. C08 must be throttled or narrowed when
 hardware capacity cannot support all promoted model groups without hurting
@@ -337,7 +337,7 @@ This approval is only for realtime market-data observation. It must explicitly k
 
 - Formal provider observation is no longer fixture-only; approved read-only provider calls are supported.
 - A plan-only invocation still performs zero provider calls.
-- Model activation, production configuration activation, broker execution, and account mutation require separate reviewed gates. Order construction has its own separate approval gate under `execution_order_construction_approval`.
+- Model activation, production configuration activation, broker execution, and account mutation require separate reviewed gates. Order construction has its own separate approval gate under `trade_order_construction_approval`.
 - Manager visibility can consume the produced artifacts, but execution does not persist manager decisions.
 
 ## D011 - Realtime feature snapshots bridge into historical-model decision inputs
@@ -351,7 +351,7 @@ Raw realtime captures are not model inputs. The model stack was designed and val
 
 ### Decision
 
-`trading-execution` owns `realtime_feature_snapshot` and `execution_model_decision_input_snapshot` as side-effect-free handoff envelopes. The feature snapshot converts realtime capture refs into Layer 1-10 feature refs with `feature_time`, `available_time`, `tradeable_time`, historical feature parity refs, frozen model config refs, and historical dataset snapshot refs. The decision input snapshot packages those layer refs for fixture/shadow historical-model decision routing.
+`trading-execution` owns `realtime_feature_snapshot` and `realtime_model_decision_input_snapshot` as side-effect-free handoff envelopes. The feature snapshot converts realtime capture refs into Layer 1-10 feature refs with `feature_time`, `available_time`, `tradeable_time`, historical feature parity refs, frozen model config refs, and historical dataset snapshot refs. The decision input snapshot packages those layer refs for fixture/shadow historical-model decision routing.
 
 ### Consequences
 
@@ -370,7 +370,7 @@ Formal integration needs to progress beyond validating risk caps, but constructi
 
 ### Decision
 
-`trading-execution` accepts `execution_order_construction_approval` as the first broker-facing order-construction gate. With a valid approval, a valid `trade_risk_cap`, and explicit `--construct-order`, `scripts/execution/build_broker_order_intent.py` may construct an OKX-shaped `execution_broker_order_intent`.
+`trading-execution` accepts `trade_order_construction_approval` as the first broker-facing order-construction gate. With a valid approval, a valid `trade_risk_cap`, and explicit `--construct-order`, `scripts/execution/build_broker_order_intent.py` may construct an OKX-shaped `trade_broker_order_intent`.
 
 The resulting intent is `constructed_not_submitted`. It carries an idempotency key and broker payload, but performs zero broker calls and zero account mutation.
 

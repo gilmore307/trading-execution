@@ -28,11 +28,11 @@ The current catalog does not enable live trading. It permits approved order-inte
 
 ## Formal order-intent construction
 
-`src/trading_execution/broker/order_construction.py` owns `execution_order_construction_approval` and `execution_broker_order_intent`.
+`src/trading_execution/broker/order_construction.py` owns `trade_order_construction_approval` and `trade_broker_order_intent`.
 
 `build_broker_order_intent.py` can construct an OKX-shaped order intent only when all of the following pass:
 
-1. reviewed `execution_order_construction_approval` with `approval_scope=broker_order_construction_only`;
+1. reviewed `trade_order_construction_approval` with `approval_scope=broker_order_construction_only`;
 2. `construct_order_allowed=true`;
 3. `broker_execution_allowed=false` and `account_mutation_allowed=false`;
 4. approved instrument, side, order type, and broker;
@@ -75,7 +75,7 @@ Firstrade can stay in the broker catalog as `deferred_no_official_trading_api` u
 
 ## Implementation hook
 
-`src/trading_execution/broker/contracts.py` owns the side-effect-free `execution_broker_interface` catalog and combined `execution_capability_catalog`.
+`src/trading_execution/broker/contracts.py` owns the side-effect-free `status_broker_interface` catalog and combined `status_capability_catalog`.
 
 `src/trading_execution/broker/order_construction.py` owns gated order-intent construction. `scripts/execution/build_broker_order_intent.py --construct-order` constructs a broker-shaped intent only after approval and risk-cap validation; it does not submit the order.
 

@@ -10,7 +10,7 @@ Shadow is not Replay. Replay uses a fixed historical window and frozen historica
 data to judge whether a training output is meaningful enough for promotion
 readiness. Shadow uses realtime market data during live market hours to compare
 already-promoted model groups and choose which one should be active in production.
-`execution_shadow_cycle_selection` must not be called during promotion Replay.
+`c08_shadow_cycle_selection` must not be called during promotion Replay.
 
 ## C08 Model Group Shadow Comparison
 
@@ -21,11 +21,11 @@ not part of promotion Replay.
 Comparison`. C08 runs during market hours over realtime snapshots. It feeds the
 current active model group and eligible promoted shadow model groups the same
 point-in-time inputs, records comparable shadow evidence, and later contributes
-mature evidence to `execution_shadow_cycle_selection`.
+mature evidence to `c08_shadow_cycle_selection`.
 
 C08 never has trading authority. Only the current active model can route
 decisions into C01-C06 live trading. Shadow model decisions remain evidence only
-until a later `execution_active_model_config_write` changes the active pointer.
+until a later accepted `c08_shadow_cycle_selection` changes the active pointer.
 C08 does not write active pointers, construct orders, call brokers, or mutate
 accounts.
 
@@ -41,10 +41,10 @@ The side-effect-free local simulator is:
 PYTHONPATH=src python3 scripts/execution/simulate_c08_capacity.py
 ```
 
-The simulator emits `execution_c08_capacity_simulation`: requested model groups,
-admitted model groups, throttled model groups, p95 latency estimate, CPU/memory
-limits, and reason codes. Its result is an estimate, not an activation decision.
-Production admission still depends on real runtime telemetry.
+The simulator emits test evidence: requested model groups, admitted model
+groups, throttled model groups, p95 latency estimate, CPU/memory limits, and
+reason codes. Its result is an estimate, not an activation decision or durable
+runtime SQL table. Production admission still depends on real runtime telemetry.
 
 During future live runtime, historical model tasks are paused by manager policy.
 C08 capacity should be measured after that pause because historical training
@@ -84,7 +84,7 @@ Running many realtime strategies can compete with the active model for runtime c
 
 ## Selection Contract
 
-`execution_shadow_cycle_selection` records the post-cycle roster decision:
+`c08_shadow_cycle_selection` records the post-cycle roster decision:
 
 - previous active model;
 - selected active model;
@@ -99,42 +99,49 @@ Running many realtime strategies can compete with the active model for runtime c
 - live/shadow realtime failure-watch refs when present;
 - live/shadow settlement-attribution refs when present;
 - untrained event-risk review refs when present;
-- whether an active switch is recommended.
+- whether an active switch is recommended;
+- selected active config ref when a switch is accepted;
+- expected previous active model;
+- rollback ref;
+- write window ref;
+- active-pointer write audit fields.
 
-The contract records selection only. It does not write active config pointers, construct orders, submit broker calls, or mutate accounts.
+The contract records selection and the active-pointer audit fields for the
+accepted cycle. It does not construct orders, submit broker calls, or mutate
+accounts.
 
 If an agent is used to review the cycle, it must use the fixed `runtime-model-lifecycle-review` skill. The comparison packet must be blinded: the agent sees anonymous model labels and does not know which label is current active, newly promoted, old, incumbent, champion, challenger, or latest. Execution code maps labels back to model refs only after the review.
 
-## Active Pointer Write Gate
+## Active Pointer Write Fields
 
-`execution_active_model_config_write` is the separate execution-owned pointer mutation record. It may be built only after a valid `execution_shadow_cycle_selection`.
+Active-pointer write audit fields are part of `c08_shadow_cycle_selection`.
 
 Required checks:
 
 - selection id is present and valid;
-- embedded shadow-cycle selection payload validates and its digest matches the write record;
 - selected active model is still the intended winner;
-- expected previous active model matches the selection's previous active model;
-- new active config ref is present;
+- expected previous active model matches the cycle's previous active model;
+- selected active config ref is present when switching active models;
 - rollback ref is present;
 - write window ref is present, normally a closed-market or explicitly accepted switch window.
 
-This record is the audit surface for changing the active model config pointer. It still does not construct orders, submit broker calls, or mutate accounts.
+These fields are the audit surface for changing the active model config pointer.
+They still do not construct orders, submit broker calls, or mutate accounts.
 
 ## Realtime Runtime Readiness
 
-`execution_realtime_trading_runtime_status` is the execution-owned readiness surface for an always-on realtime trading process.
+`status_realtime_trading_runtime` is the execution-owned readiness SQL surface for an always-on realtime trading process.
 
 The runtime checks the active model pointer at:
 
 ```text
-storage/04_execution_artifacts/runtime/active_model/latest_active_model_config_write.json
+storage/04_execution_artifacts/runtime/active_model/latest_c08_shadow_cycle_selection.json
 ```
 
 Current states:
 
 - `waiting_for_promoted_model` when no active pointer exists;
-- `blocked_invalid_active_model_pointer` when the pointer file is malformed or fails `execution_active_model_config_write` validation;
+- `blocked_invalid_active_model_pointer` when the pointer file is malformed or fails `c08_shadow_cycle_selection` active-pointer field validation;
 - `ready_for_active_model_pointer_requires_activation_gate` when a valid pointer exists but model activation has not been enabled for the runtime;
 - `ready_for_model_inference_requires_order_construction_gate` when model activation is allowed but order-intent construction is still gated;
 - `ready_for_order_intent_construction_not_submission` when order-intent construction can be attempted after a decision record, risk cap, and construction approval;
@@ -153,7 +160,7 @@ deploy/systemd/trading-execution-realtime-runtime-check.path
 It refreshes the status artifact when the active model pointer changes. Dashboard clients should consume the storage-hosted read-model WebSocket route:
 
 ```text
-/ws/read-models/execution_realtime_trading_runtime_status/latest
+/ws/read-models/status_realtime_trading_runtime/latest
 ```
 
 ## Elimination

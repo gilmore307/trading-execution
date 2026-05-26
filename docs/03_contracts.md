@@ -142,8 +142,8 @@ not used by Replay.
 C08 Model Group Shadow Comparison runs during market hours on realtime data. It
 compares the current active model group and eligible already-promoted shadow
 model groups over the same realtime snapshots, emits
-`execution_shadow_model_runtime_evidence`, and feeds mature evidence into
-`execution_shadow_cycle_selection`.
+`performance_model_runtime_evidence`, and feeds mature evidence into
+`c08_shadow_cycle_selection`.
 
 Only the current active model can route decisions into C01-C06 live trading.
 Shadow model outputs are evidence only. C08 must not write active pointers,
@@ -153,12 +153,13 @@ C08 must be hardware-capacity gated. The runtime may run only as many model
 groups as it can support without degrading C01-C06 latency, market-data
 ingestion, broker gates, or account-state freshness.
 
-`execution_c08_capacity_simulation` is the side-effect-free C08 capacity estimate
-contract. It records requested/admitted/throttled model-group counts, reserved
-live resources, estimated p95 latency, and reason codes. It assumes historical
-model tasks are paused during future live runtime.
+Capacity simulation is side-effect-free test evidence for estimating C08 runtime
+admission. It records requested/admitted/throttled model-group counts, reserved
+live resources, estimated p95 latency, and reason codes when run, but it is not
+a durable SQL output table unless a later reviewed runtime-capacity task
+promotes it.
 
-`execution_shadow_cycle_selection` owns the runtime roster policy. The accepted
+`c08_shadow_cycle_selection` owns the runtime roster policy. The accepted
 C08 roster is one active model group, three stable wingmen, and two rotating
 challengers. If one elimination-probation candidate needs a final realtime
 check, it occupies one stable wingman slot for that cycle. If that probation

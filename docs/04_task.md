@@ -12,7 +12,7 @@ The active route is side-effect-controlled:
 - Realtime provider observation requires `realtime_live_observe_approval` and an explicit execute flag.
 - Model activation requires a valid active-model config pointer and runtime activation gate.
 - `trade_risk_cap` validation is mandatory before executable order intent construction.
-- Broker-shaped order intents require `execution_order_construction_approval`.
+- Broker-shaped order intents require `trade_order_construction_approval`.
 - Broker submission, live fills, reconciliation, account mutation, and position mutation remain closed.
 - Replay uses the same runtime component graph through side-effect-free adapters; it must not submit broker requests or mutate account, order, or position state.
 - Runtime decisions carry exactly one account sleeve and must not net risk or positions across the crypto and equity/options accounts.

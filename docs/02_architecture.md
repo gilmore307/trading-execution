@@ -28,7 +28,7 @@ C08 Model Group Shadow Comparison
   -> active model group over realtime snapshots
   -> eligible promoted shadow model groups over the same realtime snapshots
   -> shadow/runtime evidence
-  -> post-cycle execution_shadow_cycle_selection
+  -> post-cycle c08_shadow_cycle_selection
 ```
 
 C08 is not used by Replay. Replay is fixed historical evaluation for training
@@ -132,14 +132,14 @@ trading-evaluation replay runner -> trading-execution runtime component graph ->
 
 The active route is a side-effect-controlled runtime surface:
 
-- `execution_realtime_data_interface` records reviewed realtime market-data interfaces for OKX, Alpaca, and ThetaData.
-- `execution_broker_interface` records broker/exchange posture for OKX and Firstrade.
-- `execution_capability_catalog` combines those catalogs for inspection.
-- `execution_realtime_subscription_plan`, `realtime_live_observe_approval`, and `execution_realtime_live_observe_result` support bounded read-only provider observation after explicit approval.
-- `realtime_feature_snapshot` and `execution_model_decision_input_snapshot` prepare point-in-time realtime handoff inputs without activating models.
-- `execution_shadow_cycle_selection` and `execution_active_model_config_write` record execution-owned active/shadow roster decisions and active-pointer writes.
+- `status_realtime_data_interface` records reviewed realtime market-data interfaces for OKX, Alpaca, and ThetaData.
+- `status_broker_interface` records broker/exchange posture for OKX and Firstrade.
+- `status_capability_catalog` combines those catalogs for inspection.
+- `realtime_subscription_plan`, `realtime_live_observe_approval`, and `realtime_live_observe_result` support bounded read-only provider observation after explicit approval.
+- `realtime_feature_snapshot` and `realtime_model_decision_input_snapshot` prepare point-in-time realtime handoff inputs without activating models.
+- `c08_shadow_cycle_selection` records execution-owned active/shadow roster decisions and active-pointer write audit fields.
 - `execution_runtime_component_graph` and the runtime decision builders provide the shared live/Replay trading component graph.
-- `execution_order_construction_approval` and `execution_broker_order_intent` support approved broker-shaped order-intent construction without submission.
+- `trade_order_construction_approval` and `trade_broker_order_intent` support approved broker-shaped order-intent construction without submission.
 
 `docs/60_runtime_data_outputs.md` owns the runtime data-output charter. Durable
 queryable runtime state is SQL-backed under `trading_execution`; large realtime
