@@ -43,6 +43,24 @@ It is called only by `component_07_failure_review` after observed model or
 trade failure to connect the failure evidence to possible event causes and
 produce Layer 4 feedback candidates.
 
+## D013 - Realtime trading starts only after a promoted active model config exists
+
+Date: 2026-05-26
+Status: Accepted
+
+Realtime trading services must fail closed until `trading-execution` has a valid
+promoted active model config write. The active config is the runtime proof that
+an evaluated model group has passed promotion/lifecycle gates and may be wired
+into the live component graph.
+
+Without that config, realtime trading services stay disabled or fail their
+service preflight. Historical/modeling schedulers, TE calendar refresh, storage
+read-model refresh, and other non-broker data services may continue running.
+
+This rule does not authorize broker submission by itself. Broker execution still
+requires the separate order construction, risk-cap, final review, and broker
+adapter gates.
+
 ## D012 - Position lifecycle decisions are underlying-first and review-gated
 
 Date: 2026-05-24

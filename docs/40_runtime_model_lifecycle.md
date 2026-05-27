@@ -132,10 +132,17 @@ They still do not construct orders, submit broker calls, or mutate accounts.
 
 `status_realtime_trading_runtime` is the execution-owned readiness SQL surface for an always-on realtime trading process.
 
+Realtime trading is disabled until execution has a valid promoted active model
+config. The service-level preflight must fail closed when the active model
+config is missing or invalid; realtime monitor, model-inference, order-intent,
+paper-broker, or broker-submit services must not be enabled as live runtime just
+to wait for a future model group. Historical/modeling services may continue
+running while this gate is closed.
+
 The runtime checks the active model pointer at:
 
 ```text
-storage/04_execution_artifacts/runtime/active_model/latest_c08_shadow_cycle_selection.json
+storage/04_execution_artifacts/runtime/active_model/latest_active_model_config_write.json
 ```
 
 Current states:
@@ -162,6 +169,11 @@ It refreshes the status artifact when the active model pointer changes. Dashboar
 ```text
 /ws/read-models/status_realtime_trading_runtime/latest
 ```
+
+The checked-in realtime monitor service also runs the same readiness check as
+`ExecStartPre` with `--require-active-model-config`. Without a valid promoted
+active model group, systemd refuses to start the service instead of keeping an
+idle realtime trading module alive.
 
 ## Elimination
 

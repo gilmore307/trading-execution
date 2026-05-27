@@ -12,8 +12,10 @@ Environment=TRADING_EXECUTION_REALTIME_MONITOR_SOURCE=alpaca
 Environment=TRADING_EXECUTION_REALTIME_MONITOR_MAX_SYMBOLS=44
 Environment=TRADING_EXECUTION_REALTIME_MONITOR_INTERVAL_SECONDS=60
 Environment=TRADING_EXECUTION_REALTIME_MONITOR_OUTPUT_DIR=/root/projects/trading-storage/storage/04_execution_artifacts/runtime/realtime_monitor
+Environment=TRADING_EXECUTION_REALTIME_RUNTIME_PREFLIGHT_OUTPUT_DIR=/root/projects/trading-storage/storage/04_execution_artifacts/runtime/realtime_runtime_preflight
 Environment=TRADING_EXECUTION_REALTIME_MONITOR_EXECUTE_LIVE_OBSERVE=
 EnvironmentFile=-/etc/default/trading-execution-realtime-monitor-loop
+ExecStartPre=/usr/bin/python3 /root/projects/trading-execution/scripts/execution/run_realtime_trading_runtime_check.py --require-active-model-config --output-dir ${TRADING_EXECUTION_REALTIME_RUNTIME_PREFLIGHT_OUTPUT_DIR}
 ExecStart=/bin/sh -lc 'exec /usr/bin/python3 /root/projects/trading-execution/scripts/execution/run_realtime_monitor_loop.py \
   --request-prefix realtime_monitor \
   --approval-prefix realtime_monitor \

@@ -21,6 +21,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--allow-model-activation", action="store_true")
     parser.add_argument("--allow-order-construction", action="store_true")
     parser.add_argument("--allow-broker-execution", action="store_true")
+    parser.add_argument(
+        "--require-active-model-config",
+        action="store_true",
+        help="Exit non-zero unless a valid promoted active model config is present.",
+    )
     parser.add_argument("--output-dir", default=None)
     return parser.parse_args()
 
@@ -40,6 +45,8 @@ def main() -> int:
         allow_broker_execution=args.allow_broker_execution,
     )
     print(json.dumps(status, indent=2, sort_keys=True))
+    if args.require_active_model_config and status["active_model_pointer"]["active_model_pointer_status"] != "valid_active_model_pointer":
+        return 2
     return 0
 
 

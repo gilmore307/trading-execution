@@ -94,6 +94,29 @@ class RealtimeTradingRuntimeTests(unittest.TestCase):
             self.assertEqual(payload["runtime_status"], "waiting_for_promoted_model")
             self.assertTrue((output_dir / "runtime_status.json").exists())
 
+    def test_runtime_cli_requirement_blocks_without_active_model(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output_dir = Path(directory) / "runtime"
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/execution/run_realtime_trading_runtime_check.py",
+                    "--active-model-config-path",
+                    str(Path(directory) / "missing.json"),
+                    "--require-active-model-config",
+                    "--output-dir",
+                    str(output_dir),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            payload = json.loads(completed.stdout)
+            self.assertTrue((output_dir / "runtime_status.json").exists())
+
+        self.assertEqual(completed.returncode, 2)
+        self.assertEqual(payload["runtime_status"], "waiting_for_promoted_model")
+
 
 if __name__ == "__main__":
     unittest.main()
