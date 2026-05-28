@@ -37,7 +37,7 @@ DecisionStatus = Literal["accepted", "blocked", "deferred", "watch_only", "monit
 
 _ALLOWED_SLEEVES = {sleeve.sleeve_id: sleeve for sleeve in runtime_account_sleeves()}
 _CRYPTO_INSTRUMENT_BY_SYMBOL = dict(zip(CRYPTO_CANDIDATE_SYMBOLS, CRYPTO_SPOT_INSTRUMENT_REFS, strict=True))
-_EXECUTABLE_ENTRY_ACTIONS: set[str] = set()
+_EXECUTABLE_ENTRY_ACTIONS = {"open_long"}
 _EXECUTABLE_LIFECYCLE_ACTIONS = {"add", "reduce", "exit", "stop", "take_profit"}
 _EXECUTABLE_OPTION_REEXPRESSION_ACTIONS = {"roll_option", "exit_option", "reduce_option"}
 _HIGH_VOLUME_SCORE_THRESHOLD = 0.80
@@ -902,6 +902,11 @@ def build_entry_decision(
             status = "deferred"
             action = "defer_entry_thesis"
             reasons.append("current_price_outside_entry_zone")
+
+    if status == "suitable" and sleeve_id == CRYPTO_SPOT_ACCOUNT_SLEEVE and direction == "long":
+        status = "accepted"
+        action = "open_long"
+        reasons.append("crypto_spot_entry_thesis_accepted_for_replay")
 
     suitability_score = max(
         0.0,

@@ -271,6 +271,52 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertNotIn("options_not_allowed_for_account_sleeve", decision["reason_codes"])
         self.assertEqual(validate_entry_decision(decision)["validation_status"], "passed")
 
+    def test_crypto_spot_entry_can_open_long_in_replay(self) -> None:
+        allocation = build_execution_intake_snapshot(
+            account_sleeve_id=CRYPTO_SPOT_ACCOUNT_SLEEVE,
+            account_sleeve_state={"available_cash_usd": 1000.0},
+            market_universe=[
+                {"target_ref": "SOL", "instrument_ref": "SOL-USDT", "asset_class": "crypto_spot"},
+            ],
+            generated_at_utc="2026-01-01T00:00:00Z",
+        )
+
+        decision = build_entry_decision(
+            execution_intake_snapshot=allocation,
+            target_ref="SOL",
+            alpha_confidence_vector={"alpha_confidence_score": 0.80},
+            dynamic_risk_policy_state={"minimum_entry_alpha_confidence": 0.55},
+            underlying_action_plan={
+                "action_side": "long",
+                "entry_zone": {"low": 95.0, "high": 105.0},
+                "target_price": 112.0,
+                "model_invalidation_price": 94.0,
+                "hard_stop_price": 93.5,
+                "current_price": 100.0,
+            },
+            target_context_state={"current_price": 100.0},
+            generated_at_utc="2026-01-01T00:01:00Z",
+        )
+        intent = build_execution_order_intent(
+            decision_record=decision,
+            trade_risk_cap={
+                "max_loss_usd": 50.0,
+                "max_loss_pct": 0.02,
+                "time_stop_at": "2026-01-05T20:00:00Z",
+                "cap_enforcement_mode": "broker_native_stop",
+                "cap_failure_action": "reject_order",
+                "model_invalidation_price": 94.0,
+                "hard_stop_price": 93.5,
+                "planned_quantity": 1.0,
+                "planned_limit_price": 100.0,
+            },
+            generated_at_utc="2026-01-01T00:02:00Z",
+        )
+
+        self.assertEqual(decision["decision_status"], "accepted")
+        self.assertEqual(decision["decision_action"], "open_long")
+        self.assertEqual(intent["intent_status"], "ready_for_execution_gate_not_submitted")
+
     def test_position_lifecycle_reduces_on_high_event_risk(self) -> None:
         decision = build_position_lifecycle_decision(
             position_state={
