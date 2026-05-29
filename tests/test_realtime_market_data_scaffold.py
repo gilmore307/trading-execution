@@ -98,6 +98,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                 "tradeable_time": "2026-05-11T13:30:02+00:00",
                 "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
                 "frozen_model_config_ref": "trading-model://configs/frozen/unit",
+                "allow_placeholder_context_refs": True,
             }
         )
 
@@ -106,6 +107,24 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertEqual(bundle["provider_calls_performed"], 0)
         self.assertFalse(bundle["broker_order_construction_performed"])
         self.assertEqual(len(bundle["decision_input_snapshot"]["layer_input_refs"]), 10)
+
+    def test_realtime_shadow_fixture_bundle_blocks_missing_context_refs_by_default(self) -> None:
+        bundle = build_realtime_shadow_fixture_bundle(
+            {
+                "request_id": "rtshadow_unit_blocked",
+                "mode": "fixture_replay",
+                "instrument_refs": ["AAPL"],
+                "decision_time": "2026-05-11T13:30:00+00:00",
+                "available_time": "2026-05-11T13:30:01+00:00",
+                "tradeable_time": "2026-05-11T13:30:02+00:00",
+                "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
+                "frozen_model_config_ref": "trading-model://configs/frozen/unit",
+            }
+        )
+
+        self.assertEqual(bundle["bundle_status"], "blocked")
+        self.assertIn("layer_04_event_failure_risk", bundle["feature_snapshot"]["missing_context_ref_layers"])
+        self.assertEqual(bundle["feature_snapshot"]["placeholder_context_layers"], [])
 
     def test_build_realtime_subscription_plan_for_alpaca_target_layer(self) -> None:
         plan = build_realtime_subscription_plan(

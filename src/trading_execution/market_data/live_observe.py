@@ -366,7 +366,13 @@ def build_realtime_shadow_fixture_bundle(request: Mapping[str, Any]) -> dict[str
     plan_set = build_live_observe_adapter_plan(request)
     capture_fixture = build_realtime_capture_fixture({**dict(request), "adapter_plan_set": plan_set})
     source_capture_refs = capture_fixture.get("capture_refs") or ["fixture://realtime-capture/reviewed-runtime-universe"]
-    feature_snapshot = build_realtime_feature_snapshot({**dict(request), "source_capture_refs": source_capture_refs, "allow_placeholder_context_refs": True})
+    feature_snapshot = build_realtime_feature_snapshot(
+        {
+            **dict(request),
+            "source_capture_refs": source_capture_refs,
+            "allow_placeholder_context_refs": bool(request.get("allow_placeholder_context_refs", False)),
+        }
+    )
     decision_input = build_model_decision_input_snapshot({"feature_snapshot": feature_snapshot})
     return {
         "contract_type": "execution_realtime_shadow_fixture_bundle",
