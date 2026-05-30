@@ -250,6 +250,46 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertNotIn("option_expression_plan", decision["model_layer_refs"])
         self.assertEqual(validate_entry_decision(decision)["validation_status"], "passed")
 
+    def test_equity_options_entry_uses_selected_option_contract_in_replay(self) -> None:
+        allocation = build_execution_intake_snapshot(
+            account_sleeve_id=EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+            account_sleeve_state={"available_cash_usd": 1000.0},
+            target_context_rows=[
+                {"target_ref": "AAPL", "instrument_ref": "AAPL", "asset_class": "us_equity"},
+            ],
+            generated_at_utc="2026-01-01T00:00:00Z",
+        )
+
+        decision = build_entry_decision(
+            execution_intake_snapshot=allocation,
+            target_ref="AAPL",
+            alpha_confidence_vector={"alpha_confidence_score": 0.80},
+            event_failure_risk_vector={"risk_level": "low"},
+            dynamic_risk_policy_state={"minimum_entry_alpha_confidence": 0.55},
+            underlying_action_plan=VALID_UNDERLYING_ENTRY_PLAN,
+            option_expression_plan={
+                "asset_expression_route": "listed_option_contract",
+                "option_surface_status": "optionable_chain_available",
+                "selected_expression_type": "long_call",
+                "selected_contract": {"contract_ref": "AAPL_20260220_C_120", "mid_price": 2.15},
+            },
+            target_context_state={"current_price": 101.0},
+            generated_at_utc="2026-01-01T00:01:00Z",
+        )
+        intent = build_execution_order_intent(
+            decision_record=decision,
+            trade_risk_cap=VALID_STOCK_RISK_CAP,
+            generated_at_utc="2026-01-01T00:02:00Z",
+        )
+
+        self.assertEqual(decision["decision_status"], "accepted")
+        self.assertEqual(decision["decision_action"], "open_long")
+        self.assertEqual(decision["asset_class"], "us_option")
+        self.assertEqual(decision["instrument_ref"], "AAPL_20260220_C_120")
+        self.assertIn("equity_option_contract_selected_for_replay", decision["reason_codes"])
+        self.assertEqual(intent["intent_status"], "ready_for_execution_gate_not_submitted")
+        self.assertEqual(intent["broker_neutral_order"]["instrument_ref"], "AAPL_20260220_C_120")
+
     def test_entry_rejects_missing_underlying_thesis_without_handling_options(self) -> None:
         allocation = build_execution_intake_snapshot(
             account_sleeve_id=CRYPTO_SPOT_ACCOUNT_SLEEVE,

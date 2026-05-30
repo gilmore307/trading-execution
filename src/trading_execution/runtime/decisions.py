@@ -911,6 +911,19 @@ def build_entry_decision(
         status == "suitable"
         and sleeve_id == EQUITY_OPTIONS_ACCOUNT_SLEEVE
         and direction == "long"
+        and _as_mapping(_as_mapping(option_expression_plan).get("selected_contract")).get("contract_ref")
+    ):
+        selected_contract = _as_mapping(_as_mapping(option_expression_plan).get("selected_contract"))
+        status = "accepted"
+        action = "open_long"
+        asset_class = "us_option"
+        reasons.append("equity_option_contract_selected_for_replay")
+        if _as_mapping(option_expression_plan).get("option_surface_status"):
+            reasons.append(str(_as_mapping(option_expression_plan).get("option_surface_status")))
+    if (
+        status == "suitable"
+        and sleeve_id == EQUITY_OPTIONS_ACCOUNT_SLEEVE
+        and direction == "long"
         and str(_as_mapping(option_expression_plan).get("asset_expression_route") or "") == "direct_underlying_fallback"
     ):
         status = "accepted"
@@ -931,6 +944,8 @@ def build_entry_decision(
         ),
     )
 
+    selected_option_contract = _as_mapping(_as_mapping(option_expression_plan).get("selected_contract"))
+    selected_option_instrument = str(selected_option_contract.get("contract_ref") or selected_option_contract.get("option_symbol") or "").upper()
     body = {
         "contract_type": ENTRY_DECISION_CONTRACT,
         "entry_decision_id": None,
@@ -940,7 +955,7 @@ def build_entry_decision(
         "target_ref": target_ref,
         "instrument_ref": _CRYPTO_INSTRUMENT_BY_SYMBOL.get(target_ref, target_ref)
         if sleeve_id == CRYPTO_SPOT_ACCOUNT_SLEEVE
-        else target_ref,
+        else selected_option_instrument or target_ref,
         "asset_class": asset_class,
         "decision_status": status,
         "decision_action": action,
