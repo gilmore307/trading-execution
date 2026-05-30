@@ -907,6 +907,17 @@ def build_entry_decision(
         status = "accepted"
         action = "open_long"
         reasons.append("crypto_spot_entry_thesis_accepted_for_replay")
+    if (
+        status == "suitable"
+        and sleeve_id == EQUITY_OPTIONS_ACCOUNT_SLEEVE
+        and direction == "long"
+        and str(_as_mapping(option_expression_plan).get("asset_expression_route") or "") == "direct_underlying_fallback"
+    ):
+        status = "accepted"
+        action = "open_long"
+        reasons.append("equity_direct_underlying_fallback_accepted_for_replay")
+        if _as_mapping(option_expression_plan).get("option_surface_status"):
+            reasons.append(str(_as_mapping(option_expression_plan).get("option_surface_status")))
 
     suitability_score = max(
         0.0,
