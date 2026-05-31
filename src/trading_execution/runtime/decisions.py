@@ -137,8 +137,8 @@ def _first_number(mapping: Mapping[str, Any], *keys: str) -> float | None:
     return None
 
 
-def _watch_targets(snapshot: Mapping[str, Any]) -> set[str]:
-    rows = snapshot.get("watch_targets")
+def _candidate_entry_targets(snapshot: Mapping[str, Any]) -> set[str]:
+    rows = snapshot.get("candidate_entry_pool")
     if not isinstance(rows, list):
         return set()
     values: set[str] = set()
@@ -709,7 +709,7 @@ def build_execution_intake_snapshot(
         position_state=position_state,
         target_context_rows=target_context_rows,
     )
-    watch_targets, blocked = _candidate_rows_for_sleeve(
+    candidate_entry_pool, blocked = _candidate_rows_for_sleeve(
         sleeve=sleeve,
         market_universe=market_universe,
         target_context_rows=target_context_rows,
@@ -733,8 +733,7 @@ def build_execution_intake_snapshot(
         "account_sleeve_id": sleeve.sleeve_id,
         "candidate_pool_policy": sleeve.candidate_pool_policy,
         "generated_at_utc": generated_at_utc,
-        "candidate_entry_pool": watch_targets,
-        "watch_targets": watch_targets,
+        "candidate_entry_pool": candidate_entry_pool,
         "open_position_pool": open_position_pool,
         "blocked_targets": blocked,
         "sector_opportunity_mix": sector_opportunity_mix,
@@ -804,7 +803,7 @@ def build_entry_decision(
     target_ref = target_ref.strip().upper()
     sleeve_id = str(execution_intake_snapshot.get("account_sleeve_id") or "")
     _sleeve(sleeve_id)
-    selected = _watch_targets(execution_intake_snapshot)
+    selected = _candidate_entry_targets(execution_intake_snapshot)
     event_risk = _as_mapping(event_failure_risk_vector)
     alpha = _as_mapping(alpha_confidence_vector)
     policy = _as_mapping(dynamic_risk_policy_state)
@@ -1602,7 +1601,7 @@ def validate_execution_intake_snapshot(record: Mapping[str, Any]) -> dict[str, A
     return _validate_record(
         record,
         contract_type=EXECUTION_INTAKE_SNAPSHOT_CONTRACT,
-        required_fields=("intake_snapshot_id", "account_sleeve_id", "watch_targets", "safety"),
+        required_fields=("intake_snapshot_id", "account_sleeve_id", "candidate_entry_pool", "safety"),
     )
 
 
@@ -1662,7 +1661,6 @@ def validate_target_allocation_snapshot(record: Mapping[str, Any]) -> dict[str, 
             "target_allocation_snapshot_id",
             "account_sleeve_id",
             "candidate_entry_pool",
-            "watch_targets",
             "safety",
         ),
     )

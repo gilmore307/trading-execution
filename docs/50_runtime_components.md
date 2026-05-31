@@ -172,8 +172,7 @@ C04 decision; pre-entry event risk is handled by Layer 4.
 Live application scenario:
 
 - C02 consumes only `execution_intake_snapshot.candidate_entry_pool` emitted by
-  C01. The compatibility alias `watch_targets` may carry the same rows, but the
-  accepted route is the candidate entry pool. A target outside C01 is rejected
+  C01. A target outside C01 is rejected
   as a defensive contract error, not actively discovered by C02.
 - C02 emits `entry_thesis_status` as `suitable`, `deferred`, or `rejected`.
   Only `suitable` proceeds to C04.

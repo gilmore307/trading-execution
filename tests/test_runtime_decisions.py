@@ -57,7 +57,7 @@ class RuntimeDecisionTests(unittest.TestCase):
 
         self.assertEqual(snapshot["contract_type"], "execution_intake_snapshot")
         self.assertEqual(snapshot["account_sleeve_id"], CRYPTO_SPOT_ACCOUNT_SLEEVE)
-        self.assertEqual([row["target_ref"] for row in snapshot["watch_targets"]], ["BTC"])
+        self.assertEqual([row["target_ref"] for row in snapshot["candidate_entry_pool"]], ["BTC"])
         self.assertEqual(snapshot["blocked_targets"], [{"target_ref": "DOGE", "reason_codes": ["outside_fixed_crypto_candidate_pool"]}])
         self.assertEqual(snapshot["new_position_balance_status"], "has_balance")
         self.assertEqual(validate_execution_intake_snapshot(snapshot)["validation_status"], "passed")
@@ -188,8 +188,8 @@ class RuntimeDecisionTests(unittest.TestCase):
             generated_at_utc="2026-01-01T00:00:00Z",
         )
 
-        self.assertEqual([row["target_ref"] for row in snapshot["watch_targets"]], ["NVDA", "MSFT", "LLY", "TSLA", "AAPL"])
-        self.assertEqual(snapshot["candidate_entry_pool"], snapshot["watch_targets"])
+        self.assertEqual([row["target_ref"] for row in snapshot["candidate_entry_pool"]], ["NVDA", "MSFT", "LLY", "TSLA", "AAPL"])
+        self.assertEqual(snapshot["candidate_entry_pool"], snapshot["candidate_entry_pool"])
         self.assertEqual(
             snapshot["open_position_pool"],
             [
@@ -209,10 +209,10 @@ class RuntimeDecisionTests(unittest.TestCase):
                 {"target_ref": "LOWQ", "reason_codes": ["not_in_c01_candidate_source_pool"]},
             ],
         )
-        self.assertEqual(snapshot["watch_targets"][0]["candidate_reasons"], ["recent_high_trading_volume"])
-        self.assertEqual(snapshot["watch_targets"][1]["candidate_reasons"], ["remaining_strong_sector_opportunity"])
-        self.assertEqual(snapshot["watch_targets"][3]["candidate_reasons"], ["recent_abnormal_volume"])
-        self.assertEqual(snapshot["watch_targets"][4]["candidate_reasons"], ["recent_news_catalyst"])
+        self.assertEqual(snapshot["candidate_entry_pool"][0]["candidate_reasons"], ["recent_high_trading_volume"])
+        self.assertEqual(snapshot["candidate_entry_pool"][1]["candidate_reasons"], ["remaining_strong_sector_opportunity"])
+        self.assertEqual(snapshot["candidate_entry_pool"][3]["candidate_reasons"], ["recent_abnormal_volume"])
+        self.assertEqual(snapshot["candidate_entry_pool"][4]["candidate_reasons"], ["recent_news_catalyst"])
 
     def test_equity_options_entry_outputs_underlying_thesis_only(self) -> None:
         allocation = build_execution_intake_snapshot(
