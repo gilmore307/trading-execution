@@ -26,7 +26,7 @@ FORBIDDEN_REALTIME_DECISION_ACTIONS = realtime_capture_contract().forbidden_acti
 _HISTORICAL_FEATURE_PARITY_REFS = {
     "layer_01_market_regime": "trading-data://src/data_feature/m01_market_regime_feature_generation",
     "layer_02_sector_context": "trading-data://src/data_feature/m02_sector_context_feature_generation",
-    "layer_03_target_state_vector": "trading-data://src/data_feature/feature_03_target_state_vector",
+    "layer_03_target_state_vector": "trading-data://src/data_feature/m03_target_state_vector_feature_generation",
     "layer_04_event_failure_risk": "trading-model://src/models/model_04_event_failure_risk/generator.py",  # current model path
     "layer_05_alpha_confidence": "trading-model://src/models/model_05_alpha_confidence/generator.py",  # current model path
     "layer_06_dynamic_risk_policy": "trading-model://src/models/model_06_dynamic_risk_policy/generator.py",  # current model path
