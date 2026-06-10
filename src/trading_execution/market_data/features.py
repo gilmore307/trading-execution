@@ -69,14 +69,16 @@ class RealtimeFeatureSnapshotRow:
 
 
 @dataclass(frozen=True)
-class ModelDecisionLayerInput:
-    """One layer input ref for a historical-model decision handoff."""
+class ModelDecisionComponentInput:
+    """One C-runtime component input ref for a historical-model decision handoff."""
 
     contract_type: str
     decision_input_snapshot_id: str
-    model_layer: str
-    model_id: str
-    expected_model_output: str
+    component_id: str
+    component_step: str
+    component_name: str
+    required_model_surfaces: tuple[str, ...]
+    optional_model_surfaces: tuple[str, ...]
     feature_ref: str
     upstream_context_refs: tuple[str, ...]
     frozen_model_config_ref: str
@@ -86,8 +88,74 @@ class ModelDecisionLayerInput:
 
     def summary_row(self) -> dict[str, Any]:
         row = asdict(self)
+        row["required_model_surfaces"] = list(self.required_model_surfaces)
+        row["optional_model_surfaces"] = list(self.optional_model_surfaces)
         row["upstream_context_refs"] = list(self.upstream_context_refs)
         return row
+
+
+RUNTIME_COMPONENT_ORDER = (
+    "component_01_intake",
+    "component_02_entry",
+    "component_03_lifecycle",
+    "component_04_option_review",
+    "component_05_order_intent",
+    "component_06_execution_gate",
+    "component_07_failure_review",
+)
+
+REQUIRED_RUNTIME_COMPONENT_ORDER = (
+    "component_01_intake",
+    "component_02_entry",
+    "component_03_lifecycle",
+    "component_05_order_intent",
+    "component_06_execution_gate",
+)
+
+_RUNTIME_COMPONENT_METADATA = {
+    "component_01_intake": {
+        "component_step": "C01",
+        "component_name": "Intake",
+        "required_model_surfaces": ("model_01_background_context", "model_02_target_state"),
+        "optional_model_surfaces": (),
+    },
+    "component_02_entry": {
+        "component_step": "C02",
+        "component_name": "Entry",
+        "required_model_surfaces": ("model_03_event_state", "model_04_unified_decision"),
+        "optional_model_surfaces": ("model_06_residual_event_governance",),
+    },
+    "component_03_lifecycle": {
+        "component_step": "C03",
+        "component_name": "Lifecycle",
+        "required_model_surfaces": ("model_03_event_state", "model_04_unified_decision"),
+        "optional_model_surfaces": ("model_06_residual_event_governance",),
+    },
+    "component_04_option_review": {
+        "component_step": "C04",
+        "component_name": "Option Review",
+        "required_model_surfaces": (),
+        "optional_model_surfaces": ("model_05_option_expression", "model_06_residual_event_governance"),
+    },
+    "component_05_order_intent": {
+        "component_step": "C05",
+        "component_name": "Order Intent",
+        "required_model_surfaces": (),
+        "optional_model_surfaces": (),
+    },
+    "component_06_execution_gate": {
+        "component_step": "C06",
+        "component_name": "Execution Gate",
+        "required_model_surfaces": (),
+        "optional_model_surfaces": (),
+    },
+    "component_07_failure_review": {
+        "component_step": "C07",
+        "component_name": "Failure Review",
+        "required_model_surfaces": (),
+        "optional_model_surfaces": ("model_06_residual_event_governance",),
+    },
+}
 
 
 def _stable_id(prefix: str, payload: Mapping[str, Any]) -> str:
@@ -200,13 +268,13 @@ def model_decision_input_snapshot_contract() -> dict[str, Any]:
             "historical_dataset_snapshot_ref",
             "frozen_model_config_ref",
             "realtime_feature_snapshot_ref",
-            "layer_input_refs",
+            "component_input_refs",
         ],
-        "required_layer_inputs": list(MODEL_LAYER_ORDER),
+        "required_component_inputs": list(REQUIRED_RUNTIME_COMPONENT_ORDER),
         "forbidden_actions": list(FORBIDDEN_REALTIME_DECISION_ACTIONS),
         "boundary_note": (
             "The handoff object is the execution-side bridge from realtime feature snapshots to historical "
-            "model data decision inputs. It is a fixture/shadow-ready envelope and does not activate a model "
+            "model data decision inputs routed by execution runtime component. It is a fixture/shadow-ready envelope and does not activate a model "
             "or authorize orders."
         ),
     }
@@ -394,25 +462,20 @@ def build_model_decision_input_snapshot(request: Mapping[str, Any]) -> dict[str,
     )
     realtime_feature_snapshot_ref = str(request.get("realtime_feature_snapshot_ref") or f"realtime-feature-snapshot://{snapshot_id}")
 
-    rows_by_layer = {
-        str(row.get("model_layer")): row
-        for row in snapshot.get("feature_rows", [])
-        if isinstance(row, Mapping) and row.get("model_layer")
-    }
-    layer_inputs: list[ModelDecisionLayerInput] = []
-    for layer in MODEL_LAYER_ORDER:
-        row = rows_by_layer.get(layer)
-        if not row:
-            continue
-        layer_inputs.append(
-            ModelDecisionLayerInput(
-                contract_type="execution_model_decision_layer_input",
+    component_inputs: list[ModelDecisionComponentInput] = []
+    for component_id in RUNTIME_COMPONENT_ORDER:
+        metadata = _RUNTIME_COMPONENT_METADATA[component_id]
+        component_inputs.append(
+            ModelDecisionComponentInput(
+                contract_type="execution_model_decision_component_input",
                 decision_input_snapshot_id=decision_input_snapshot_id,
-                model_layer=layer,
-                model_id=str(row.get("model_id") or ""),
-                expected_model_output=str(row.get("model_output") or ""),
-                feature_ref=str(row.get("feature_ref") or ""),
-                upstream_context_refs=tuple(row.get("upstream_context_refs") or ()),
+                component_id=component_id,
+                component_step=metadata["component_step"],
+                component_name=metadata["component_name"],
+                required_model_surfaces=metadata["required_model_surfaces"],
+                optional_model_surfaces=metadata["optional_model_surfaces"],
+                feature_ref=f"realtime-feature://{snapshot_id}/{component_id}",
+                upstream_context_refs=(realtime_feature_snapshot_ref,),
                 frozen_model_config_ref=frozen_model_config_ref,
                 historical_dataset_snapshot_ref=historical_dataset_snapshot_ref,
                 realtime_feature_snapshot_ref=realtime_feature_snapshot_ref,
@@ -420,10 +483,10 @@ def build_model_decision_input_snapshot(request: Mapping[str, Any]) -> dict[str,
             )
         )
 
-    missing_layer_inputs = sorted(set(MODEL_LAYER_ORDER) - {row.model_layer for row in layer_inputs})
+    missing_component_inputs = sorted(set(REQUIRED_RUNTIME_COMPONENT_ORDER) - {row.component_id for row in component_inputs})
     requested_actions = set(request.get("requested_actions") or [])
     forbidden_actions_present = sorted(requested_actions.intersection(FORBIDDEN_REALTIME_DECISION_ACTIONS))
-    ready = validation["valid"] and not missing_layer_inputs and not forbidden_actions_present
+    ready = validation["valid"] and not missing_component_inputs and not forbidden_actions_present
 
     return {
         "contract_type": "execution_model_decision_input_snapshot",
@@ -434,9 +497,9 @@ def build_model_decision_input_snapshot(request: Mapping[str, Any]) -> dict[str,
         "historical_dataset_snapshot_ref": historical_dataset_snapshot_ref,
         "frozen_model_config_ref": frozen_model_config_ref,
         "realtime_feature_snapshot_ref": realtime_feature_snapshot_ref,
-        "layer_input_refs": [row.summary_row() for row in layer_inputs],
+        "component_input_refs": [row.summary_row() for row in component_inputs],
         "feature_snapshot_validation": validation,
-        "missing_layer_inputs": missing_layer_inputs,
+        "missing_component_inputs": missing_component_inputs,
         "forbidden_actions_present": forbidden_actions_present,
         "readiness_status": "ready_for_historical_model_decision_handoff" if ready else "blocked_missing_model_decision_input_requirements",
         "provider_calls_performed": 0,
@@ -460,28 +523,28 @@ def validate_model_decision_input_snapshot(candidate: Mapping[str, Any]) -> dict
     requested_actions = set(candidate.get("requested_actions") or [])
     forbidden_actions_present = sorted(requested_actions.intersection(FORBIDDEN_REALTIME_DECISION_ACTIONS))
     invalid_time_fields = ["decision_time"] if candidate.get("decision_time") and _parse_time(candidate.get("decision_time")) is None else []
-    rows = candidate.get("layer_input_refs") or []
-    layer_set = {str(row.get("model_layer")) for row in rows if isinstance(row, Mapping)} if isinstance(rows, Sequence) else set()
-    missing_layer_inputs = sorted(set(MODEL_LAYER_ORDER) - layer_set)
+    rows = candidate.get("component_input_refs") or []
+    component_set = {str(row.get("component_id")) for row in rows if isinstance(row, Mapping)} if isinstance(rows, Sequence) else set()
+    missing_component_inputs = sorted(set(REQUIRED_RUNTIME_COMPONENT_ORDER) - component_set)
     feature_validation = candidate.get("feature_snapshot_validation") or {}
     feature_snapshot_valid = bool(feature_validation.get("valid")) if isinstance(feature_validation, Mapping) else False
     row_errors: list[str] = []
     if not isinstance(rows, Sequence) or isinstance(rows, (str, bytes, bytearray)):
-        row_errors.append("layer_input_refs must be a list")
+        row_errors.append("component_input_refs must be a list")
     else:
         for index, row in enumerate(rows):
             if not isinstance(row, Mapping):
-                row_errors.append(f"layer_input_refs[{index}] must be an object")
+                row_errors.append(f"component_input_refs[{index}] must be an object")
                 continue
-            for field in ("model_layer", "model_id", "expected_model_output", "feature_ref"):
+            for field in ("component_id", "component_step", "component_name", "feature_ref"):
                 if not row.get(field):
-                    row_errors.append(f"layer_input_refs[{index}].{field} missing")
+                    row_errors.append(f"component_input_refs[{index}].{field} missing")
 
     valid = (
         not missing_fields
         and not forbidden_actions_present
         and not invalid_time_fields
-        and not missing_layer_inputs
+        and not missing_component_inputs
         and feature_snapshot_valid
         and not row_errors
     )
@@ -492,7 +555,7 @@ def validate_model_decision_input_snapshot(candidate: Mapping[str, Any]) -> dict
         "missing_fields": missing_fields,
         "forbidden_actions_present": forbidden_actions_present,
         "invalid_time_fields": invalid_time_fields,
-        "missing_layer_inputs": missing_layer_inputs,
+        "missing_component_inputs": missing_component_inputs,
         "feature_snapshot_valid": feature_snapshot_valid,
         "row_errors": row_errors,
         "provider_calls_performed": 0,
@@ -507,8 +570,10 @@ __all__ = [
     "ACCEPTED_DATASET_ROLES",
     "FORBIDDEN_REALTIME_DECISION_ACTIONS",
     "MODEL_LAYER_ORDER",
-    "ModelDecisionLayerInput",
+    "ModelDecisionComponentInput",
     "RealtimeFeatureSnapshotRow",
+    "REQUIRED_RUNTIME_COMPONENT_ORDER",
+    "RUNTIME_COMPONENT_ORDER",
     "build_model_decision_input_snapshot",
     "build_realtime_feature_snapshot",
     "model_decision_input_snapshot_contract",

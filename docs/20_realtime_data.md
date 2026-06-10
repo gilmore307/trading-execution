@@ -97,7 +97,7 @@ PYTHONPATH=src python3 scripts/execution/validate_realtime_capture.py capture.js
 
 ## Execution-owned realtime monitor smoke
 
-`execution_realtime_monitor_smoke_receipt` is the first execution-owned runtime smoke for the 44-symbol ETF monitoring universe. It loads the reviewed Layer 1/2 ETF universe from `trading-storage/main/shared/layer_01_02_market_context_etf_universe.csv`, builds a bounded `realtime_live_observe_approval`, and runs read-only Alpaca snapshot observations only when `--execute-live-observe` is supplied. The universe filter remains Layer 1/2 by default, while the downstream realtime feature/model-decision handoff envelope defaults to the complete Layer 1-10 model input coverage matrix.
+`execution_realtime_monitor_smoke_receipt` is the first execution-owned runtime smoke for the 44-symbol ETF monitoring universe. It loads the reviewed Layer 1/2 ETF universe from `trading-storage/main/shared/layer_01_02_market_context_etf_universe.csv`, builds a bounded `realtime_live_observe_approval`, and runs read-only Alpaca snapshot observations only when `--execute-live-observe` is supplied. The universe filter remains Layer 1/2 by default. The realtime feature snapshot can still declare model-layer feature coverage, while the downstream model-decision handoff envelope is routed by C-runtime component refs.
 
 The smoke writes a receipt containing request, approval, result, and summary rows. The summary intentionally excludes credentials and provider payload details; it reports provider calls, observation counts, provider status counts, capture counts, and the invariant flags for broker calls, model activation, order construction, and account mutation.
 
@@ -174,7 +174,7 @@ realtime_capture_contract
 
 `realtime_feature_snapshot` preserves the same point-in-time timing discipline as historical features: `feature_time <= available_time <= tradeable_time`, plus historical feature parity refs, frozen model/config refs, dataset snapshot refs, source capture refs, and per-layer feature refs. It is not a new training substrate by itself.
 
-`realtime_model_decision_input_snapshot` packages all Layer 1-10 feature refs into the shape needed by the historical model decision stack. It is intentionally fixture/shadow-ready only: it does not activate a model, construct an order, mutate an account, or authorize provider streams.
+`realtime_model_decision_input_snapshot` packages C-runtime component refs into the shape needed by the historical model decision stack. It is intentionally fixture/shadow-ready only: it does not activate a model, construct an order, mutate an account, or authorize provider streams.
 
 Example:
 

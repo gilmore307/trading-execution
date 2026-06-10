@@ -56,7 +56,7 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
         self.assertIn("broker_order_mutation", contract.forbidden_actions)
         self.assertIn("ready_signal", contract.manager_handoff_refs)
 
-    def test_realtime_feature_and_decision_input_contracts_cover_all_layers(self) -> None:
+    def test_realtime_feature_covers_layers_and_decision_input_routes_components(self) -> None:
         feature_contract = realtime_feature_snapshot_contract()
         decision_contract = model_decision_input_snapshot_contract()
 
@@ -67,7 +67,9 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
             decision_contract["contract_type"],
             "execution_model_decision_input_snapshot_contract",
         )
-        self.assertEqual(len(decision_contract["required_layer_inputs"]), 10)
+        self.assertEqual(len(decision_contract["required_component_inputs"]), 5)
+        self.assertIn("component_01_intake", decision_contract["required_component_inputs"])
+        self.assertIn("component_06_execution_gate", decision_contract["required_component_inputs"])
         self.assertIn("model_activation", decision_contract["forbidden_actions"])
 
     def test_broker_catalog_accepts_okx_but_defers_firstrade(self) -> None:

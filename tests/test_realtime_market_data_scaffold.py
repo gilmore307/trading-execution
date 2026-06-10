@@ -106,7 +106,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertEqual(bundle["bundle_status"], "ready_for_model_route_plan")
         self.assertEqual(bundle["provider_calls_performed"], 0)
         self.assertFalse(bundle["broker_order_construction_performed"])
-        self.assertEqual(len(bundle["decision_input_snapshot"]["layer_input_refs"]), 10)
+        self.assertEqual(len(bundle["decision_input_snapshot"]["component_input_refs"]), 7)
 
     def test_realtime_shadow_fixture_bundle_blocks_missing_context_refs_by_default(self) -> None:
         bundle = build_realtime_shadow_fixture_bundle(
@@ -332,7 +332,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
 
         self.assertEqual(decision_input["contract_type"], "execution_model_decision_input_snapshot")
         self.assertEqual(decision_input["readiness_status"], "ready_for_historical_model_decision_handoff")
-        self.assertEqual(len(decision_input["layer_input_refs"]), 10)
+        self.assertEqual(len(decision_input["component_input_refs"]), 7)
         self.assertEqual(decision_input["provider_calls_performed"], 0)
         self.assertFalse(decision_input["broker_order_construction_performed"])
         validation = validate_model_decision_input_snapshot(decision_input)
@@ -448,7 +448,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertEqual(receipt["summary"]["feature_snapshot_readiness"], "blocked_missing_realtime_feature_requirements")
         self.assertEqual(receipt["summary"]["decision_input_readiness"], "blocked_missing_model_decision_input_requirements")
         self.assertEqual(len(receipt["result"]["feature_snapshot"]["feature_rows"]), 10)
-        self.assertEqual(len(receipt["result"]["decision_input_snapshot"]["layer_input_refs"]), 10)
+        self.assertEqual(len(receipt["result"]["decision_input_snapshot"]["component_input_refs"]), 7)
         self.assertEqual(receipt["summary"]["broker_calls_performed"], 0)
         self.assertFalse(receipt["summary"]["model_activation_performed"])
         self.assertFalse(receipt["summary"]["broker_order_construction_performed"])

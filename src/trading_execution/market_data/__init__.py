@@ -22,8 +22,10 @@ from .contracts import (
 )
 from .features import (
     MODEL_LAYER_ORDER,
-    ModelDecisionLayerInput,
+    ModelDecisionComponentInput,
     RealtimeFeatureSnapshotRow,
+    REQUIRED_RUNTIME_COMPONENT_ORDER,
+    RUNTIME_COMPONENT_ORDER,
     build_model_decision_input_snapshot,
     build_realtime_feature_snapshot,
     model_decision_input_snapshot_contract,
@@ -70,8 +72,10 @@ __all__ = [
     "DEFAULT_UNIVERSE_PATH",
     "LIVE_OBSERVE_SOURCES",
     "MODEL_LAYER_ORDER",
-    "ModelDecisionLayerInput",
+    "ModelDecisionComponentInput",
     "RealtimeFeatureSnapshotRow",
+    "REQUIRED_RUNTIME_COMPONENT_ORDER",
+    "RUNTIME_COMPONENT_ORDER",
     "RealtimeInstrumentRequest",
     "RealtimeLiveObservation",
     "RealtimeLiveObserveAdapterPlan",

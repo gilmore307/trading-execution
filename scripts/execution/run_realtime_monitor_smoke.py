@@ -36,7 +36,7 @@ def main() -> int:
         "--model-layer",
         action="append",
         dest="model_layers",
-        help="Downstream realtime feature/model-decision handoff layer to include; repeatable. Defaults to full Layer 1-10 coverage.",
+        help="Realtime feature snapshot model_layer to include; repeatable. Decision handoff remains C-runtime-component routed.",
     )
     parser.add_argument("--max-symbols", type=int, help="Limit symbols for a small smoke.")
     parser.add_argument("--request-id", default=None)

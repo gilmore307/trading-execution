@@ -369,7 +369,7 @@ Raw realtime captures are not model inputs. The model stack was designed and val
 
 ### Decision
 
-`trading-execution` owns `realtime_feature_snapshot` and `realtime_model_decision_input_snapshot` as side-effect-free handoff envelopes. The feature snapshot converts realtime capture refs into Layer 1-10 feature refs with `feature_time`, `available_time`, `tradeable_time`, historical feature parity refs, frozen model config refs, and historical dataset snapshot refs. The decision input snapshot packages those layer refs for fixture/shadow historical-model decision routing.
+`trading-execution` owns `realtime_feature_snapshot` and `realtime_model_decision_input_snapshot` as side-effect-free handoff envelopes. The feature snapshot converts realtime capture refs into point-in-time feature refs with `feature_time`, `available_time`, `tradeable_time`, historical feature parity refs, frozen model config refs, and historical dataset snapshot refs. The decision input snapshot packages C-runtime component refs for fixture/shadow historical-model decision routing.
 
 ### Consequences
 
