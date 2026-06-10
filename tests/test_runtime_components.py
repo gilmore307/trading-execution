@@ -6,6 +6,7 @@ from trading_execution.runtime import (
     CRYPTO_SPOT_INSTRUMENT_REFS,
     EQUITY_OPTIONS_ACCOUNT_SLEEVE,
     build_runtime_component_graph,
+    runtime_component_manifest,
     runtime_account_sleeves,
     runtime_components,
     validate_same_component_graph,
@@ -17,13 +18,13 @@ class RuntimeComponentGraphTests(unittest.TestCase):
         live = build_runtime_component_graph(mode="live")
         replay = build_runtime_component_graph(mode="replay")
 
-        self.assertEqual(live["component_graph_policy"], "same_components_live_and_replay_different_adapters")
+        self.assertEqual(live["component_graph_policy"], "same_use_case_components_live_and_replay_different_adapters")
         self.assertNotEqual(live["adapter_profile"], replay["adapter_profile"])
         validation = validate_same_component_graph(live, replay)
         self.assertEqual(validation["validation_status"], "passed")
         self.assertEqual(live["component_order"], replay["component_order"])
         self.assertEqual(live["component_sequence"], replay["component_sequence"])
-        self.assertEqual(live["execution_paths"], replay["execution_paths"])
+        self.assertEqual(live["use_case_graphs"], replay["use_case_graphs"])
         self.assertEqual(live["account_sleeves"], replay["account_sleeves"])
 
     def test_components_have_intraday_step_numbers_and_short_names(self) -> None:
@@ -49,8 +50,8 @@ class RuntimeComponentGraphTests(unittest.TestCase):
                 },
                 {
                     "component_step": "C04",
-                    "component_name": "Option Review",
-                    "component_id": "component_04_option_review",
+                    "component_name": "Expression Review",
+                    "component_id": "component_04_expression_review",
                 },
                 {
                     "component_step": "C05",
@@ -73,46 +74,53 @@ class RuntimeComponentGraphTests(unittest.TestCase):
     def test_c01_branches_entry_candidates_and_open_positions(self) -> None:
         graph = build_runtime_component_graph(mode="replay")
 
-        paths = {row["path_id"]: row for row in graph["execution_paths"]}
+        paths = {row["use_case_id"]: row for row in graph["use_case_graphs"]}
         self.assertEqual(
-            paths["candidate_entry_path"]["component_ids"],
+            paths["candidate_entry_execution"]["component_ids"],
             [
+                "component_01_intake",
                 "component_02_entry",
-                "component_04_option_review",
+                "component_04_expression_review",
                 "component_05_order_intent",
                 "component_06_execution_gate",
             ],
         )
-        self.assertEqual(paths["candidate_entry_path"]["source_pool"], "candidate_entry_pool")
+        self.assertEqual(paths["candidate_entry_execution"]["source_pool"], "candidate_entry_pool")
         self.assertEqual(
-            paths["open_position_lifecycle_path"]["component_ids"],
+            paths["open_position_lifecycle_execution"]["component_ids"],
             [
+                "component_01_intake",
                 "component_03_lifecycle",
-                "component_04_option_review",
+                "component_04_expression_review",
                 "component_05_order_intent",
                 "component_06_execution_gate",
             ],
         )
-        self.assertEqual(paths["open_position_lifecycle_path"]["source_pool"], "open_position_pool")
+        self.assertEqual(paths["open_position_lifecycle_execution"]["source_pool"], "open_position_pool")
 
-    def test_entry_component_does_not_call_layer_10(self) -> None:
+    def test_components_declare_model_surfaces_not_retired_layers(self) -> None:
         rows = {component.component_id: component for component in runtime_components()}
 
         entry = rows["component_02_entry"]
-        self.assertNotIn("layer_10_event_risk_governor", entry.called_model_layers)
-        self.assertNotIn("layer_09_option_expression", entry.called_model_layers)
-        self.assertIn("layer_04_event_failure_risk", entry.called_model_layers)
-        self.assertIn("not_called", entry.layer_10_policy)
+        self.assertEqual(entry.required_model_surfaces, ("model_03_event_state", "model_04_unified_decision"))
+        self.assertEqual(entry.optional_model_surfaces, ("model_06_residual_event_governance",))
 
         failure = rows["component_07_failure_review"]
-        self.assertEqual(failure.called_model_layers, ("layer_10_event_risk_governor",))
-        self.assertIn("after_observed_model_or_trade_failure", failure.layer_10_policy)
+        self.assertEqual(failure.required_model_surfaces, ())
+        self.assertEqual(failure.optional_model_surfaces, ("model_06_residual_event_governance",))
+
+        manifest = runtime_component_manifest()
+        manifest_text = repr(manifest)
+        self.assertNotIn("called_model_layers", manifest_text)
+        self.assertNotIn("layer_10_policy", manifest_text)
+        self.assertNotIn("layer_10_event_risk_governor", manifest_text)
 
     def test_order_intent_component_has_no_model_calls_or_mutation(self) -> None:
         rows = {component.component_id: component for component in runtime_components()}
         order_builder = rows["component_05_order_intent"]
 
-        self.assertEqual(order_builder.called_model_layers, ())
+        self.assertEqual(order_builder.required_model_surfaces, ())
+        self.assertEqual(order_builder.optional_model_surfaces, ())
         self.assertEqual(order_builder.output_contracts, ("execution_order_intent",))
         self.assertFalse(order_builder.broker_mutation_allowed)
         self.assertFalse(order_builder.account_mutation_allowed)
@@ -178,8 +186,21 @@ class RuntimeComponentGraphTests(unittest.TestCase):
             self.assertIn("account_sleeve_state_snapshot", rows[component_id].input_contracts)
         self.assertNotIn("account_sleeve_state_snapshot", rows["component_02_entry"].input_contracts)
 
-        option_review = rows["component_04_option_review"]
-        self.assertEqual(option_review.account_sleeves, (EQUITY_OPTIONS_ACCOUNT_SLEEVE,))
+        expression_review = rows["component_04_expression_review"]
+        self.assertEqual(expression_review.account_sleeves, (EQUITY_OPTIONS_ACCOUNT_SLEEVE,))
+
+    def test_runtime_manifest_declares_use_case_graphs(self) -> None:
+        manifest = runtime_component_manifest()
+
+        self.assertEqual(manifest["contract_type"], "execution_runtime_component_manifest")
+        self.assertEqual(manifest["component_order"][3], "component_04_expression_review")
+        use_cases = {row["use_case_id"]: row for row in manifest["use_case_graphs"]}
+        self.assertIn("candidate_entry_execution", use_cases)
+        self.assertIn("open_position_lifecycle_execution", use_cases)
+        self.assertIn("direct_underlying_execution", use_cases)
+        self.assertIn("option_expression_execution", use_cases)
+        self.assertIn("failure_diagnosis", use_cases)
+        self.assertTrue(manifest["manifest_checksum"])
 
 
 if __name__ == "__main__":

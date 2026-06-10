@@ -49,7 +49,7 @@ clock + market adapter + account adapter + frozen model bundle
   -> C01 Intake
       -> candidate_entry_pool -> C02 Entry
       -> open_position_pool   -> C03 Lifecycle
-  -> C04 Option Review
+  -> C04 Expression Review
   -> C05 Order Intent
   -> C06 Execution Gate
 
@@ -83,12 +83,13 @@ protective reduce, exit, block, or review action must still route through the
 normal C03, C05, and C06 decision gates.
 
 When C07 identifies a risk event that has not been trained and accepted through
-Layer 10/Layer 4, it must treat the event as untrained. It may estimate a
+the current M06/M03 event-governance route, it must treat the event as
+untrained. It may estimate a
 provisional risk value from model-failure severity and supporting evidence, then
 hand that packet to the trading-review agent. The provisional value is not a
 trained event-risk score and cannot directly authorize an order. Settlement
 attribution produces the final evidence for model feedback, runtime lifecycle
-review, and Layer 4/Layer 10 event-family work.
+review, and M06/M03 event-family work.
 
 The account adapter exposes two independent sleeves: `crypto_spot_account` and
 `equity_options_account`. Runtime components must preserve that split through

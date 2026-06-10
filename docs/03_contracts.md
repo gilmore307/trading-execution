@@ -79,14 +79,14 @@ implemented as side-effect-free runtime builders and validators in
 but they do not call providers, submit broker requests, construct broker-specific
 payloads, or mutate account, order, or position state.
 
-The second-batch contracts add option roll review, C07 realtime
-failure/deviation watch, C07 settlement attribution with Layer 10 explanation,
-and Replay fill simulation. They are also implemented as side-effect-free
+The second-batch contracts add expression review, C07 realtime
+failure/deviation watch, C07 settlement attribution with optional M06 residual
+event-governance evidence, and Replay fill simulation. They are also implemented as side-effect-free
 runtime builders and validators. `simulated_fill_event` is Replay-only evidence
 and never represents a real broker/account fill or account, order, or position
 mutation.
 
-Layer 10 is called by `component_07_failure_review` for residual event-risk
+M06 may be consumed by `component_07_failure_review` for residual event-risk
 explanation and failure/deviation watch. In live operation, C07 may run during
 market hours as a realtime watch over active or shadow decisions with an open
 thesis, open position, material path deviation, new event evidence, or
@@ -95,11 +95,12 @@ session closes or in another accepted off-hours attribution window.
 
 Realtime C07 evidence may trigger C03/C05/C06 review paths, but it must not
 directly mutate intraday decisions, submit orders, mutate positions, or switch
-active model pointers. Normal new-entry decisions still use Layer 4 for forward
-event risk; C07 is not a standalone pre-entry alpha or generic news veto.
+active model pointers. Normal new-entry decisions still consume M03 event-state
+and M04 unified-decision surfaces; C07 is not a standalone pre-entry alpha or
+generic news veto.
 
 When C07 observes an event, anomaly, or context that has not been trained and
-accepted through Layer 10/Layer 4, the packet must mark the event risk as
+accepted through the M06/M03 event-governance route, the packet must mark the event risk as
 untrained. C07 may estimate a provisional risk value from model-failure severity,
 path deviation, event proximity, exposure at risk, and evidence quality. That
 estimate is advisory review evidence only. It must be routed to the

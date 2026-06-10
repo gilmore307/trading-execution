@@ -812,7 +812,7 @@ def build_entry_decision(
 
     reasons: list[str] = []
     status: DecisionStatus = "suitable"
-    action = "continue_to_option_review"
+    action = "continue_to_expression_review"
     asset_class = "crypto_spot" if sleeve_id == CRYPTO_SPOT_ACCOUNT_SLEEVE else "us_equity"
 
     if target_ref not in selected:

@@ -33,15 +33,16 @@ The accepted runtime components are:
 - `C01 Intake` / `component_01_intake`
 - `C02 Entry` / `component_02_entry`
 - `C03 Lifecycle` / `component_03_lifecycle`
-- `C04 Option Review` / `component_04_option_review`
+- `C04 Expression Review` / `component_04_expression_review`
 - `C05 Order Intent` / `component_05_order_intent`
 - `C06 Execution Gate` / `component_06_execution_gate`
 - `C07 Failure Review` / `component_07_failure_review`
 
-Layer 10 remains an independent model, but it is not a normal pre-entry input.
-It is called only by `component_07_failure_review` after observed model or
-trade failure to connect the failure evidence to possible event causes and
-produce Layer 4 feedback candidates.
+M06 remains an independent model surface, but it is not a normal pre-entry veto.
+It is consumed only by use-case components that need residual event governance,
+including `component_07_failure_review` after observed model or trade failure to
+connect the failure evidence to possible event causes and produce future model
+feedback candidates.
 
 ## D013 - Realtime trading starts only after a promoted active model config exists
 
@@ -487,8 +488,8 @@ attribution evidence so C03/C05/C06 can review protective reduce, exit, block,
 or human-review paths before losses compound.
 
 When C07 identifies an event, anomaly, or context that has not been trained and
-accepted through Layer 10/Layer 4, it must mark the event risk as untrained. C07
-may estimate a provisional risk value from model-failure severity, path
+accepted through the M06/M03 event-governance route, it must mark the event risk
+as untrained. C07 may estimate a provisional risk value from model-failure severity, path
 deviation, event proximity, exposure at risk, and evidence quality. That value is
 advisory review evidence only and must be handed to the trading-review agent
 before it can affect any live protective action.
@@ -500,7 +501,7 @@ underblocks, option-expression drag, and event/co-event evidence.
 
 C07 does not revise intraday C02-C06 decisions, submit orders, mutate broker or
 account state, or switch active model pointers. It produces attribution evidence
-for runtime lifecycle review, evaluation feedback, and Layer 4/Layer 10
+for runtime lifecycle review, evaluation feedback, and M06/M03
 event-family work.
 
 ## D018 - Crypto And Equity Options Use Separate Account Sleeves

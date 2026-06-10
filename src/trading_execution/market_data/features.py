@@ -9,10 +9,17 @@ separate approval gates exist.
 
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
 from typing import Any, Mapping, Sequence
+
+from trading_execution.runtime.components import (
+    REQUIRED_RUNTIME_COMPONENT_ORDER,
+    RUNTIME_COMPONENT_ORDER,
+    runtime_component_manifest,
+)
 
 from .contracts import realtime_capture_contract, realtime_input_coverage_matrix
 
@@ -94,73 +101,16 @@ class ModelDecisionComponentInput:
         return row
 
 
-RUNTIME_COMPONENT_ORDER = (
-    "component_01_intake",
-    "component_02_entry",
-    "component_03_lifecycle",
-    "component_04_option_review",
-    "component_05_order_intent",
-    "component_06_execution_gate",
-    "component_07_failure_review",
-)
-
-REQUIRED_RUNTIME_COMPONENT_ORDER = (
-    "component_01_intake",
-    "component_02_entry",
-    "component_03_lifecycle",
-    "component_05_order_intent",
-    "component_06_execution_gate",
-)
-
-_RUNTIME_COMPONENT_METADATA = {
-    "component_01_intake": {
-        "component_step": "C01",
-        "component_name": "Intake",
-        "required_model_surfaces": ("model_01_background_context", "model_02_target_state"),
-        "optional_model_surfaces": (),
-    },
-    "component_02_entry": {
-        "component_step": "C02",
-        "component_name": "Entry",
-        "required_model_surfaces": ("model_03_event_state", "model_04_unified_decision"),
-        "optional_model_surfaces": ("model_06_residual_event_governance",),
-    },
-    "component_03_lifecycle": {
-        "component_step": "C03",
-        "component_name": "Lifecycle",
-        "required_model_surfaces": ("model_03_event_state", "model_04_unified_decision"),
-        "optional_model_surfaces": ("model_06_residual_event_governance",),
-    },
-    "component_04_option_review": {
-        "component_step": "C04",
-        "component_name": "Option Review",
-        "required_model_surfaces": (),
-        "optional_model_surfaces": ("model_05_option_expression", "model_06_residual_event_governance"),
-    },
-    "component_05_order_intent": {
-        "component_step": "C05",
-        "component_name": "Order Intent",
-        "required_model_surfaces": (),
-        "optional_model_surfaces": (),
-    },
-    "component_06_execution_gate": {
-        "component_step": "C06",
-        "component_name": "Execution Gate",
-        "required_model_surfaces": (),
-        "optional_model_surfaces": (),
-    },
-    "component_07_failure_review": {
-        "component_step": "C07",
-        "component_name": "Failure Review",
-        "required_model_surfaces": (),
-        "optional_model_surfaces": ("model_06_residual_event_governance",),
-    },
-}
-
-
 def _stable_id(prefix: str, payload: Mapping[str, Any]) -> str:
     digest = sha256(repr(sorted(payload.items())).encode("utf-8")).hexdigest()[:16]
     return f"{prefix}_{digest}"
+
+
+def _manifest_checksum(payload: Mapping[str, Any]) -> str:
+    body = dict(payload)
+    body.pop("manifest_checksum", None)
+    encoded = json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return sha256(encoded).hexdigest()[:16]
 
 
 def _parse_time(value: Any) -> datetime | None:
@@ -268,9 +218,12 @@ def model_decision_input_snapshot_contract() -> dict[str, Any]:
             "historical_dataset_snapshot_ref",
             "frozen_model_config_ref",
             "realtime_feature_snapshot_ref",
+            "runtime_component_manifest",
             "component_input_refs",
         ],
         "required_component_inputs": list(REQUIRED_RUNTIME_COMPONENT_ORDER),
+        "runtime_component_manifest_contract": runtime_component_manifest()["contract_type"],
+        "runtime_component_manifest_version": runtime_component_manifest()["manifest_version"],
         "forbidden_actions": list(FORBIDDEN_REALTIME_DECISION_ACTIONS),
         "boundary_note": (
             "The handoff object is the execution-side bridge from realtime feature snapshots to historical "
@@ -461,10 +414,12 @@ def build_model_decision_input_snapshot(request: Mapping[str, Any]) -> dict[str,
         snapshot.get("historical_dataset_snapshot_ref") or request.get("historical_dataset_snapshot_ref") or ""
     )
     realtime_feature_snapshot_ref = str(request.get("realtime_feature_snapshot_ref") or f"realtime-feature-snapshot://{snapshot_id}")
+    manifest = runtime_component_manifest()
+    components_by_id = {str(row["component_id"]): row for row in manifest["components"]}
 
     component_inputs: list[ModelDecisionComponentInput] = []
     for component_id in RUNTIME_COMPONENT_ORDER:
-        metadata = _RUNTIME_COMPONENT_METADATA[component_id]
+        metadata = components_by_id[component_id]
         component_inputs.append(
             ModelDecisionComponentInput(
                 contract_type="execution_model_decision_component_input",
@@ -497,6 +452,7 @@ def build_model_decision_input_snapshot(request: Mapping[str, Any]) -> dict[str,
         "historical_dataset_snapshot_ref": historical_dataset_snapshot_ref,
         "frozen_model_config_ref": frozen_model_config_ref,
         "realtime_feature_snapshot_ref": realtime_feature_snapshot_ref,
+        "runtime_component_manifest": manifest,
         "component_input_refs": [row.summary_row() for row in component_inputs],
         "feature_snapshot_validation": validation,
         "missing_component_inputs": missing_component_inputs,
@@ -526,6 +482,29 @@ def validate_model_decision_input_snapshot(candidate: Mapping[str, Any]) -> dict
     rows = candidate.get("component_input_refs") or []
     component_set = {str(row.get("component_id")) for row in rows if isinstance(row, Mapping)} if isinstance(rows, Sequence) else set()
     missing_component_inputs = sorted(set(REQUIRED_RUNTIME_COMPONENT_ORDER) - component_set)
+    expected_manifest = runtime_component_manifest()
+    manifest = candidate.get("runtime_component_manifest") or {}
+    manifest_errors: list[str] = []
+    if not isinstance(manifest, Mapping):
+        manifest_errors.append("runtime_component_manifest must be an object")
+    else:
+        if manifest.get("contract_type") != expected_manifest["contract_type"]:
+            manifest_errors.append("runtime_component_manifest contract_type invalid")
+        if manifest.get("manifest_version") != expected_manifest["manifest_version"]:
+            manifest_errors.append("runtime_component_manifest manifest_version invalid")
+        if manifest.get("manifest_checksum") != expected_manifest["manifest_checksum"]:
+            manifest_errors.append("runtime_component_manifest manifest_checksum invalid")
+        if manifest.get("manifest_checksum") != _manifest_checksum(manifest):
+            manifest_errors.append("runtime_component_manifest body checksum invalid")
+        if dict(manifest) != expected_manifest:
+            manifest_errors.append("runtime_component_manifest body does not match current execution manifest")
+        if tuple(str(component_id) for component_id in manifest.get("component_order") or ()) != tuple(RUNTIME_COMPONENT_ORDER):
+            manifest_errors.append("runtime_component_manifest component_order invalid")
+        if (
+            tuple(str(component_id) for component_id in manifest.get("required_component_order") or ())
+            != tuple(REQUIRED_RUNTIME_COMPONENT_ORDER)
+        ):
+            manifest_errors.append("runtime_component_manifest required_component_order invalid")
     feature_validation = candidate.get("feature_snapshot_validation") or {}
     feature_snapshot_valid = bool(feature_validation.get("valid")) if isinstance(feature_validation, Mapping) else False
     row_errors: list[str] = []
@@ -545,6 +524,7 @@ def validate_model_decision_input_snapshot(candidate: Mapping[str, Any]) -> dict
         and not forbidden_actions_present
         and not invalid_time_fields
         and not missing_component_inputs
+        and not manifest_errors
         and feature_snapshot_valid
         and not row_errors
     )
@@ -556,6 +536,7 @@ def validate_model_decision_input_snapshot(candidate: Mapping[str, Any]) -> dict
         "forbidden_actions_present": forbidden_actions_present,
         "invalid_time_fields": invalid_time_fields,
         "missing_component_inputs": missing_component_inputs,
+        "runtime_component_manifest_errors": manifest_errors,
         "feature_snapshot_valid": feature_snapshot_valid,
         "row_errors": row_errors,
         "provider_calls_performed": 0,

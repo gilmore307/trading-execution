@@ -62,7 +62,7 @@ C01 Intake
   -> open_position_pool   -> C03 Lifecycle
 
 C02/C03 accepted underlying intents
-  -> C04 Option Review
+  -> C04 Expression Review
   -> C05 Order Intent
   -> C06 Execution Gate
 
@@ -83,7 +83,7 @@ gate review. The stable
 | `C01` | Intake | `component_01_intake` | `execution_intake_snapshot` |
 | `C02` | Entry | `component_02_entry` | `entry_decision` |
 | `C03` | Lifecycle | `component_03_lifecycle` | `position_lifecycle_decision` |
-| `C04` | Option Review | `component_04_option_review` | `option_reexpression_decision` |
+| `C04` | Expression Review | `component_04_expression_review` | `option_reexpression_decision` |
 | `C05` | Order Intent | `component_05_order_intent` | `execution_order_intent` |
 | `C06` | Execution Gate | `component_06_execution_gate` | `execution_gate_result` / `broker_order_request` / `simulated_fill_event` |
 | `C07` | Failure Review | `component_07_failure_review` | `failure_explanation_packet` |
@@ -101,13 +101,12 @@ C01 emits two downstream pools:
 - `candidate_entry_pool`: new-opportunity targets routed to C02 Entry.
 - `open_position_pool`: existing positions routed to C03 Lifecycle.
 
-Model inputs:
+Model surfaces:
 
-- Layer 1 market regime.
-- Layer 2 sector context.
-- Layer 3 target state.
+- `model_01_background_context`.
+- `model_02_target_state`.
 
-It does not call Layer 6, Layer 8, Layer 9, or Layer 10. C01 does not size
+It does not call `M04`, `M05`, or `M06`. C01 does not size
 positions, allocate risk budget, decide whether a thesis deserves a trade, or
 manage exits.
 
@@ -158,16 +157,14 @@ underlying entry thesis for continued review. C02 does not choose option versus
 stock expression, choose contracts, size positions, check account balance, or
 build orders.
 
-Model inputs:
+Model surfaces:
 
-- Layer 3 target state.
-- Layer 4 event failure risk.
-- Layer 5 alpha confidence.
-- Layer 6 dynamic risk policy.
-- Layer 8 underlying action.
+- required: `model_03_event_state`, `model_04_unified_decision`.
+- optional: `model_06_residual_event_governance`.
 
-It does not call Layer 9 or Layer 10. Option versus underlying expression is a
-C04 decision; pre-entry event risk is handled by Layer 4.
+C02 consumes the unified decision surface; it must not recreate edge, risk,
+exposure, or action heads locally. Option versus direct-underlying expression is
+a C04 decision.
 
 Live application scenario:
 
@@ -205,16 +202,14 @@ or stock expression.
 C03 consumes C01 `open_position_pool` records and the current model evidence for
 those already-open positions. It is a sibling of C02, not downstream of C02.
 
-Model inputs:
+Model surfaces:
 
-- Layer 4 event failure risk.
-- Layer 5 alpha confidence.
-- Layer 6 dynamic risk policy.
-- Layer 7 position projection.
-- Layer 8 underlying action.
+- required: `model_03_event_state`, `model_04_unified_decision`.
+- optional: `model_06_residual_event_governance`.
 
-It does not call Layer 10 during normal lifecycle decisions. Observed model or
-trade failure routes to the Failure Explanation Component.
+C03 consumes the unified decision surface for open positions; it must not
+relearn action, exposure, or risk policy locally. Observed model or trade
+failure routes to C07 Failure Review.
 
 Live application scenario:
 
@@ -243,15 +238,17 @@ Live application scenario:
 - `add` requires a still-valid thesis, stronger alpha, acceptable projected
   path after add, and compliance with the current sector/opportunity mix.
 
-### C04 Option Review
+### C04 Expression Review
 
 Owns `option_reexpression_decision`.
 
-Purpose: periodically review held option contracts for moneyness, greeks, DTE,
-spread, liquidity, IV, payoff efficiency, and roll cost.
+Purpose: translate accepted C02/C03 underlying intents into direct-underlying,
+option, or no-expression runtime decisions, and periodically review held option
+contracts for moneyness, greeks, DTE, spread, liquidity, IV, payoff efficiency,
+and roll cost.
 
-This component runs only for `equity_options_account`. Crypto spot positions do
-not use option re-expression.
+This component runs only for `equity_options_account`. Crypto spot positions
+use direct-underlying bypass semantics and do not use option re-expression.
 
 For the high-risk options account, option review is underlying-thesis driven.
 Large option mark-to-market drawdowns are tolerated when the underlying path
@@ -260,11 +257,9 @@ repair expression when DTE, delta, spread, liquidity, IV, or payoff efficiency
 deteriorates, but it must not exit solely because option premium crossed a
 fixed loss percentage.
 
-Model inputs:
+Model surfaces:
 
-- Layer 6 dynamic risk policy.
-- Layer 8 underlying action.
-- Layer 9 option expression.
+- optional: `model_05_option_expression`, `model_06_residual_event_governance`.
 
 Roll decisions require a material improvement after roll-cost penalty and must
 respect roll-count, liquidity, and risk-budget limits.
@@ -333,7 +328,7 @@ The C06 gate result must prove:
 Owns `failure_explanation_packet`.
 
 Purpose: after model or trade behavior has already failed or deviated, link the
-failure evidence to possible unscreened events and produce Layer 4 feedback
+failure evidence to possible unscreened events and produce future model feedback
 candidates.
 
 Live timing: C07 is valid in live operation in two modes:
@@ -344,11 +339,11 @@ Live timing: C07 is valid in live operation in two modes:
 
 Realtime watch may inspect active and shadow decisions with an open thesis, open
 position, material path deviation, new event evidence, or unexplained model
-drift. When the event or anomaly has not been trained through Layer 10 and
-accepted into Layer 4, C07 must mark the evidence as untrained. It may estimate
+drift. When the event or anomaly has not been accepted into the current M06/M03
+event-governance route, C07 must mark the evidence as untrained. It may estimate
 a provisional risk value from model-failure severity, path deviation, event
 proximity, exposure at risk, and evidence quality, but that value is review
-evidence only. It is not an alpha score, not a trained Layer 4 risk score, and
+evidence only. It is not an alpha score, not a trained M03 event-state score, and
 not an order instruction.
 
 Realtime watch emits early warning or preliminary attribution evidence so
@@ -375,14 +370,14 @@ For untrained event-risk evidence, `failure_explanation_packet` must carry:
 The trading-review agent owns the final judgment on whether that provisional
 risk warrants blocking, reducing, exiting, or escalation.
 
-Model input:
+Model surface:
 
-- Layer 10 event risk governor.
+- optional: `model_06_residual_event_governance`.
 
-Layer 10 is not a standalone pre-entry veto. It is a residual event-risk
-explanation and deviation-watch model. If the observed event was not trained and
-accepted through Layer 10/Layer 4, C07 may only produce provisional untrained
-risk evidence:
+M06 is not a standalone pre-entry veto. It is a residual event-governance,
+explanation, and deviation-watch surface. If the observed event was not trained
+and accepted through the M06/M03 route, C07 may only produce provisional
+untrained risk evidence:
 
 ```text
 active/shadow thesis or observed model/trade failure
@@ -390,11 +385,11 @@ active/shadow thesis or observed model/trade failure
   -> provisional risk estimate from failure severity
   -> trading-review agent judgment
   -> C03/C05/C06 protective review evidence
-  -> later Layer 10/Layer 4 feedback candidate
+  -> later M06/M03 feedback candidate
 ```
 
-Layer 4 remains the forward event-risk model used in entry and position
-lifecycle decisions:
+M03 remains the forward event-state model used in entry and position lifecycle
+decisions:
 
 ```text
 accepted event evidence -> model/trade risk

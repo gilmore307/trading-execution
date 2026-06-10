@@ -238,7 +238,7 @@ class RuntimeDecisionTests(unittest.TestCase):
 
         self.assertEqual(decision["contract_type"], "entry_decision")
         self.assertEqual(decision["decision_status"], "suitable")
-        self.assertEqual(decision["decision_action"], "continue_to_option_review")
+        self.assertEqual(decision["decision_action"], "continue_to_expression_review")
         self.assertEqual(decision["entry_thesis_status"], "suitable")
         self.assertEqual(decision["entry_direction"], "long")
         self.assertEqual(decision["asset_class"], "us_equity")

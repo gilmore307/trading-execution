@@ -338,6 +338,33 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         validation = validate_model_decision_input_snapshot(decision_input)
         self.assertTrue(validation["valid"])
 
+    def test_model_decision_input_rejects_mutated_runtime_component_manifest_body(self) -> None:
+        decision_input = build_model_decision_input_snapshot(
+            {
+                "decision_time": "2026-05-11T13:30:00+00:00",
+                "instrument_ref": "AAPL",
+                "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
+                "frozen_model_config_ref": "trading-model://configs/frozen/unit",
+                "source_capture_refs": ["capture://alpaca/aapl/unit"],
+                "allow_placeholder_context_refs": True,
+            }
+        )
+        for row in decision_input["runtime_component_manifest"]["components"]:
+            if row["component_id"] == "component_06_execution_gate":
+                row["output_contracts"] = ["not_execution_gate_result"]
+
+        validation = validate_model_decision_input_snapshot(decision_input)
+
+        self.assertFalse(validation["valid"])
+        self.assertIn(
+            "runtime_component_manifest body checksum invalid",
+            validation["runtime_component_manifest_errors"],
+        )
+        self.assertIn(
+            "runtime_component_manifest body does not match current execution manifest",
+            validation["runtime_component_manifest_errors"],
+        )
+
     def test_live_observe_approval_blocks_mutating_flags(self) -> None:
         validation = validate_live_observe_approval(
             {
