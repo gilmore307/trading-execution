@@ -112,8 +112,7 @@ class RuntimeComponentGraphTests(unittest.TestCase):
         manifest = runtime_component_manifest()
         manifest_text = repr(manifest)
         self.assertNotIn("called_model_layers", manifest_text)
-        self.assertNotIn("layer_10_policy", manifest_text)
-        self.assertNotIn("layer_10_event_risk_governor", manifest_text)
+        self.assertIn("model_06_residual_event_governance", manifest_text)
 
     def test_order_intent_component_has_no_model_calls_or_mutation(self) -> None:
         rows = {component.component_id: component for component in runtime_components()}

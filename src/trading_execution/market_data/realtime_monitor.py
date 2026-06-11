@@ -18,9 +18,9 @@ from typing import Any, Mapping, Sequence
 from .features import MODEL_LAYER_ORDER
 from .live_provider import Transport, execute_live_observe
 
-DEFAULT_MONITOR_UNIVERSE_MODEL_LAYERS = ("layer_01_market_regime", "layer_02_sector_context")
+DEFAULT_MONITOR_UNIVERSE_MODEL_LAYERS = ("model_01_background_context",)
 DEFAULT_REALTIME_MODEL_LAYERS = MODEL_LAYER_ORDER
-DEFAULT_UNIVERSE_PATH = "/root/projects/trading-storage/main/shared/layer_01_02_market_context_etf_universe.csv"
+DEFAULT_UNIVERSE_PATH = "/root/projects/trading-storage/main/shared/model_01_background_context_etf_universe.csv"
 
 
 def _now() -> datetime:

@@ -43,20 +43,19 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertEqual(plan["broker_calls_performed"], 0)
         self.assertFalse(plan["account_mutation_performed"])
         rows = {row["source_id"]: row for row in plan["adapter_plans"]}
-        self.assertIn("layer_03_target_state_vector", rows["alpaca"]["model_layers"])
-        self.assertIn("layer_09_option_expression", rows["thetadata"]["model_layers"])
-        self.assertIn("layer_01_market_regime", rows["okx"]["model_layers"])
-        self.assertEqual(rows["calendar_discovery"]["model_layers"], ["layer_10_event_risk_governor"])
-        self.assertEqual(rows["derived_model_context"]["model_layers"], ["layer_05_alpha_confidence", "layer_06_dynamic_risk_policy"])
-        self.assertIn("layer_06_dynamic_risk_policy", rows["execution_account_state"]["model_layers"])
-        self.assertIn("layer_07_position_projection", rows["execution_account_state"]["model_layers"])
+        self.assertIn("model_02_target_state", rows["alpaca"]["model_layers"])
+        self.assertIn("model_05_option_expression", rows["thetadata"]["model_layers"])
+        self.assertIn("model_01_background_context", rows["okx"]["model_layers"])
+        self.assertEqual(rows["calendar_discovery"]["model_layers"], ["model_03_event_state", "model_06_residual_event_governance"])
+        self.assertEqual(rows["derived_model_context"]["model_layers"], ["model_04_unified_decision"])
+        self.assertIn("model_04_unified_decision", rows["execution_account_state"]["model_layers"])
 
     def test_live_observe_adapter_blocks_real_stream_without_approval(self) -> None:
         plan = build_live_observe_adapter_plan(
             {
                 "mode": "live_observe",
                 "sources": ["alpaca"],
-                "model_layers": ["layer_02_sector_context"],
+                "model_layers": ["model_02_target_state"],
                 "instrument_refs": ["XLK"],
             }
         )
@@ -72,7 +71,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                 "request_id": "rtcap_fixture_unit",
                 "mode": "fixture_replay",
                 "sources": ["alpaca", "execution_account_state"],
-                "model_layers": ["layer_06_dynamic_risk_policy", "layer_07_position_projection", "layer_08_underlying_action"],
+                "model_layers": ["model_04_unified_decision"],
                 "instrument_refs": ["AAPL"],
                 "decision_time": "2026-05-11T13:30:00+00:00",
                 "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
@@ -123,7 +122,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         )
 
         self.assertEqual(bundle["bundle_status"], "blocked")
-        self.assertIn("layer_04_event_failure_risk", bundle["feature_snapshot"]["missing_context_ref_layers"])
+        self.assertIn("model_03_event_state", bundle["feature_snapshot"]["missing_context_ref_layers"])
         self.assertEqual(bundle["feature_snapshot"]["placeholder_context_layers"], [])
 
     def test_build_realtime_subscription_plan_for_alpaca_target_layer(self) -> None:
@@ -132,7 +131,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                 "request_id": "rtplan_unit",
                 "mode": "dry_run",
                 "sources": ["alpaca"],
-                "model_layers": ["layer_03_target_state_vector"],
+                "model_layers": ["model_02_target_state"],
                 "instrument_refs": ["AAPL"],
             }
         )
@@ -144,7 +143,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         row = plan["subscription_plans"][0]
         self.assertEqual(row["contract_type"], "execution_realtime_subscription_plan")
         self.assertEqual(row["source_id"], "alpaca")
-        self.assertEqual(row["model_layers"], ["layer_03_target_state_vector"])
+        self.assertEqual(row["model_layers"], ["model_02_target_state"])
         self.assertEqual(row["subscription_status"], "dry_run_plan_ready_no_provider_calls")
         self.assertTrue(row["requires_secret_alias"])
 
@@ -153,7 +152,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             {
                 "mode": "live_observe",
                 "sources": ["thetadata"],
-                "model_layers": ["layer_09_option_expression"],
+                "model_layers": ["model_05_option_expression"],
                 "instrument_refs": ["AAPL_20260515_270C"],
             }
         )
@@ -167,14 +166,14 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         plan = build_realtime_subscription_plan(
             {
                 "sources": ["execution_account_state"],
-                "model_layers": ["layer_06_dynamic_risk_policy", "layer_07_position_projection"],
+                "model_layers": ["model_04_unified_decision"],
             }
         )
 
         row = plan["subscription_plans"][0]
         self.assertEqual(row["source_id"], "execution_account_state")
         self.assertEqual(row["realtime_interfaces"], ["execution_account_state_context_ref"])
-        self.assertEqual(row["model_layers"], ["layer_06_dynamic_risk_policy", "layer_07_position_projection"])
+        self.assertEqual(row["model_layers"], ["model_04_unified_decision"])
 
     def test_validate_realtime_capture_accepts_complete_forward_holdout_row(self) -> None:
         candidate = {
@@ -293,7 +292,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
 
         self.assertEqual(snapshot["contract_type"], "realtime_feature_snapshot")
         self.assertEqual(snapshot["readiness_status"], "ready_for_fixture_or_shadow_model_decision_input")
-        self.assertEqual(len(snapshot["feature_rows"]), 10)
+        self.assertEqual(len(snapshot["feature_rows"]), 6)
         self.assertEqual(snapshot["provider_calls_performed"], 0)
         self.assertFalse(snapshot["model_activation_performed"])
         validation = validate_realtime_feature_snapshot(snapshot)
@@ -314,7 +313,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         )
 
         self.assertEqual(snapshot["readiness_status"], "blocked_missing_realtime_feature_requirements")
-        self.assertIn("layer_04_event_failure_risk", snapshot["missing_context_ref_layers"])
+        self.assertIn("model_03_event_state", snapshot["missing_context_ref_layers"])
 
     def test_build_model_decision_input_snapshot_from_realtime_features(self) -> None:
         decision_input = build_model_decision_input_snapshot(
@@ -450,7 +449,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             universe_path = Path(temp_dir) / "universe.csv"
             universe_path.write_text(
-                "symbol,model_layer\nSPY,layer_01_market_regime\nXLK,layer_02_sector_context\nAAPL,layer_03_target_state_vector\n",
+                "symbol,model_layer\nSPY,model_01_background_context\nXLK,model_01_background_context\nAAPL,model_02_target_state\n",
                 encoding="utf-8",
             )
             secret_path = Path(temp_dir) / "alpaca.json"
@@ -474,7 +473,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertEqual(receipt["summary"]["provider_status_counts"], {"observed": 2})
         self.assertEqual(receipt["summary"]["feature_snapshot_readiness"], "blocked_missing_realtime_feature_requirements")
         self.assertEqual(receipt["summary"]["decision_input_readiness"], "blocked_missing_model_decision_input_requirements")
-        self.assertEqual(len(receipt["result"]["feature_snapshot"]["feature_rows"]), 10)
+        self.assertEqual(len(receipt["result"]["feature_snapshot"]["feature_rows"]), 6)
         self.assertEqual(len(receipt["result"]["decision_input_snapshot"]["component_input_refs"]), 7)
         self.assertEqual(receipt["summary"]["broker_calls_performed"], 0)
         self.assertFalse(receipt["summary"]["model_activation_performed"])
@@ -487,8 +486,8 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             [
                 {
                     "decision_id": "decision_1",
-                    "model_id": "LayerOneMarketRegime",
-                    "model_layer": "layer_01_market_regime",
+                    "model_id": "M01BackgroundContext",
+                    "model_layer": "model_01_background_context",
                     "instrument_ref": "SPY",
                     "decision_time": "2026-05-11T14:00:00+00:00",
                     "evaluation_horizon_seconds": 900,
@@ -497,8 +496,8 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                 },
                 {
                     "decision_id": "decision_2",
-                    "model_id": "LayerOneMarketRegime",
-                    "model_layer": "layer_01_market_regime",
+                    "model_id": "M01BackgroundContext",
+                    "model_layer": "model_01_background_context",
                     "instrument_ref": "QQQ",
                     "decision_time": "2026-05-11T14:01:00+00:00",
                     "evaluation_horizon_seconds": 900,
@@ -534,7 +533,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                     {
                         "decision_id": "decision_cli",
                         "model_id": "LayerTwoSectorContext",
-                        "model_layer": "layer_02_sector_context",
+                        "model_layer": "model_02_target_state",
                         "instrument_ref": "XLK",
                         "decision_time": "2026-05-11T14:00:00+00:00",
                         "evaluation_horizon_seconds": 900,
@@ -576,7 +575,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             temp_path = Path(temp_dir)
             universe_path = temp_path / "universe.csv"
             universe_path.write_text(
-                "symbol,model_layer\nSPY,layer_01_market_regime\nXLK,layer_02_sector_context\n",
+                "symbol,model_layer\nSPY,model_01_background_context\nXLK,model_01_background_context\n",
                 encoding="utf-8",
             )
             secret_path = temp_path / "alpaca.json"
@@ -621,7 +620,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             temp_path = Path(temp_dir)
             universe_path = temp_path / "universe.csv"
             universe_path.write_text(
-                "symbol,model_layer\nSPY,layer_01_market_regime\n",
+                "symbol,model_layer\nSPY,model_01_background_context\n",
                 encoding="utf-8",
             )
             output_dir = temp_path / "rtmon"
@@ -657,7 +656,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             {
                 "request_id": "rtlive_exec_unit",
                 "sources": ["okx"],
-                "model_layers": ["layer_01_market_regime"],
+                "model_layers": ["model_01_background_context"],
                 "instrument_refs": ["BTC-USDT"],
                 "decision_time": "2026-05-11T13:30:00+00:00",
                 "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
@@ -719,7 +718,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                 {
                     "request_id": "rtlive_alpaca_secret_unit",
                     "sources": ["alpaca"],
-                    "model_layers": ["layer_03_target_state_vector"],
+                    "model_layers": ["model_02_target_state"],
                     "instrument_refs": ["SPY"],
                     "decision_time": "2026-05-11T13:30:00+00:00",
                     "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
@@ -839,7 +838,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                 "--source",
                 "okx",
                 "--model-layer",
-                "layer_01_market_regime",
+                "model_01_background_context",
                 "--instrument-ref",
                 "BTC-USDT",
             ],
@@ -920,7 +919,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             feature_snapshot = json.loads(feature_result.stdout)
             feature_path.write_text(json.dumps(feature_snapshot), encoding="utf-8")
             self.assertEqual(feature_snapshot["provider_calls_performed"], 0)
-            self.assertEqual(len(feature_snapshot["feature_rows"]), 10)
+            self.assertEqual(len(feature_snapshot["feature_rows"]), 6)
 
             decision_result = subprocess.run(
                 [sys.executable, "scripts/execution/build_realtime_model_input.py", "--feature-snapshot", str(feature_path)],

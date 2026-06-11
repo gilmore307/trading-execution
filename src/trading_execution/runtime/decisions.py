@@ -125,7 +125,7 @@ def _agent_review_approved(review: Mapping[str, Any]) -> bool:
 
 
 def _risk_level(mapping: Mapping[str, Any]) -> str:
-    value = mapping.get("risk_level") or mapping.get("event_failure_risk_level") or mapping.get("policy_risk_level")
+    value = mapping.get("risk_level") or mapping.get("residual_event_risk_level") or mapping.get("governance_risk_level")
     return str(value or "").strip().lower()
 
 
@@ -150,13 +150,14 @@ def _candidate_entry_targets(snapshot: Mapping[str, Any]) -> set[str]:
     return values
 
 
-def _entry_direction(underlying_plan: Mapping[str, Any]) -> str | None:
+def _entry_direction(unified_decision: Mapping[str, Any]) -> str | None:
     value = str(
-        underlying_plan.get("entry_direction")
-        or underlying_plan.get("resolved_action_side")
-        or underlying_plan.get("action_side")
-        or underlying_plan.get("planned_side")
-        or underlying_plan.get("direction")
+        unified_decision.get("entry_direction")
+        or unified_decision.get("resolved_action_side")
+        or unified_decision.get("action_side")
+        or unified_decision.get("planned_side")
+        or unified_decision.get("decision_direction")
+        or unified_decision.get("direction")
         or ""
     ).strip().lower()
     if value in {"long", "buy", "increase_long", "open_long", "bullish"}:
@@ -169,9 +170,9 @@ def _entry_direction(underlying_plan: Mapping[str, Any]) -> str | None:
 def _position_direction(
     position: Mapping[str, Any],
     entry_decision: Mapping[str, Any],
-    underlying_plan: Mapping[str, Any],
+    unified_decision: Mapping[str, Any],
 ) -> str:
-    for source in (position, entry_decision, underlying_plan):
+    for source in (position, entry_decision, unified_decision):
         value = str(
             source.get("position_side")
             or source.get("underlying_direction")
@@ -187,14 +188,14 @@ def _position_direction(
     return "long"
 
 
-def _planned_lifecycle_action(underlying_plan: Mapping[str, Any]) -> str | None:
+def _planned_lifecycle_action(unified_decision: Mapping[str, Any]) -> str | None:
     value = str(
-        underlying_plan.get("lifecycle_action")
-        or underlying_plan.get("position_action")
-        or underlying_plan.get("planned_action")
-        or underlying_plan.get("underlying_action")
-        or underlying_plan.get("action")
-        or underlying_plan.get("recommended_action")
+        unified_decision.get("lifecycle_action")
+        or unified_decision.get("position_action")
+        or unified_decision.get("planned_action")
+        or unified_decision.get("decision_action")
+        or unified_decision.get("action")
+        or unified_decision.get("recommended_action")
         or ""
     ).strip().lower()
     if value in {"hold", "maintain", "no_change"}:
@@ -224,7 +225,7 @@ def _price_reaches_upside(price: float | None, level: float | None, direction: s
     return price >= level if direction == "long" else price <= level
 
 
-def _lifecycle_add_constraint_reasons(projection: Mapping[str, Any], underlying_plan: Mapping[str, Any]) -> list[str]:
+def _lifecycle_add_constraint_reasons(unified_decision: Mapping[str, Any]) -> list[str]:
     false_checks = (
         ("c01_sector_opportunity_add_allowed", "sector_opportunity_mix_blocks_add"),
         ("sector_mix_add_allowed", "sector_opportunity_mix_blocks_add"),
@@ -239,7 +240,7 @@ def _lifecycle_add_constraint_reasons(projection: Mapping[str, Any], underlying_
         ("target_exposure_limit_reached", "target_exposure_blocks_add"),
     )
     reasons: list[str] = []
-    for source in (projection, underlying_plan):
+    for source in (unified_decision,):
         for key, reason in false_checks:
             if source.get(key) is False and reason not in reasons:
                 reasons.append(reason)
@@ -366,7 +367,7 @@ def _is_tactical_position_scaling_decision(decision_record: Mapping[str, Any]) -
     reasons = set(decision_record.get("reason_codes") or ())
     if action == "add":
         return True
-    return "underlying_action_plan_supports_reduce" in reasons
+    return "m04_unified_decision_supports_reduce" in reasons
 
 
 def _zone_from_fields(mapping: Mapping[str, Any], zone_key: str, low_keys: tuple[str, ...], high_keys: tuple[str, ...]) -> dict[str, float] | None:
@@ -763,7 +764,6 @@ def build_target_allocation_snapshot(
     account_sleeve_risk_budget: Mapping[str, Any] | None = None,
     position_state: Any = None,
     target_context_rows: Any = None,
-    dynamic_risk_policy_state: Mapping[str, Any] | None = None,
     generated_at_utc: str | None = None,
 ) -> dict[str, Any]:
     """Build the C01-compatible replay allocation snapshot expected by evaluation."""
@@ -790,24 +790,22 @@ def build_entry_decision(
     account_sleeve_risk_budget: Mapping[str, Any] | None = None,
     position_state: Any = None,
     target_context_state: Mapping[str, Any] | None = None,
-    event_failure_risk_vector: Mapping[str, Any] | None = None,
-    alpha_confidence_vector: Mapping[str, Any] | None = None,
-    dynamic_risk_policy_state: Mapping[str, Any] | None = None,
-    underlying_action_plan: Mapping[str, Any] | None = None,
+    event_state_vector: Mapping[str, Any] | None = None,
+    unified_decision_vector: Mapping[str, Any] | None = None,
+    residual_event_governance: Mapping[str, Any] | None = None,
     option_expression_plan: Mapping[str, Any] | None = None,
     generated_at_utc: str | None = None,
 ) -> dict[str, Any]:
-    """Decide whether a C01 target has a suitable underlying entry thesis."""
+    """Decide whether a C01 target has a suitable M04 direct-underlying entry thesis."""
 
     generated_at_utc = generated_at_utc or _utc_now_iso()
     target_ref = target_ref.strip().upper()
     sleeve_id = str(execution_intake_snapshot.get("account_sleeve_id") or "")
     _sleeve(sleeve_id)
     selected = _candidate_entry_targets(execution_intake_snapshot)
-    event_risk = _as_mapping(event_failure_risk_vector)
-    alpha = _as_mapping(alpha_confidence_vector)
-    policy = _as_mapping(dynamic_risk_policy_state)
-    underlying_plan = _as_mapping(underlying_action_plan)
+    event_state = _as_mapping(event_state_vector)
+    unified_decision = _as_mapping(unified_decision_vector)
+    residual_governance = _as_mapping(residual_event_governance)
     target_state = _as_mapping(target_context_state)
 
     reasons: list[str] = []
@@ -820,70 +818,76 @@ def build_entry_decision(
         action = "reject_entry_thesis"
         reasons.append("target_not_in_execution_intake_snapshot")
 
-    if _bool_flag(event_risk, "block_new_entries", "halt_new_entries") or _risk_level(event_risk) in {"high", "critical"}:
+    if _bool_flag(residual_governance, "block_new_entries", "halt_new_entries") or _risk_level(residual_governance) in {"high", "critical"}:
         status = "rejected"
         action = "reject_entry_thesis"
-        reasons.append("event_failure_risk_blocks_new_entry")
+        reasons.append("m06_residual_event_governance_blocks_new_entry")
 
-    if _bool_flag(policy, "block_new_entries", "account_risk_cap_reached"):
+    if _bool_flag(unified_decision, "block_new_entries", "account_risk_cap_reached"):
         status = "rejected"
         action = "reject_entry_thesis"
-        reasons.append("dynamic_risk_policy_blocks_new_entry")
+        reasons.append("m04_unified_decision_blocks_new_entry")
 
-    alpha_score = _number(alpha.get("alpha_confidence_score", alpha.get("score")), default=0.0)
-    minimum_alpha = _number(policy.get("minimum_entry_alpha_confidence"), default=0.55)
-    if status == "suitable" and alpha_score < minimum_alpha:
+    confidence_score = _number(
+        unified_decision.get(
+            "unified_decision_confidence_score",
+            unified_decision.get("entry_thesis_score", unified_decision.get("score")),
+        ),
+        default=0.0,
+    )
+    minimum_confidence = _number(unified_decision.get("minimum_entry_confidence"), default=0.55)
+    if status == "suitable" and confidence_score < minimum_confidence:
         status = "rejected"
         action = "reject_entry_thesis"
-        reasons.append("alpha_confidence_below_entry_threshold")
+        reasons.append("m04_unified_decision_confidence_below_entry_threshold")
 
-    direction = _entry_direction(underlying_plan)
+    direction = _entry_direction(unified_decision)
     if status == "suitable" and direction is None:
         status = "rejected"
         action = "reject_entry_thesis"
-        reasons.append("missing_underlying_entry_direction")
+        reasons.append("missing_m04_entry_direction")
 
     entry_zone = _zone_from_fields(
-        underlying_plan,
+        unified_decision,
         "entry_zone",
         ("entry_price_min", "entry_lower_price", "entry_low", "entry_min"),
         ("entry_price_max", "entry_upper_price", "entry_high", "entry_max"),
     )
     if entry_zone is None:
-        single_entry = _first_number(underlying_plan, "entry_price", "planned_entry_price", "limit_price")
+        single_entry = _first_number(unified_decision, "entry_price", "planned_entry_price", "limit_price")
         if single_entry is not None:
             entry_zone = {"low": single_entry, "high": single_entry}
 
     target_price = _first_number(
-        underlying_plan,
+        unified_decision,
         "target_price",
         "take_profit_price",
         "planned_target_price",
         "price_target",
     )
     take_profit_zone = _zone_from_fields(
-        underlying_plan,
+        unified_decision,
         "take_profit_zone",
         ("take_profit_price_min", "target_price_min", "take_profit_low"),
         ("take_profit_price_max", "target_price_max", "take_profit_high"),
     )
     model_invalidation_price = _first_number(
-        underlying_plan,
+        unified_decision,
         "model_invalidation_price",
         "thesis_invalidation_price",
         "invalidation_price",
     )
-    hard_stop_price = _first_number(underlying_plan, "hard_stop_price", "stop_price", "planned_stop_price")
-    expected_horizon = underlying_plan.get("expected_horizon") or underlying_plan.get("dominant_horizon") or underlying_plan.get("horizon")
+    hard_stop_price = _first_number(unified_decision, "hard_stop_price", "stop_price", "planned_stop_price")
+    expected_horizon = unified_decision.get("expected_horizon") or unified_decision.get("dominant_horizon") or unified_decision.get("horizon")
 
     if status == "suitable" and entry_zone is None:
         status = "deferred"
         action = "defer_entry_thesis"
-        reasons.append("missing_underlying_entry_zone")
+        reasons.append("missing_m04_entry_zone")
     if status == "suitable" and target_price is None and take_profit_zone is None:
         status = "deferred"
         action = "defer_entry_thesis"
-        reasons.append("missing_underlying_take_profit_or_target")
+        reasons.append("missing_m04_take_profit_or_target")
     if status == "suitable" and model_invalidation_price is None:
         status = "rejected"
         action = "reject_entry_thesis"
@@ -895,7 +899,7 @@ def build_entry_decision(
 
     current_price = _first_number(target_state, "current_price", "last_price", "mark_price")
     if current_price is None:
-        current_price = _first_number(underlying_plan, "current_price", "reference_price", "last_price")
+        current_price = _first_number(unified_decision, "current_price", "reference_price", "last_price")
     if status == "suitable" and current_price is not None and entry_zone is not None:
         if current_price < entry_zone["low"] or current_price > entry_zone["high"]:
             status = "deferred"
@@ -936,8 +940,8 @@ def build_entry_decision(
         min(
             1.0,
             (
-                alpha_score
-                + _pool_score(underlying_plan, "underlying_action_score", "entry_thesis_score", "setup_quality_score")
+                confidence_score
+                + _pool_score(unified_decision, "unified_decision_score", "entry_thesis_score", "setup_quality_score")
             )
             / 2,
         ),
@@ -968,8 +972,8 @@ def build_entry_decision(
         "expected_horizon": expected_horizon,
         "entry_suitability_score": round(suitability_score, 6),
         "reason_codes": reasons,
-        "alpha_confidence_score": alpha_score,
-        "minimum_alpha_confidence": minimum_alpha,
+        "unified_decision_confidence_score": confidence_score,
+        "minimum_entry_confidence": minimum_confidence,
         "position_refs_considered": [
             row.get("position_ref") or row.get("instrument_ref")
             for row in _as_rows(position_state)
@@ -977,10 +981,10 @@ def build_entry_decision(
         ],
         "model_layer_refs": {
             "target_context_state": _as_mapping(target_context_state).get("model_ref"),
-            "event_failure_risk_vector": event_risk.get("model_ref"),
-            "alpha_confidence_vector": alpha.get("model_ref"),
-            "dynamic_risk_policy_state": policy.get("model_ref"),
-            "underlying_action_plan": underlying_plan.get("model_ref"),
+            "event_state_vector": event_state.get("model_ref"),
+            "unified_decision_vector": unified_decision.get("model_ref"),
+            "option_expression_plan": _as_mapping(option_expression_plan).get("model_ref"),
+            "residual_event_governance": residual_governance.get("model_ref"),
         },
         "safety": _safety_flags(),
     }
@@ -995,11 +999,9 @@ def build_position_lifecycle_decision(
     account_sleeve_risk_budget: Mapping[str, Any] | None = None,
     market_context_state: Mapping[str, Any] | None = None,
     entry_decision: Mapping[str, Any] | None = None,
-    event_failure_risk_vector: Mapping[str, Any] | None = None,
-    alpha_confidence_vector: Mapping[str, Any] | None = None,
-    dynamic_risk_policy_state: Mapping[str, Any] | None = None,
-    position_projection_vector: Mapping[str, Any] | None = None,
-    underlying_action_plan: Mapping[str, Any] | None = None,
+    event_state_vector: Mapping[str, Any] | None = None,
+    unified_decision_vector: Mapping[str, Any] | None = None,
+    residual_event_governance: Mapping[str, Any] | None = None,
     generated_at_utc: str | None = None,
 ) -> dict[str, Any]:
     """Manage an existing position without submitting any account mutation."""
@@ -1008,16 +1010,14 @@ def build_position_lifecycle_decision(
     position = _as_mapping(position_state)
     sleeve_id = str(position.get("account_sleeve_id") or _as_mapping(entry_decision).get("account_sleeve_id") or "")
     _sleeve(sleeve_id)
-    event_risk = _as_mapping(event_failure_risk_vector)
-    alpha = _as_mapping(alpha_confidence_vector)
-    policy = _as_mapping(dynamic_risk_policy_state)
-    projection = _as_mapping(position_projection_vector)
-    underlying_plan = _as_mapping(underlying_action_plan)
+    event_state = _as_mapping(event_state_vector)
+    unified_decision = _as_mapping(unified_decision_vector)
+    residual_governance = _as_mapping(residual_event_governance)
     entry = _as_mapping(entry_decision)
     market = _as_mapping(market_context_state)
     risk_budget = _as_mapping(account_sleeve_risk_budget)
     account = _as_mapping(account_sleeve_state)
-    position_side = _position_direction(position, entry, underlying_plan)
+    position_side = _position_direction(position, entry, unified_decision)
     current_underlying_price = _first_number(
         position,
         "current_underlying_price",
@@ -1030,7 +1030,7 @@ def build_position_lifecycle_decision(
         current_underlying_price = _first_number(market, "current_underlying_price", "current_price", "last_price", "reference_price")
     if current_underlying_price is None:
         current_underlying_price = _first_number(
-            underlying_plan,
+            unified_decision,
             "current_underlying_price",
             "underlying_price",
             "current_price",
@@ -1038,22 +1038,22 @@ def build_position_lifecycle_decision(
             "reference_price",
         )
     model_invalidation_price = (
-        _first_number(underlying_plan, "model_invalidation_price", "thesis_invalidation_price", "invalidation_price")
+        _first_number(unified_decision, "model_invalidation_price", "thesis_invalidation_price", "invalidation_price")
         or _first_number(entry, "model_invalidation_price", "thesis_invalidation_price", "invalidation_price")
         or _first_number(position, "model_invalidation_price", "thesis_invalidation_price", "invalidation_price")
     )
     hard_stop_price = (
-        _first_number(underlying_plan, "hard_stop_price", "stop_loss_price", "stop_price")
+        _first_number(unified_decision, "hard_stop_price", "stop_loss_price", "stop_price")
         or _first_number(entry, "hard_stop_price", "stop_loss_price", "stop_price")
         or _first_number(position, "hard_stop_price", "stop_loss_price", "stop_price")
     )
     target_price = (
-        _first_number(underlying_plan, "take_profit_price", "target_price", "target_price_high", "target_price_low")
+        _first_number(unified_decision, "take_profit_price", "target_price", "target_price_high", "target_price_low")
         or _first_number(entry, "take_profit_price", "target_price", "target_price_high", "target_price_low")
         or _first_number(position, "take_profit_price", "target_price", "target_price_high", "target_price_low")
     )
-    planned_action = _planned_lifecycle_action(underlying_plan)
-    add_constraint_reasons = _lifecycle_add_constraint_reasons(projection, underlying_plan)
+    planned_action = _planned_lifecycle_action(unified_decision)
+    add_constraint_reasons = _lifecycle_add_constraint_reasons(unified_decision)
 
     reasons: list[str] = []
     status: DecisionStatus = "monitor_only"
@@ -1070,37 +1070,37 @@ def build_position_lifecycle_decision(
         elif _price_reaches_downside(current_underlying_price, model_invalidation_price, position_side):
             action = "stop"
             reasons.append("model_underlying_invalidation_reached")
-        elif _bool_flag(event_risk, "flatten_positions", "halt_exposure") or _risk_level(event_risk) == "critical":
+        elif _bool_flag(residual_governance, "flatten_positions", "halt_exposure") or _risk_level(residual_governance) == "critical":
             action = "exit"
-            reasons.append("event_failure_risk_requires_exit")
-        elif _bool_flag(policy, "flatten_positions", "halt_exposure", "force_exit_positions"):
-            action = "exit"
-            reasons.append("dynamic_risk_policy_requires_exit")
+            reasons.append("m06_residual_event_governance_requires_exit")
         elif planned_action in {"stop", "exit"}:
             action = planned_action
-            reasons.append(f"underlying_action_plan_requires_{planned_action}")
+            reasons.append(f"m04_unified_decision_requires_{planned_action}")
         elif planned_action == "take_profit" or _price_reaches_upside(current_underlying_price, target_price, position_side):
             action = "take_profit"
-            reasons.append("underlying_target_or_take_profit_reached")
-        elif _risk_level(event_risk) == "high":
+            reasons.append("m04_target_or_take_profit_reached")
+        elif _risk_level(residual_governance) == "high":
             action = "reduce"
-            reasons.append("event_failure_risk_requires_reduction")
-        elif _bool_flag(policy, "reduce_positions", "reduce_exposure"):
-            action = "reduce"
-            reasons.append("dynamic_risk_policy_requires_reduction")
+            reasons.append("m06_residual_event_governance_requires_reduction")
         elif planned_action in {"add", "reduce", "hold"}:
             action = planned_action
-            reasons.append(f"underlying_action_plan_supports_{planned_action}")
+            reasons.append(f"m04_unified_decision_supports_{planned_action}")
         else:
-            alpha_score = _number(alpha.get("alpha_confidence_score", alpha.get("score")), default=0.0)
-            add_threshold = _number(policy.get("minimum_add_alpha_confidence"), default=0.70)
-            reduce_threshold = _number(policy.get("minimum_hold_alpha_confidence"), default=0.45)
-            if alpha_score < reduce_threshold:
+            confidence_score = _number(
+                unified_decision.get(
+                    "unified_decision_confidence_score",
+                    unified_decision.get("hold_thesis_score", unified_decision.get("score")),
+                ),
+                default=0.0,
+            )
+            add_threshold = _number(unified_decision.get("minimum_add_confidence"), default=0.70)
+            hold_threshold = _number(unified_decision.get("minimum_hold_confidence"), default=0.45)
+            if confidence_score < hold_threshold:
                 action = "reduce"
-                reasons.append("alpha_confidence_below_hold_threshold")
-            elif alpha_score >= add_threshold and _bool_flag(projection, "add_allowed", "position_can_add"):
+                reasons.append("m04_unified_decision_confidence_below_hold_threshold")
+            elif confidence_score >= add_threshold and _bool_flag(unified_decision, "add_allowed", "position_can_add"):
                 action = "add"
-                reasons.append("alpha_confidence_supports_add")
+                reasons.append("m04_unified_decision_supports_add")
             else:
                 action = "hold"
                 reasons.append("position_thesis_still_valid")
@@ -1133,11 +1133,9 @@ def build_position_lifecycle_decision(
         },
         "model_layer_refs": {
             "market_context_state": market.get("model_ref"),
-            "event_failure_risk_vector": event_risk.get("model_ref"),
-            "alpha_confidence_vector": alpha.get("model_ref"),
-            "dynamic_risk_policy_state": policy.get("model_ref"),
-            "position_projection_vector": projection.get("model_ref"),
-            "underlying_action_plan": underlying_plan.get("model_ref"),
+            "event_state_vector": event_state.get("model_ref"),
+            "unified_decision_vector": unified_decision.get("model_ref"),
+            "residual_event_governance": residual_governance.get("model_ref"),
         },
         "account_state_ref": account.get("account_state_ref"),
         "account_sleeve_risk_budget": dict(risk_budget),
@@ -1276,9 +1274,9 @@ def build_execution_order_intent(
 def build_option_reexpression_decision(
     *,
     option_position_state: Mapping[str, Any],
-    underlying_action_plan: Mapping[str, Any] | None = None,
+    unified_decision_vector: Mapping[str, Any] | None = None,
     option_expression_plan: Mapping[str, Any] | None = None,
-    dynamic_risk_policy_state: Mapping[str, Any] | None = None,
+    residual_event_governance: Mapping[str, Any] | None = None,
     candidate_option_contracts: Any = None,
     generated_at_utc: str | None = None,
 ) -> dict[str, Any]:
@@ -1291,10 +1289,12 @@ def build_option_reexpression_decision(
     if sleeve.sleeve_id != EQUITY_OPTIONS_ACCOUNT_SLEEVE:
         raise ValueError("option re-expression is only allowed for equity_options_account")
 
-    policy = _as_mapping(dynamic_risk_policy_state)
+    unified_decision = _as_mapping(unified_decision_vector)
+    residual_governance = _as_mapping(residual_event_governance)
     current_score = _number(position.get("contract_quality_score"), default=0.0)
-    min_improvement = _number(policy.get("minimum_roll_quality_improvement"), default=0.15)
-    max_roll_cost_pct = _number(policy.get("max_roll_cost_pct"), default=0.20)
+    expression_plan = _as_mapping(option_expression_plan)
+    min_improvement = _number(expression_plan.get("minimum_roll_quality_improvement"), default=0.15)
+    max_roll_cost_pct = _number(expression_plan.get("max_roll_cost_pct"), default=0.20)
     best_candidate = _best_option_candidate(candidate_option_contracts)
     reasons: list[str] = []
     status: DecisionStatus = "monitor_only"
@@ -1302,10 +1302,10 @@ def build_option_reexpression_decision(
 
     if _number(position.get("quantity"), default=0.0) <= 0:
         reasons.append("no_open_option_position")
-    elif _bool_flag(policy, "force_exit_options", "halt_option_exposure"):
+    elif _bool_flag(residual_governance, "force_exit_options", "halt_option_exposure") or _risk_level(residual_governance) == "critical":
         status = "accepted"
         action = "exit_option"
-        reasons.append("dynamic_risk_policy_requires_option_exit")
+        reasons.append("m06_residual_event_governance_requires_option_exit")
     elif best_candidate:
         improvement = _number(best_candidate.get("contract_quality_score"), default=0.0) - current_score
         roll_cost_pct = _number(best_candidate.get("roll_cost_pct"), default=0.0)
@@ -1338,9 +1338,9 @@ def build_option_reexpression_decision(
         "current_contract_quality_score": current_score,
         "candidate_contract": dict(best_candidate) if best_candidate else {},
         "model_layer_refs": {
-            "underlying_action_plan": _as_mapping(underlying_action_plan).get("model_ref"),
-            "option_expression_plan": _as_mapping(option_expression_plan).get("model_ref"),
-            "dynamic_risk_policy_state": policy.get("model_ref"),
+            "unified_decision_vector": unified_decision.get("model_ref"),
+            "option_expression_plan": expression_plan.get("model_ref"),
+            "residual_event_governance": residual_governance.get("model_ref"),
         },
         "safety": _safety_flags(),
     }
@@ -1466,7 +1466,7 @@ def build_failure_explanation_packet(
     *,
     failure_observation: Mapping[str, Any],
     unscreened_event_evidence: Any,
-    event_failure_risk_vector: Mapping[str, Any] | None = None,
+    residual_event_governance: Mapping[str, Any] | None = None,
     generated_at_utc: str | None = None,
 ) -> dict[str, Any]:
     """Link an observed model/trade failure to possible earlier events."""
@@ -1507,7 +1507,7 @@ def build_failure_explanation_packet(
         "explanation_status": "candidate_causes_found" if ranked else "no_backward_event_match",
         "ranked_possible_causes": ranked,
         "ignored_events": ignored_events,
-        "layer_4_feedback_candidates": [
+        "residual_event_feedback_candidates": [
             {
                 "event_ref": row["event_ref"],
                 "event_family": row["event_family"],
@@ -1517,8 +1517,8 @@ def build_failure_explanation_packet(
             if row["event_ref"]
         ],
         "model_layer_refs": {
-            "event_failure_risk_vector": _as_mapping(event_failure_risk_vector).get("model_ref"),
-            "layer_10_event_risk_governor": failure.get("layer_10_model_ref"),
+            "residual_event_governance": _as_mapping(residual_event_governance).get("model_ref")
+            or failure.get("residual_event_governance_ref"),
         },
         "safety": _safety_flags(),
     }

@@ -38,18 +38,14 @@ This document defines the first execution-facing realtime data boundary. It does
 
 Realtime coverage is tracked by `execution_realtime_input_coverage` rows in `src/trading_execution/market_data/contracts.py`. These rows are requirements and gap markers; they do not enable streams.
 
-| Layer | Model output | Realtime input groups | Primary sources | Status |
+| Model surface | Model output | Realtime input groups | Primary sources | Status |
 |---:|---|---|---|---|
-| 1 | `market_context_state` | market/ETF quotes, bars, liquidity; volatility/rates/credit/dollar/commodity proxies; crypto risk-appetite proxies | Alpaca, OKX | Partial route defined; proxy/feed gap review still required |
-| 2 | `sector_context_state` | sector/industry ETF quotes, bars, liquidity, relative strength, breadth/dispersion proxies | Alpaca | Route defined; adapter not started |
-| 3 | `target_context_state` | target quote/trade/bar/snapshot, liquidity/spread, Layer 1/2 context refs | Alpaca, OKX | Route defined; adapter not started |
-| 4 | `event_failure_risk_vector` | reviewed event/strategy-failure conditioning refs and freshness/quality diagnostics | derived governance/model context | Contract defined; no direct provider route |
-| 5 | `alpha_confidence_vector` | current Layer 1-4 state stack and freshness/quality diagnostics | derived model context | Contract defined; no direct provider route |
-| 6 | `dynamic_risk_policy_state` | market/systemic event context, alpha confidence context, portfolio capacity, risk-budget state | derived model context, execution account state, Alpaca, OKX | Context contract only; broker/account route deferred |
-| 7 | `position_projection_vector` | current/pending position, exposure, risk budget, current cost/liquidity context, Layer 6 policy ref | execution account state, Alpaca, OKX, ThetaData | Context contract only; broker/account route deferred |
-| 8 | `underlying_action_plan` | underlying quote/liquidity/spread, restrictions/halt/borrow state, Layer 7 projection ref | Alpaca, OKX, execution account state | Partial route defined; restriction/account route deferred |
-| 9 | `option_expression_plan` | underlying quote, option-chain snapshot, option quote/trade stream, IV/Greeks, OI/latest interest | ThetaData, Alpaca | Route defined; adapter not started; terminal required |
-| 10 | `event_context_vector` / `event_risk_intervention` | news/event arrivals, earnings/macro triggers, abnormal equity activity, option activity events attached to the Layer 8 thesis | Alpaca, ThetaData, calendar discovery | Partial route defined; event adapter review required |
+| `model_01_background_context` | `background_context_state` | market/ETF quotes, bars, liquidity; sector/industry ETF context; volatility/rates/credit/dollar/commodity proxies; crypto risk-appetite proxies | Alpaca, OKX | Partial route defined; proxy/feed gap review still required |
+| `model_02_target_state` | `target_context_state` | target quote/trade/bar/snapshot, liquidity/spread, sector/industry context, M01 refs | Alpaca, OKX | Route defined; adapter not started |
+| `model_03_event_state` | `event_state_vector` | interpreted event refs, earnings/macro triggers, news/event arrivals, freshness/quality diagnostics | derived governance context, calendar discovery, Alpaca | Partial route defined; event adapter review required |
+| `model_04_unified_decision` | `unified_decision_vector` | M01-M03 refs, execution account capacity, underlying quote/liquidity/spread, halt/restriction context | derived model context, execution account state, Alpaca, OKX | Context contract only; broker/account route deferred |
+| `model_05_option_expression` | `option_expression_plan` | underlying quote, option-chain snapshot, option quote/trade stream, IV/Greeks, OI/latest interest | ThetaData, Alpaca | Route defined; adapter not started; terminal required |
+| `model_06_residual_event_governance` | `event_risk_intervention` | residual event governance refs, missed-event review refs, abnormal equity activity, option activity events, freshness/quality diagnostics | derived governance context, Alpaca, ThetaData, calendar discovery | Partial route defined; event adapter review required |
 
 The matrix intentionally exposes gaps. A partial row is not a failure; it prevents us from pretending that realtime coverage is complete before a provider, account-state, or restriction route is accepted.
 
@@ -87,7 +83,7 @@ The generic adapter scaffold is planning/validation only:
 PYTHONPATH=src python3 scripts/execution/plan_realtime_capture.py \
   --mode dry_run \
   --source alpaca \
-  --model-layer layer_03_target_state_vector \
+  --model-layer model_02_target_state \
   --instrument-ref AAPL
 
 PYTHONPATH=src python3 scripts/execution/validate_realtime_capture.py capture.json
@@ -97,7 +93,7 @@ PYTHONPATH=src python3 scripts/execution/validate_realtime_capture.py capture.js
 
 ## Execution-owned realtime monitor smoke
 
-`execution_realtime_monitor_smoke_receipt` is the first execution-owned runtime smoke for the 44-symbol ETF monitoring universe. It loads the reviewed Layer 1/2 ETF universe from `trading-storage/main/shared/layer_01_02_market_context_etf_universe.csv`, builds a bounded `realtime_live_observe_approval`, and runs read-only Alpaca snapshot observations only when `--execute-live-observe` is supplied. The universe filter remains Layer 1/2 by default. The realtime feature snapshot can still declare model-layer feature coverage, while the downstream model-decision handoff envelope is routed by C-runtime component refs.
+`execution_realtime_monitor_smoke_receipt` is the first execution-owned runtime smoke for the reviewed ETF monitoring universe. It loads the M01 background-context ETF universe from `trading-storage/main/shared/model_01_background_context_etf_universe.csv`, builds a bounded `realtime_live_observe_approval`, and runs read-only Alpaca snapshot observations only when `--execute-live-observe` is supplied. The universe filter remains M01 by default. The realtime feature snapshot can still declare model-surface feature coverage, while the downstream model-decision handoff envelope is routed by C-runtime component refs.
 
 The smoke writes a receipt containing request, approval, result, and summary rows. The summary intentionally excludes credentials and provider payload details; it reports provider calls, observation counts, provider status counts, capture counts, and the invariant flags for broker calls, model activation, order construction, and account mutation.
 

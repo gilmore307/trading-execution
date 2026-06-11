@@ -19,8 +19,8 @@ the model stop line for ordinary position management.
 
 Model layers may emit offline risk thesis fields:
 
-- Layer 7: `stop_loss_price`, `thesis_invalidation_price`, `time_stop_minutes`.
-- Layer 8: `premium_stop_pct`, `premium_time_stop_minutes`, `planned_max_premium_at_risk_usd`, `max_loss_is_premium_paid_flag`.
+- M04: `stop_loss_price`, `thesis_invalidation_price`, `time_stop_minutes`.
+- M05: `premium_stop_pct`, `premium_time_stop_minutes`, `planned_max_premium_at_risk_usd`, `max_loss_is_premium_paid_flag`.
 
 Those fields are not broker orders. `trading-execution` owns pre-order validation and any later broker-native or synthetic enforcement.
 

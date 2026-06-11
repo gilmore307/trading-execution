@@ -34,7 +34,7 @@ VALID_STOCK_RISK_CAP = {
     "planned_limit_price": 101.25,
 }
 
-VALID_UNDERLYING_ENTRY_PLAN = {
+VALID_M04_ENTRY_DECISION = {
     "entry_direction": "long",
     "entry_price_min": 100.0,
     "entry_price_max": 103.0,
@@ -43,6 +43,8 @@ VALID_UNDERLYING_ENTRY_PLAN = {
     "hard_stop_price": 93.5,
     "expected_horizon": "swing",
     "entry_thesis_score": 0.82,
+    "unified_decision_confidence_score": 0.80,
+    "minimum_entry_confidence": 0.55,
 }
 
 
@@ -227,10 +229,9 @@ class RuntimeDecisionTests(unittest.TestCase):
         decision = build_entry_decision(
             execution_intake_snapshot=allocation,
             target_ref="AAPL",
-            alpha_confidence_vector={"alpha_confidence_score": 0.80},
-            event_failure_risk_vector={"risk_level": "low"},
-            dynamic_risk_policy_state={"minimum_entry_alpha_confidence": 0.55},
-            underlying_action_plan=VALID_UNDERLYING_ENTRY_PLAN,
+            event_state_vector={"risk_level": "low"},
+            unified_decision_vector=VALID_M04_ENTRY_DECISION,
+            residual_event_governance={"risk_level": "low"},
             option_expression_plan={"preferred_expression": "long_call", "instrument_ref": "AAPL_20260220_120C"},
             target_context_state={"current_price": 101.0},
             generated_at_utc="2026-01-01T00:01:00Z",
@@ -247,7 +248,7 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(decision["target_price"], 112.0)
         self.assertEqual(decision["model_invalidation_price"], 94.0)
         self.assertEqual(decision["hard_stop_price"], 93.5)
-        self.assertNotIn("option_expression_plan", decision["model_layer_refs"])
+        self.assertIn("option_expression_plan", decision["model_layer_refs"])
         self.assertEqual(validate_entry_decision(decision)["validation_status"], "passed")
 
     def test_equity_options_entry_uses_selected_option_contract_in_replay(self) -> None:
@@ -263,10 +264,9 @@ class RuntimeDecisionTests(unittest.TestCase):
         decision = build_entry_decision(
             execution_intake_snapshot=allocation,
             target_ref="AAPL",
-            alpha_confidence_vector={"alpha_confidence_score": 0.80},
-            event_failure_risk_vector={"risk_level": "low"},
-            dynamic_risk_policy_state={"minimum_entry_alpha_confidence": 0.55},
-            underlying_action_plan=VALID_UNDERLYING_ENTRY_PLAN,
+            event_state_vector={"risk_level": "low"},
+            unified_decision_vector=VALID_M04_ENTRY_DECISION,
+            residual_event_governance={"risk_level": "low"},
             option_expression_plan={
                 "asset_expression_route": "listed_option_contract",
                 "option_surface_status": "optionable_chain_available",
@@ -300,14 +300,14 @@ class RuntimeDecisionTests(unittest.TestCase):
         decision = build_entry_decision(
             execution_intake_snapshot=allocation,
             target_ref="BTC",
-            alpha_confidence_vector={"alpha_confidence_score": 0.95},
+            unified_decision_vector={"unified_decision_confidence_score": 0.95, "minimum_entry_confidence": 0.55},
             option_expression_plan={"preferred_expression": "long_call", "instrument_ref": "BTC_OPTION"},
             generated_at_utc="2026-01-01T00:01:00Z",
         )
 
         self.assertEqual(decision["decision_status"], "rejected")
         self.assertEqual(decision["decision_action"], "reject_entry_thesis")
-        self.assertIn("missing_underlying_entry_direction", decision["reason_codes"])
+        self.assertIn("missing_m04_entry_direction", decision["reason_codes"])
         self.assertNotIn("options_not_allowed_for_account_sleeve", decision["reason_codes"])
         self.assertEqual(validate_entry_decision(decision)["validation_status"], "passed")
 
@@ -324,10 +324,10 @@ class RuntimeDecisionTests(unittest.TestCase):
         decision = build_entry_decision(
             execution_intake_snapshot=allocation,
             target_ref="SOL",
-            alpha_confidence_vector={"alpha_confidence_score": 0.80},
-            dynamic_risk_policy_state={"minimum_entry_alpha_confidence": 0.55},
-            underlying_action_plan={
+            unified_decision_vector={
                 "action_side": "long",
+                "unified_decision_confidence_score": 0.80,
+                "minimum_entry_confidence": 0.55,
                 "entry_zone": {"low": 95.0, "high": 105.0},
                 "target_price": 112.0,
                 "model_invalidation_price": 94.0,
@@ -366,7 +366,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "AAPL",
                 "quantity": 10,
             },
-            event_failure_risk_vector={"risk_level": "high"},
+            residual_event_governance={"risk_level": "high"},
             account_sleeve_risk_budget={"max_position_loss_pct": 0.05},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
@@ -374,7 +374,7 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(decision["contract_type"], "position_lifecycle_decision")
         self.assertEqual(decision["decision_status"], "accepted")
         self.assertEqual(decision["decision_action"], "reduce")
-        self.assertIn("event_failure_risk_requires_reduction", decision["reason_codes"])
+        self.assertIn("m06_residual_event_governance_requires_reduction", decision["reason_codes"])
         self.assertEqual(validate_position_lifecycle_decision(decision)["validation_status"], "passed")
 
     def test_position_lifecycle_uses_underlying_stop_not_fixed_loss_pct(self) -> None:
@@ -390,12 +390,12 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "position_side": "long",
             },
             account_sleeve_risk_budget={"max_position_loss_pct": 0.05},
-            underlying_action_plan={
+            unified_decision_vector={
                 "hard_stop_price": 94.0,
                 "model_invalidation_price": 95.0,
                 "target_price": 120.0,
+                "unified_decision_confidence_score": 0.80,
             },
-            alpha_confidence_vector={"alpha_confidence_score": 0.80},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
 
@@ -416,7 +416,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "current_underlying_price": 93.5,
                 "position_side": "long",
             },
-            underlying_action_plan={"hard_stop_price": 94.0, "model_invalidation_price": 95.0},
+            unified_decision_vector={"hard_stop_price": 94.0, "model_invalidation_price": 95.0},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
 
@@ -435,9 +435,9 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "quantity": 1,
                 "current_underlying_price": 105.0,
             },
-            alpha_confidence_vector={"alpha_confidence_score": 0.90},
-            dynamic_risk_policy_state={"minimum_add_alpha_confidence": 0.70},
-            position_projection_vector={
+            unified_decision_vector={
+                "unified_decision_confidence_score": 0.90,
+                "minimum_add_confidence": 0.70,
                 "add_allowed": True,
                 "sector_mix_add_allowed": False,
                 "sector_opportunity_remaining_weight": 0.0,
@@ -461,7 +461,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "quantity": 2,
                 "current_underlying_price": 105.0,
             },
-            underlying_action_plan={
+            unified_decision_vector={
                 "planned_action": "add",
                 "position_scaling_capacity_state": {
                     "target_allocated_buying_power_usd": 3000.0,
@@ -473,7 +473,7 @@ class RuntimeDecisionTests(unittest.TestCase):
 
         self.assertEqual(decision["decision_status"], "accepted")
         self.assertEqual(decision["decision_action"], "add")
-        self.assertIn("underlying_action_plan_supports_add", decision["reason_codes"])
+        self.assertIn("m04_unified_decision_supports_add", decision["reason_codes"])
         self.assertNotIn("position_scaling_capacity_checks", decision)
         self.assertNotIn("advanced_position_management_blocked_by_target_capacity", decision["reason_codes"])
 
@@ -486,7 +486,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "MSFT",
                 "quantity": 5,
             },
-            event_failure_risk_vector={"risk_level": "high"},
+            residual_event_governance={"risk_level": "high"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
 
@@ -526,7 +526,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "AAPL_20260220_120C",
                 "quantity": 2,
             },
-            event_failure_risk_vector={"risk_level": "high"},
+            residual_event_governance={"risk_level": "high"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
         risk_cap = {
@@ -557,7 +557,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "AAPL_20260220_120C",
                 "quantity": 2,
             },
-            underlying_action_plan={"planned_action": "add"},
+            unified_decision_vector={"planned_action": "add"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
         risk_cap = {
@@ -586,7 +586,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "AAPL_20260220_120C",
                 "quantity": 2,
             },
-            event_failure_risk_vector={"risk_level": "high"},
+            residual_event_governance={"risk_level": "high"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
         risk_cap = {
@@ -615,7 +615,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "AAPL_20260220_120C",
                 "quantity": 2,
             },
-            event_failure_risk_vector={"risk_level": "high"},
+            residual_event_governance={"risk_level": "high"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
         risk_cap = {
@@ -646,7 +646,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "BTC-USDT",
                 "quantity": 0.5,
             },
-            event_failure_risk_vector={"risk_level": "high"},
+            residual_event_governance={"risk_level": "high"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
 
@@ -670,7 +670,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "MSFT",
                 "quantity": 5,
             },
-            event_failure_risk_vector={"risk_level": "high"},
+            residual_event_governance={"risk_level": "high"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
         intent = build_execution_order_intent(
@@ -704,7 +704,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "MSFT",
                 "quantity": 5,
             },
-            event_failure_risk_vector={"risk_level": "high"},
+            residual_event_governance={"risk_level": "high"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
         intent = build_execution_order_intent(
@@ -739,7 +739,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "MSFT",
                 "quantity": 5,
             },
-            event_failure_risk_vector={"risk_level": "low"},
+            residual_event_governance={"risk_level": "low"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
         intent = build_execution_order_intent(
@@ -769,7 +769,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "MSFT",
                 "quantity": 5,
             },
-            event_failure_risk_vector={"risk_level": "low"},
+            residual_event_governance={"risk_level": "low"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
         intent = build_execution_order_intent(
@@ -798,7 +798,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "MSFT",
                 "quantity": 5,
             },
-            event_failure_risk_vector={"risk_level": "high"},
+            residual_event_governance={"risk_level": "high"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
         intent = build_execution_order_intent(
@@ -829,7 +829,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "quantity": 1,
                 "contract_quality_score": 0.40,
             },
-            dynamic_risk_policy_state={"minimum_roll_quality_improvement": 0.15, "max_roll_cost_pct": 0.10},
+            option_expression_plan={"minimum_roll_quality_improvement": 0.15, "max_roll_cost_pct": 0.10},
             candidate_option_contracts=[
                 {"instrument_ref": "AAPL_20260320_115C", "contract_quality_score": 0.62, "roll_cost_pct": 0.04},
                 {"instrument_ref": "AAPL_20260320_120C", "contract_quality_score": 0.50, "roll_cost_pct": 0.03},
@@ -884,7 +884,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "ETH-USDT",
                 "quantity": 0.5,
             },
-            event_failure_risk_vector={"risk_level": "high"},
+            residual_event_governance={"risk_level": "high"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
         intent = build_execution_order_intent(

@@ -29,17 +29,19 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
     def test_realtime_input_coverage_matrix_covers_all_model_layers(self) -> None:
         coverage = {row.model_layer: row for row in realtime_input_coverage_matrix()}
 
-        self.assertEqual(len(coverage), 10)
-        self.assertEqual(coverage["layer_01_market_regime"].model_id, "model_01_market_regime")
-        self.assertIn("alpaca", coverage["layer_01_market_regime"].primary_realtime_sources)
-        self.assertIn("okx", coverage["layer_01_market_regime"].primary_realtime_sources)
-        self.assertIn("proxy_gap_review_required", coverage["layer_01_market_regime"].coverage_status)
-        self.assertEqual(coverage["layer_05_alpha_confidence"].primary_realtime_sources, ("derived_model_context",))
-        self.assertEqual(coverage["layer_06_dynamic_risk_policy"].model_id, "model_06_dynamic_risk_policy")
-        self.assertIn("execution_account_state", coverage["layer_07_position_projection"].primary_realtime_sources)
-        self.assertIn("thetadata", coverage["layer_09_option_expression"].primary_realtime_sources)
-        self.assertIn("option_chain_snapshot", coverage["layer_09_option_expression"].realtime_input_groups)
-        self.assertEqual(coverage["layer_10_event_risk_governor"].model_id, "model_10_event_risk_governor")
+        self.assertEqual(len(coverage), 6)
+        self.assertEqual(coverage["model_01_background_context"].model_id, "model_01_background_context")
+        self.assertIn("alpaca", coverage["model_01_background_context"].primary_realtime_sources)
+        self.assertIn("okx", coverage["model_01_background_context"].primary_realtime_sources)
+        self.assertIn("proxy_gap_review_required", coverage["model_01_background_context"].coverage_status)
+        self.assertEqual(coverage["model_03_event_state"].model_id, "model_03_event_state")
+        self.assertIn("derived_governance_context", coverage["model_03_event_state"].primary_realtime_sources)
+        self.assertEqual(coverage["model_04_unified_decision"].model_id, "model_04_unified_decision")
+        self.assertIn("derived_model_context", coverage["model_04_unified_decision"].primary_realtime_sources)
+        self.assertIn("execution_account_state", coverage["model_04_unified_decision"].primary_realtime_sources)
+        self.assertIn("thetadata", coverage["model_05_option_expression"].primary_realtime_sources)
+        self.assertIn("option_chain_snapshot", coverage["model_05_option_expression"].realtime_input_groups)
+        self.assertEqual(coverage["model_06_residual_event_governance"].model_id, "model_06_residual_event_governance")
         for row in coverage.values():
             self.assertEqual(row.contract_type, "execution_realtime_input_coverage")
             self.assertIn("observation_time", row.required_capture_fields)
@@ -61,7 +63,7 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
         decision_contract = model_decision_input_snapshot_contract()
 
         self.assertEqual(feature_contract["contract_type"], "realtime_feature_snapshot_contract")
-        self.assertEqual(len(feature_contract["required_layer_rows"]), 10)
+        self.assertEqual(len(feature_contract["required_layer_rows"]), 6)
         self.assertIn("historical_dataset_snapshot_ref", feature_contract["required_fields"])
         self.assertEqual(
             decision_contract["contract_type"],
@@ -91,7 +93,7 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
         catalog = build_execution_capability_catalog()
 
         self.assertEqual(catalog["contract_type"], "execution_capability_catalog")
-        self.assertEqual(len(catalog["realtime_input_coverage_matrix"]), 10)
+        self.assertEqual(len(catalog["realtime_input_coverage_matrix"]), 6)
         self.assertEqual(catalog["realtime_capture_contract"]["contract_type"], "realtime_capture_contract")
         self.assertEqual(
             catalog["realtime_feature_snapshot_contract"]["contract_type"],
@@ -118,7 +120,7 @@ class ExecutionCapabilityCatalogTests(unittest.TestCase):
         payload = json.loads(result.stdout)
 
         self.assertEqual(payload["contract_type"], "execution_capability_catalog")
-        self.assertEqual(len(payload["realtime_input_coverage_matrix"]), 10)
+        self.assertEqual(len(payload["realtime_input_coverage_matrix"]), 6)
         self.assertFalse(payload["order_mutation_enabled"])
 
 

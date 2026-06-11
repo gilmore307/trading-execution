@@ -31,16 +31,12 @@ FORBIDDEN_REALTIME_DECISION_ACTIONS = realtime_capture_contract().forbidden_acti
 )
 
 _HISTORICAL_FEATURE_PARITY_REFS = {
-    "layer_01_market_regime": "trading-data://src/data_feature/m01_market_regime_feature_generation",
-    "layer_02_sector_context": "trading-data://src/data_feature/m02_sector_context_feature_generation",
-    "layer_03_target_state_vector": "trading-data://src/data_feature/m03_target_state_vector_feature_generation",
-    "layer_04_event_failure_risk": "trading-model://src/models/model_04_event_failure_risk/generator.py",  # current model path
-    "layer_05_alpha_confidence": "trading-model://src/models/model_05_alpha_confidence/generator.py",  # current model path
-    "layer_06_dynamic_risk_policy": "trading-model://src/models/model_06_dynamic_risk_policy/generator.py",  # current model path
-    "layer_07_position_projection": "trading-model://src/models/model_07_position_projection/generator.py",  # current model path
-    "layer_08_underlying_action": "trading-model://src/models/model_08_underlying_action/generator.py",  # current model path
-    "layer_09_option_expression": "trading-model://src/models/model_09_option_expression/generator.py",  # current model path
-    "layer_10_event_risk_governor": "trading-model://src/models/model_10_event_risk_governor/generator.py",  # current model path
+    "model_01_background_context": "trading-model://src/models/model_01_background_context",
+    "model_02_target_state": "trading-model://src/models/model_02_target_state",
+    "model_03_event_state": "trading-model://src/models/model_03_event_state",
+    "model_04_unified_decision": "trading-model://src/models/model_04_unified_decision",
+    "model_05_option_expression": "trading-data://src/data_feature/m05_option_expression_feature_generation",
+    "model_06_residual_event_governance": "trading-data://src/data_feature/m06_residual_event_governance_feature_generation",
 }
 
 
@@ -263,10 +259,10 @@ def build_realtime_feature_snapshot(request: Mapping[str, Any]) -> dict[str, Any
         coverage = coverage_rows[layer]
         default_feature_ref = f"realtime-feature://{snapshot_id}/{layer}"
         upstream_ref = upstream_refs.get(layer)
-        if not upstream_ref and allow_placeholder_context_refs and layer not in ("layer_01_market_regime",):
+        if not upstream_ref and allow_placeholder_context_refs and layer not in ("model_01_background_context",):
             upstream_ref = f"placeholder://upstream-context/{snapshot_id}/{layer}"
             placeholder_context_layers.append(layer)
-        if not upstream_ref and layer not in ("layer_01_market_regime",):
+        if not upstream_ref and layer not in ("model_01_background_context",):
             missing_context_ref_layers.append(layer)
         row = RealtimeFeatureSnapshotRow(
             contract_type="realtime_feature_snapshot_row",

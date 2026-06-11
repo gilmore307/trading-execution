@@ -196,7 +196,7 @@ Status: Accepted
 
 ### Context
 
-Layer 7 emits offline direct-underlying stop/invalidation thesis fields and Layer 8 emits long-option premium-risk fields, but neither model layer owns broker enforcement.
+M04 emits direct-underlying stop/invalidation thesis fields and M05 emits long-option premium-risk fields, but neither model surface owns broker enforcement.
 
 ### Decision
 
@@ -310,7 +310,7 @@ Realtime inputs should cover the model stack's live inference needs and later su
 
 ### Decision
 
-`trading-execution` records `execution_realtime_input_coverage` rows for Layers 1-10 and a `realtime_capture_contract` for append-only validation evidence. The matrix separates complete routes from partial/gap routes, especially proxy coverage for Layer 1, event-failure-risk conditioning for Layer 4, account-state routes for Layers 6-7, restriction/account routes for Layer 8, ThetaData terminal requirements for Layer 9, and event adapter coverage for Layer 10.
+`trading-execution` records `execution_realtime_input_coverage` rows for M01-M06 and a `realtime_capture_contract` for append-only validation evidence. The matrix separates complete routes from partial/gap routes, especially proxy coverage for M01, event-state conditioning for M03, account/restriction context for M04, ThetaData terminal requirements for M05, and residual event-governance coverage for M06.
 
 ### Consequences
 
