@@ -93,7 +93,7 @@ gate review. The stable
 Owns `execution_intake_snapshot`.
 
 Purpose: read account balance state, current holdings, target candidates, and
-the strong-sector opportunity mix for one account sleeve, then split the minute
+the background-context opportunity mix for one account sleeve, then split the minute
 into the entry-candidate and open-position branches.
 
 C01 emits two downstream pools:
@@ -114,23 +114,23 @@ Live application scenario:
 
 - At each live decision minute, C01 reads account sleeve state, available
   balance, current open positions, the market universe, watch targets, and the
-  latest M01/M02/M03 outputs.
+  latest M01/M02 outputs.
 - For `crypto_spot_account`, it keeps the fixed crypto pool limited to `BTC`,
   `ETH`, and `SOL`, blocking other crypto symbols before later components see
   them.
 - For `equity_options_account`, it keeps only eligible equity, ETF, or
   optionable-underlying watch targets and leaves option expression to C02/C04.
-- It builds `sector_opportunity_mix` from sectors whose M02 strength exceeds the
-  accepted strong-sector threshold, then subtracts the sector mix already held
-  in the account sleeve. It does not force a top-three list.
+- It builds `sector_opportunity_mix` from the M01 background-context sector or
+  industry opportunity evidence, then subtracts the sector mix already held in
+  the account sleeve. It does not force a top-three list.
 - The mix is dynamic: if the desired opportunity mix is `software 35%`,
   `semiconductors 35%`, and `healthcare 30%`, but current positions already
   fill `semiconductors 35%`, the remaining C01 opportunity map stops asking C02
   to focus on semiconductors until that exposure falls below its target mix.
-- The equity/options watch target pool is the union of remaining strong-sector
+- The equity/options watch target pool is the union of remaining background-context
   targets, recent high-trading-volume targets, recent abnormal-volume targets,
   and recent catalyst targets such as earnings beats or material news. A filled
-  sector only removes the strong-sector opportunity reason; a target from that
+  sector only removes the background-context opportunity reason; a target from that
   sector can still enter through high volume, abnormal volume, or catalyst
   evidence.
 - `recent_high_trading_volume` means a reviewed high-volume flag or an absolute
