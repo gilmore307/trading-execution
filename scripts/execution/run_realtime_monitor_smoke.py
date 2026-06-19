@@ -30,7 +30,7 @@ def main() -> int:
         "--universe-model-layer",
         action="append",
         dest="universe_model_layers",
-        help="Universe CSV model_layer to include; repeatable. Defaults to Layer 1/2 ETF monitor universe.",
+        help="Universe CSV model_layer to include; repeatable. Defaults to M01/M02 ETF monitor universe.",
     )
     parser.add_argument(
         "--model-layer",
