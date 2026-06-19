@@ -189,7 +189,7 @@ Live application scenario:
 
 Owns `position_lifecycle_decision`.
 
-Purpose: manage already-open positions by deciding hold, add, reduce, exit,
+Purpose: manage already-open positions by deciding hold, reduce, exit,
 stop, take-profit, or flatten-review actions from the current underlying thesis
 and risk state.
 
@@ -214,7 +214,7 @@ failure routes to C07 Failure Review.
 Live application scenario:
 
 - All lifecycle operations are computed in underlying terms first. C03 decides
-  whether the underlying thesis should hold, add exposure, reduce exposure,
+  whether the underlying thesis should hold, reduce exposure,
   stop, exit, or take profit. C04 translates that underlying action into option
   expression, roll, repair, stock fallback, or no expression.
 - Ordinary high-risk options-account exits are not driven by fixed option P/L
@@ -225,18 +225,11 @@ Live application scenario:
   evidence. C03 does not use fee, PDT, day-trade, or churn formulas to
   override the thesis decision; those facts are execution-review context for
   C06.
-- Risk-based add/reduce, staged entry/exit, and thesis-aware high-sell/low-buy
-  style exposure adjustments are valid only when carried by trained model
-  evidence from M07/M08. C03 should not invent tactical trades from raw price
-  movement.
-- Add signals must respect the upstream sector/opportunity mix and portfolio
-  exposure constraints carried through C01/M07 context. If the target's sector
-  or exposure bucket is already filled, C03 keeps `hold` rather than adding
-  more exposure.
+- Tactical add/increase is disabled under the current full-allocation policy.
+  Winners may grow by mark-to-market weight; C03 must not plan extra add
+  orders from raw price movement or stronger thesis scores.
 - `reduce` is reserved for material risk reduction or thesis deterioration.
   It is not a reaction to every small price wiggle.
-- `add` requires a still-valid thesis, stronger alpha, acceptable projected
-  path after add, and compliance with the current sector/opportunity mix.
 
 ### C04 Expression Review
 
@@ -275,7 +268,7 @@ C05 owns all position-management content needed for the order:
 
 - final order quantity;
 - target post-trade position or exposure when available;
-- add/reduce/exit/roll sizing reason codes;
+- reduce/exit/roll sizing reason codes;
 - target-allocated buying power and estimated unit cost when available;
 - whether advanced tranche management is allowed for the target;
 - premium/capital-at-risk packaging through `trade_risk_cap`;
@@ -286,14 +279,9 @@ It calls no models and performs no broker/account mutation. It must not submit
 orders. Once C05 emits an executable `execution_order_intent`, C06 may reject or
 submit/simulate it, but must not recalculate or modify the quantity.
 
-If target-allocated buying power can only afford fewer than the configured
-advanced-management unit count, C05 records
-`single_allocation_no_advanced_scaling` in `sizing_plan` and blocks tactical
-add/reduce order-intent construction. C03 must not make this capacity decision:
-it has not yet resolved final option expression cost and does not own final
-sizing. When the same target allocation can afford several contracts, C05
-records `advanced_tranche_management_allowed` and may construct the current
-tranche from model-backed staged entry, add, reduce, or staged exit evidence.
+Target position-scaling capacity remains C05-owned sizing evidence. Tactical
+add order construction is disabled under the current full-allocation policy;
+capacity checks must not block protective stops, exits, or risk reductions.
 
 ### C06 Execution Gate
 
@@ -304,7 +292,7 @@ Live broker mutation remains disabled unless a reviewed execution gate enables
 it. Replay uses simulated adapters only; it must not submit broker requests or
 mutate account, order, or position state.
 
-Agent final review is a hard live-submission boundary. Any open, add, reduce,
+Agent final review is a hard live-submission boundary. Any open, reduce,
 exit, stop, take-profit, roll, or stock-fallback order must present its C02/C03
 or C04 reason evidence to C06 and receive an approved agent review before a
 live broker order can be submitted. C06 only validates the C05 order intent,

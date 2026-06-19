@@ -74,7 +74,7 @@ already-open positions without requiring C02 to re-approve entry.
 
 C03 Lifecycle computes open-position actions from the underlying thesis first.
 For option positions, C03 decides whether the underlying exposure should hold,
-add, reduce, stop, exit, or take profit; C04 then translates the accepted
+reduce, stop, exit, or take profit; C04 then translates the accepted
 underlying action into option expression, roll, repair, stock fallback, or no
 expression.
 
@@ -86,35 +86,25 @@ or explicit underlying action plan.
 Every non-hold action must carry explicit reason evidence. C03 does not run
 hidden fee, PDT, day-trade, or churn formulas to override lifecycle actions.
 Because live launch is not expected before the 2026-06-04 PDT framework change,
-PDT is removed from C03 gating. C03 still treats add/reduce churn cautiously:
-the action must be justified by model evidence, thesis state, portfolio
-constraints, and tranche/tactical exposure-management evidence rather than
-small short-term noise. Risk-based add/reduce and thesis-aware high-sell/low-buy
-style trims/adds are allowed only when trained model outputs support them; they
-are not ad hoc execution rules.
+PDT is removed from C03 gating. Tactical add/increase is disabled under the
+current full-allocation policy: winners may grow by mark-to-market weight, but
+C03 must not plan extra add orders. Risk-based reduce and thesis-aware
+high-sell/low-buy trims remain valid only when trained model outputs support
+them; they are not ad hoc execution rules.
 
-Add decisions must respect the current upstream sector/opportunity mix and
-portfolio exposure constraints carried from C01/M07. If the target's sector or
-exposure bucket is already filled, C03 must hold instead of adding more
-exposure.
-
-All position-management and sizing decisions for live open, add, reduce, exit,
+All position-management and sizing decisions for live open, reduce, exit,
 stop, take-profit, roll, or stock-fallback operations are completed in C05 Order
 Intent. C06 Execution Gate emits `execution_gate_result`: it requires agent
 final review before live broker submission, verifies the C05 quantity remains
 unchanged, applies final hard-block checks, and rejects or routes the intent
 without changing quantity, target exposure, or order policy.
 
-Target-level buying power determines whether advanced tranche management is
-worth using. If the allocation for the target can only afford one or two units,
+Target-level buying power remains C05 sizing evidence, not C03 lifecycle logic.
 C03 still emits only underlying lifecycle intent and reason evidence; it does
 not inspect option contract cost or final target buying-power capacity. C05
-records `single_allocation_no_advanced_scaling` and blocks tactical add/reduce
-order-intent construction when the selected expression cannot support advanced
-management. If the same allocation can afford several contracts, C05 records
-`advanced_tranche_management_allowed` and may construct the current tranche from
-model-backed staged entry/exit evidence. This rule does not block protective
-stops, exits, or risk-driven reductions.
+records target position-scaling capacity for audit, but tactical add order
+construction remains disabled under the full-allocation policy. This rule does
+not block protective stops, exits, or risk-driven reductions.
 
 ## D001 - Execution consumes promoted decisions only
 

@@ -129,11 +129,10 @@ blocked intent and never implies order submission permission.
 Target position-scaling capacity is based on target-allocated buying power and
 estimated unit/contract cost, and is evaluated in C05 after option-expression
 and risk-cap evidence are available. C03 must not inspect option contract cost
-or target-level buying-power capacity. If the target allocation can afford fewer
-than the minimum advanced-management unit count, C05 records
-`single_allocation_no_advanced_scaling` and blocks tactical add/reduce order
-intent construction. Protective stops, exits, and risk reductions are still
-allowed; capacity rules only suppress tactical scaling.
+or target-level buying-power capacity. Tactical add order construction is
+disabled under the current full-allocation policy. Protective stops, exits, and
+risk reductions are still allowed; capacity evidence must not suppress risk
+reduction.
 
 ## Shadow Runtime Component Contract
 

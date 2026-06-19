@@ -15,7 +15,7 @@ from typing import Any, Literal
 RUNTIME_COMPONENT_CONTRACT = "execution_runtime_component"
 RUNTIME_COMPONENT_GRAPH_CONTRACT = "execution_runtime_component_graph"
 RUNTIME_COMPONENT_MANIFEST_CONTRACT = "execution_runtime_component_manifest"
-RUNTIME_COMPONENT_MANIFEST_VERSION = "2026-06-10"
+RUNTIME_COMPONENT_MANIFEST_VERSION = "2026-06-19"
 
 EXECUTION_INTAKE_SNAPSHOT_CONTRACT = "execution_intake_snapshot"
 ENTRY_DECISION_CONTRACT = "entry_decision"
@@ -209,7 +209,7 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             component_label="C03 Lifecycle",
             purpose=(
                 "Manage already-open positions in underlying-thesis terms, deciding hold, "
-                "add, reduce, exit, stop, take-profit, or flatten-review actions with "
+                "reduce, exit, stop, take-profit, or flatten-review actions with "
                 "model-stop, reason-evidence, and portfolio constraint checks."
             ),
             input_contracts=(

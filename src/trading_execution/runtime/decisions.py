@@ -38,7 +38,7 @@ DecisionStatus = Literal["accepted", "blocked", "deferred", "watch_only", "monit
 _ALLOWED_SLEEVES = {sleeve.sleeve_id: sleeve for sleeve in runtime_account_sleeves()}
 _CRYPTO_INSTRUMENT_BY_SYMBOL = dict(zip(CRYPTO_CANDIDATE_SYMBOLS, CRYPTO_SPOT_INSTRUMENT_REFS, strict=True))
 _EXECUTABLE_ENTRY_ACTIONS = {"open_long"}
-_EXECUTABLE_LIFECYCLE_ACTIONS = {"add", "reduce", "exit", "stop", "take_profit"}
+_EXECUTABLE_LIFECYCLE_ACTIONS = {"reduce", "exit", "stop", "take_profit"}
 _EXECUTABLE_OPTION_REEXPRESSION_ACTIONS = {"roll_option", "exit_option", "reduce_option"}
 _HIGH_VOLUME_SCORE_THRESHOLD = 0.80
 _ABNORMAL_RELATIVE_VOLUME_THRESHOLD = 2.0
@@ -201,7 +201,7 @@ def _planned_lifecycle_action(unified_decision: Mapping[str, Any]) -> str | None
     if value in {"hold", "maintain", "no_change"}:
         return "hold"
     if value in {"add", "increase", "increase_long", "increase_short", "add_exposure"}:
-        return "add"
+        return "hold"
     if value in {"reduce", "trim", "decrease", "decrease_exposure"}:
         return "reduce"
     if value in {"exit", "close", "close_position", "flatten"}:
@@ -223,34 +223,6 @@ def _price_reaches_upside(price: float | None, level: float | None, direction: s
     if price is None or level is None:
         return False
     return price >= level if direction == "long" else price <= level
-
-
-def _lifecycle_add_constraint_reasons(unified_decision: Mapping[str, Any]) -> list[str]:
-    false_checks = (
-        ("c01_sector_opportunity_add_allowed", "sector_opportunity_mix_blocks_add"),
-        ("sector_mix_add_allowed", "sector_opportunity_mix_blocks_add"),
-        ("target_sector_add_allowed", "sector_opportunity_mix_blocks_add"),
-        ("portfolio_add_allowed", "portfolio_exposure_blocks_add"),
-        ("target_exposure_add_allowed", "target_exposure_blocks_add"),
-    )
-    true_checks = (
-        ("sector_opportunity_already_filled", "sector_opportunity_mix_blocks_add"),
-        ("target_sector_overfilled", "sector_opportunity_mix_blocks_add"),
-        ("portfolio_concentration_limit_reached", "portfolio_exposure_blocks_add"),
-        ("target_exposure_limit_reached", "target_exposure_blocks_add"),
-    )
-    reasons: list[str] = []
-    for source in (unified_decision,):
-        for key, reason in false_checks:
-            if source.get(key) is False and reason not in reasons:
-                reasons.append(reason)
-        for key, reason in true_checks:
-            if source.get(key) is True and reason not in reasons:
-                reasons.append(reason)
-        remaining_weight = _number(source.get("sector_opportunity_remaining_weight"), default=-1.0)
-        if remaining_weight == 0.0 and "sector_opportunity_mix_blocks_add" not in reasons:
-            reasons.append("sector_opportunity_mix_blocks_add")
-    return reasons
 
 
 def _first_positive_number(*sources: Mapping[str, Any], keys: tuple[str, ...]) -> float | None:
@@ -358,16 +330,6 @@ def _target_position_scaling_capacity(
         "position_scaling_mode": mode,
         "reason_codes": reason_codes,
     }
-
-
-def _is_tactical_position_scaling_decision(decision_record: Mapping[str, Any]) -> bool:
-    action = str(decision_record.get("decision_action") or "").lower()
-    if action not in {"add", "reduce"}:
-        return False
-    reasons = set(decision_record.get("reason_codes") or ())
-    if action == "add":
-        return True
-    return "m04_unified_decision_supports_reduce" in reasons
 
 
 def _zone_from_fields(mapping: Mapping[str, Any], zone_key: str, low_keys: tuple[str, ...], high_keys: tuple[str, ...]) -> dict[str, float] | None:
@@ -1053,8 +1015,6 @@ def build_position_lifecycle_decision(
         or _first_number(position, "take_profit_price", "target_price", "target_price_high", "target_price_low")
     )
     planned_action = _planned_lifecycle_action(unified_decision)
-    add_constraint_reasons = _lifecycle_add_constraint_reasons(unified_decision)
-
     reasons: list[str] = []
     status: DecisionStatus = "monitor_only"
     action = "hold"
@@ -1082,7 +1042,7 @@ def build_position_lifecycle_decision(
         elif _risk_level(residual_governance) == "high":
             action = "reduce"
             reasons.append("m06_residual_event_governance_requires_reduction")
-        elif planned_action in {"add", "reduce", "hold"}:
+        elif planned_action in {"reduce", "hold"}:
             action = planned_action
             reasons.append(f"m04_unified_decision_supports_{planned_action}")
         else:
@@ -1093,20 +1053,13 @@ def build_position_lifecycle_decision(
                 ),
                 default=0.0,
             )
-            add_threshold = _number(unified_decision.get("minimum_add_confidence"), default=0.70)
             hold_threshold = _number(unified_decision.get("minimum_hold_confidence"), default=0.45)
             if confidence_score < hold_threshold:
                 action = "reduce"
                 reasons.append("m04_unified_decision_confidence_below_hold_threshold")
-            elif confidence_score >= add_threshold and _bool_flag(unified_decision, "add_allowed", "position_can_add"):
-                action = "add"
-                reasons.append("m04_unified_decision_supports_add")
             else:
                 action = "hold"
                 reasons.append("position_thesis_still_valid")
-        if action == "add" and add_constraint_reasons:
-            action = "hold"
-            reasons.append("add_blocked_by_portfolio_constraints")
         if risk_budget.get("max_position_loss_pct") is not None or position.get("unrealized_loss_pct") is not None:
             reasons.append("fixed_percentage_loss_not_lifecycle_stop")
 
@@ -1128,8 +1081,8 @@ def build_position_lifecycle_decision(
         "reason_codes": reasons,
         "source_entry_decision_id": entry.get("entry_decision_id"),
         "portfolio_constraint_checks": {
-            "add_blocked": bool(add_constraint_reasons),
-            "reason_codes": add_constraint_reasons,
+            "add_blocked": True,
+            "reason_codes": ["tactical_add_disabled_full_allocation_policy"],
         },
         "model_layer_refs": {
             "market_context_state": market.get("model_ref"),
@@ -1199,14 +1152,6 @@ def build_execution_order_intent(
         default=None,
     )
     scaling_capacity = _target_position_scaling_capacity(decision_record, trade_risk_cap, _as_mapping(execution_policy_snapshot))
-    if (
-        contract_type == POSITION_LIFECYCLE_DECISION_CONTRACT
-        and scaling_capacity["advanced_position_management_allowed"] is False
-        and _is_tactical_position_scaling_decision(decision_record)
-    ):
-        reasons.append("insufficient_target_buying_power_for_advanced_position_management")
-        reasons.append("tactical_position_management_blocked_by_target_capacity")
-
     if not reasons:
         intent_status = "ready_for_execution_gate_not_submitted"
     elif "source_decision_not_accepted" not in reasons and "entry_action_not_executable" not in reasons and "lifecycle_action_not_executable" not in reasons:

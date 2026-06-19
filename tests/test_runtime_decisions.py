@@ -425,7 +425,7 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertIn("model_underlying_hard_stop_reached", decision["reason_codes"])
         self.assertEqual(validate_position_lifecycle_decision(decision)["validation_status"], "passed")
 
-    def test_position_lifecycle_blocks_add_when_sector_mix_is_filled(self) -> None:
+    def test_position_lifecycle_suppresses_add_under_full_allocation_policy(self) -> None:
         decision = build_position_lifecycle_decision(
             position_state={
                 "position_ref": "pos-msft-1",
@@ -448,10 +448,10 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(decision["decision_status"], "accepted")
         self.assertEqual(decision["decision_action"], "hold")
         self.assertTrue(decision["portfolio_constraint_checks"]["add_blocked"])
-        self.assertIn("sector_opportunity_mix_blocks_add", decision["portfolio_constraint_checks"]["reason_codes"])
-        self.assertIn("add_blocked_by_portfolio_constraints", decision["reason_codes"])
+        self.assertIn("tactical_add_disabled_full_allocation_policy", decision["portfolio_constraint_checks"]["reason_codes"])
+        self.assertIn("position_thesis_still_valid", decision["reason_codes"])
 
-    def test_position_lifecycle_does_not_read_option_capacity_for_tactical_add(self) -> None:
+    def test_position_lifecycle_planned_add_becomes_hold(self) -> None:
         decision = build_position_lifecycle_decision(
             position_state={
                 "position_ref": "pos-aapl-1",
@@ -472,8 +472,8 @@ class RuntimeDecisionTests(unittest.TestCase):
         )
 
         self.assertEqual(decision["decision_status"], "accepted")
-        self.assertEqual(decision["decision_action"], "add")
-        self.assertIn("m04_unified_decision_supports_add", decision["reason_codes"])
+        self.assertEqual(decision["decision_action"], "hold")
+        self.assertIn("m04_unified_decision_supports_hold", decision["reason_codes"])
         self.assertNotIn("position_scaling_capacity_checks", decision)
         self.assertNotIn("advanced_position_management_blocked_by_target_capacity", decision["reason_codes"])
 
@@ -548,18 +548,16 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(capacity["position_scaling_mode"], "single_allocation_no_advanced_scaling")
         self.assertIn("insufficient_target_buying_power_for_advanced_position_management", capacity["reason_codes"])
 
-    def test_order_intent_blocks_tactical_add_when_target_capacity_is_too_small(self) -> None:
-        decision = build_position_lifecycle_decision(
-            position_state={
-                "position_ref": "pos-aapl-1",
-                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
-                "target_ref": "AAPL",
-                "instrument_ref": "AAPL_20260220_120C",
-                "quantity": 2,
-            },
-            unified_decision_vector={"planned_action": "add"},
-            generated_at_utc="2026-01-01T00:02:00Z",
-        )
+    def test_order_intent_rejects_manual_add_lifecycle_action(self) -> None:
+        decision = {
+            "contract_type": "position_lifecycle_decision",
+            "position_lifecycle_decision_id": "pld_manual_add",
+            "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+            "decision_status": "accepted",
+            "decision_action": "add",
+            "instrument_ref": "AAPL_20260220_120C",
+            "asset_class": "equity_option",
+        }
         risk_cap = {
             **VALID_STOCK_RISK_CAP,
             "planned_quantity": 1,
@@ -573,9 +571,8 @@ class RuntimeDecisionTests(unittest.TestCase):
             generated_at_utc="2026-01-01T00:03:00Z",
         )
 
-        self.assertEqual(decision["decision_action"], "add")
-        self.assertEqual(intent["intent_status"], "blocked_order_intent")
-        self.assertIn("tactical_position_management_blocked_by_target_capacity", intent["reason_codes"])
+        self.assertEqual(intent["intent_status"], "no_order_intent_required")
+        self.assertIn("lifecycle_action_not_executable", intent["reason_codes"])
 
     def test_order_intent_allows_risk_reduction_when_target_capacity_is_too_small(self) -> None:
         decision = build_position_lifecycle_decision(
