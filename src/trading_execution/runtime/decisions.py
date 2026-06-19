@@ -160,9 +160,9 @@ def _entry_direction(unified_decision: Mapping[str, Any]) -> str | None:
         or unified_decision.get("direction")
         or ""
     ).strip().lower()
-    if value in {"long", "buy", "increase_long", "open_long", "bullish"}:
+    if value in {"long", "buy", "open_long", "bullish"}:
         return "long"
-    if value in {"short", "sell_short", "increase_short", "open_short", "bearish"}:
+    if value in {"short", "sell_short", "open_short", "bearish"}:
         return "short"
     return None
 
@@ -181,9 +181,9 @@ def _position_direction(
             or source.get("direction")
             or ""
         ).strip().lower()
-        if value in {"long", "buy", "bullish", "call", "increase_long", "open_long"}:
+        if value in {"long", "buy", "bullish", "call", "open_long"}:
             return "long"
-        if value in {"short", "sell_short", "bearish", "put", "increase_short", "open_short"}:
+        if value in {"short", "sell_short", "bearish", "put", "open_short"}:
             return "short"
     return "long"
 
@@ -200,7 +200,7 @@ def _planned_lifecycle_action(unified_decision: Mapping[str, Any]) -> str | None
     ).strip().lower()
     if value in {"hold", "maintain", "no_change"}:
         return "hold"
-    if value in {"add", "increase", "increase_long", "increase_short", "add_exposure"}:
+    if value in {"add", "add_exposure"}:
         return "hold"
     if value in {"reduce", "trim", "decrease", "decrease_exposure"}:
         return "reduce"
