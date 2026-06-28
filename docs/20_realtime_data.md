@@ -175,6 +175,15 @@ realtime_capture_contract
 
 Realtime snapshots may also carry `calendar_context_refs`. These refs are an interface only: they allow M03, M04, M06, C07, and execution gates to see the current calendar state without treating unreviewed or untrained events as hard trading actions. Untrained calendar/event risk must remain advisory review evidence until the M06/M03 governance route accepts it.
 
+Realtime feature snapshots must satisfy the manager-owned
+`train_replay_realtime_input_parity` contract for model decision inputs. Current
+provider observations and context refs may differ physically from training and
+replay artifacts, but they must map to the same semantic input families,
+feature/vector definitions, point-in-time availability rules, freshness/fallback
+states, and governance status before they can affect model decisions. Execution
+guardrails may be broader, but they remain guardrails rather than trained model
+signals.
+
 `realtime_model_decision_input_snapshot` packages C-runtime component refs into the shape needed by the historical model decision stack. It is intentionally fixture/shadow-ready only: it does not activate a model, construct an order, mutate an account, or authorize provider streams.
 
 Example:
