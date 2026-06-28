@@ -119,7 +119,13 @@ def build_realtime_subscription_plan(request: Mapping[str, Any]) -> dict[str, An
     requested_layers = _coerce_string_list(request.get("model_layers"), default=all_layers)
     instruments = _coerce_instruments(request)
 
-    context_sources = {"derived_model_context", "derived_governance_context", "execution_account_state", "calendar_discovery"}
+    context_sources = {
+        "derived_model_context",
+        "derived_governance_context",
+        "execution_account_state",
+        "realtime_calendar_context",
+        "calendar_discovery",
+    }
     unknown_sources = sorted(set(requested_sources) - set(all_sources) - context_sources)
     if unknown_sources:
         raise ValueError(f"unknown realtime source ids: {', '.join(unknown_sources)}")
@@ -141,7 +147,11 @@ def build_realtime_subscription_plan(request: Mapping[str, Any]) -> dict[str, An
 
         interface = interfaces_by_source.get(source_id)
         realtime_interfaces = interface.realtime_interfaces if interface else (f"{source_id}_context_ref",)
-        requires_secret_alias = interface.auth_requirement != "public_market_data_without_login_private_account_streams_require_login" if interface else False
+        requires_secret_alias = (
+            interface.auth_requirement != "public_market_data_without_login_private_account_streams_require_login"
+            if interface
+            else False
+        )
         if mode == "live_observe" and not (allow_live_streams and live_approval_ref):
             status = "blocked_requires_live_stream_approval_ref"
             gates = ("live_stream_approval_ref", "runtime_adapter_acceptance", "secret_alias_review")

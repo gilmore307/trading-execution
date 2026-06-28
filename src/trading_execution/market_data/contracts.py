@@ -213,14 +213,18 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
             realtime_input_groups=(
                 "event_interpretation_refs",
                 "earnings_and_macro_calendar_triggers",
+                "market_session_holiday_expiry_and_rebalance_calendar_context",
                 "equity_news_and_event_arrivals",
                 "freshness_and_quality_diagnostics",
             ),
-            primary_realtime_sources=("derived_governance_context", "calendar_discovery", "alpaca"),
+            primary_realtime_sources=("derived_governance_context", "realtime_calendar_context", "calendar_discovery", "alpaca"),
             required_capture_fields=common + ("event_time", "event_source_ref", "upstream_context_ref", "model_output_ref"),
             coverage_status="partial_route_defined_event_adapter_review_required",
             validation_role=validation_role,
-            boundary_note="M03 consumes reviewed event-state context and calendar/news trigger refs; raw event feeds are not model inputs by themselves.",
+            boundary_note=(
+                "M03 consumes reviewed event-state context plus realtime calendar context refs. Raw event feeds or "
+                "unreviewed calendar detections are not model inputs by themselves."
+            ),
         ),
         RealtimeModelInputCoverage(
             contract_type="execution_realtime_input_coverage",
@@ -232,13 +236,17 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
                 "background_target_event_context_refs",
                 "execution_account_capacity_context",
                 "underlying_quote_liquidity_and_spread",
+                "market_session_and_special_calendar_tradeability_context",
                 "trading_halt_or_restriction_state",
             ),
-            primary_realtime_sources=("derived_model_context", "execution_account_state", "alpaca", "okx"),
+            primary_realtime_sources=("derived_model_context", "execution_account_state", "realtime_calendar_context", "alpaca", "okx"),
             required_capture_fields=common + ("account_context_ref", "restriction_context_ref", "upstream_context_ref", "model_output_ref"),
             coverage_status="context_contract_only_broker_account_route_deferred",
             validation_role=validation_role,
-            boundary_note="M04 owns the unified direct-underlying decision surface; it emits a decision context, not an order.",
+            boundary_note=(
+                "M04 owns the unified direct-underlying decision surface; realtime calendar context may inform "
+                "tradeability but the output is still a decision context, not an order."
+            ),
         ),
         RealtimeModelInputCoverage(
             contract_type="execution_realtime_input_coverage",
@@ -268,15 +276,20 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
             realtime_input_groups=(
                 "residual_event_governance_refs",
                 "missed_event_review_refs",
+                "market_session_holiday_expiry_rebalance_macro_and_company_release_calendar_context",
                 "abnormal_equity_activity",
                 "option_activity_events",
                 "freshness_and_quality_diagnostics",
             ),
-            primary_realtime_sources=("derived_governance_context", "alpaca", "thetadata", "calendar_discovery"),
+            primary_realtime_sources=("derived_governance_context", "realtime_calendar_context", "alpaca", "thetadata", "calendar_discovery"),
             required_capture_fields=common + ("event_time", "event_source_ref", "upstream_context_ref", "model_output_ref"),
             coverage_status="partial_route_defined_event_adapter_review_required",
             validation_role=validation_role,
-            boundary_note="M06 governs residual event risk over current decisions and can block, reduce, or escalate before execution gates.",
+            boundary_note=(
+                "M06 governs residual event risk over current decisions. Realtime calendar context is an input "
+                "interface only; untrained or unaccepted event risks must remain advisory review evidence before "
+                "they can affect a live block, reduction, exit, or human-review path."
+            ),
         ),
     )
 

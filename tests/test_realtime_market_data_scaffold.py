@@ -33,7 +33,15 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             {
                 "request_id": "rtlive_unit",
                 "mode": "fixture_replay",
-                "sources": ["alpaca", "thetadata", "okx", "calendar_discovery", "execution_account_state", "derived_model_context"],
+                "sources": [
+                    "alpaca",
+                    "thetadata",
+                    "okx",
+                    "realtime_calendar_context",
+                    "calendar_discovery",
+                    "execution_account_state",
+                    "derived_model_context",
+                ],
                 "instrument_refs": ["AAPL"],
             }
         )
@@ -46,6 +54,14 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertIn("model_02_target_state", rows["alpaca"]["model_layers"])
         self.assertIn("model_05_option_expression", rows["thetadata"]["model_layers"])
         self.assertIn("model_01_background_context", rows["okx"]["model_layers"])
+        self.assertEqual(
+            rows["realtime_calendar_context"]["model_layers"],
+            ["model_03_event_state", "model_04_unified_decision", "model_06_residual_event_governance"],
+        )
+        self.assertIn(
+            "realtime_calendar_context.market_session_calendar_ref",
+            rows["realtime_calendar_context"]["intended_interfaces"],
+        )
         self.assertEqual(rows["calendar_discovery"]["model_layers"], ["model_03_event_state", "model_06_residual_event_governance"])
         self.assertEqual(rows["derived_model_context"]["model_layers"], ["model_04_unified_decision"])
         self.assertIn("model_04_unified_decision", rows["execution_account_state"]["model_layers"])
@@ -298,6 +314,38 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         validation = validate_realtime_feature_snapshot(snapshot)
         self.assertTrue(validation["valid"])
         self.assertEqual(validation["missing_layer_rows"], [])
+
+    def test_realtime_feature_snapshot_preserves_calendar_context_refs(self) -> None:
+        snapshot = build_realtime_feature_snapshot(
+            {
+                "decision_time": "2026-05-11T13:30:00+00:00",
+                "available_time": "2026-05-11T13:30:01+00:00",
+                "tradeable_time": "2026-05-11T13:30:02+00:00",
+                "instrument_ref": "AAPL",
+                "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
+                "frozen_model_config_ref": "trading-model://configs/frozen/unit",
+                "source_capture_refs": ["capture://alpaca/aapl/unit"],
+                "calendar_context_refs": [
+                    "calendar-context://market-session/2026-05-11",
+                    "calendar-context://te-macro/2026-05-11",
+                ],
+                "allow_placeholder_context_refs": True,
+            }
+        )
+
+        self.assertEqual(
+            snapshot["calendar_context_refs"],
+            ["calendar-context://market-session/2026-05-11", "calendar-context://te-macro/2026-05-11"],
+        )
+        for row in snapshot["feature_rows"]:
+            self.assertEqual(
+                row["calendar_context_refs"],
+                ["calendar-context://market-session/2026-05-11", "calendar-context://te-macro/2026-05-11"],
+            )
+        validation = validate_realtime_feature_snapshot(snapshot)
+        self.assertTrue(validation["valid"], validation)
+        self.assertEqual(snapshot["provider_calls_performed"], 0)
+        self.assertFalse(snapshot["model_activation_performed"])
 
     def test_realtime_feature_snapshot_blocks_missing_context_refs_by_default(self) -> None:
         snapshot = build_realtime_feature_snapshot(

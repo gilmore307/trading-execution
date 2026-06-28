@@ -99,6 +99,15 @@ active model pointers. Normal new-entry decisions still consume M03 event-state
 and M04 unified-decision surfaces; C07 is not a standalone pre-entry alpha or
 generic news veto.
 
+`realtime_calendar_context` is the execution-facing interface for live/shadow
+market-session, holiday/early-close, option-expiry/triple-witching,
+ETF/index-rebalance, TE macro-release, and SEC/company-release refs. It may be
+attached to `realtime_feature_snapshot.calendar_context_refs` and consumed by
+M03, M04, M06, C07, and execution gates as point-in-time context. It does not
+authorize broker/order/account mutation, and untrained or unaccepted
+calendar/event risk must remain advisory review evidence until accepted through
+the M06/M03 governance route.
+
 When C07 observes an event, anomaly, or context that has not been trained and
 accepted through the M06/M03 event-governance route, the packet must mark the event risk as
 untrained. C07 may estimate a provisional risk value from model-failure severity,

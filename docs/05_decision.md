@@ -368,6 +368,41 @@ Raw realtime captures are not model inputs. The model stack was designed and val
 - Feature generation remains parity-bound to historical `trading-data` / `trading-model` definitions; realtime builders must not silently invent divergent live-only semantics.
 - The handoff still does not authorize provider streams, model activation, production decision activation, order construction, broker mutation, or account mutation.
 
+## D014 - Realtime trading keeps a calendar-context interface
+
+Date: 2026-06-28
+Status: Accepted
+
+### Context
+
+M06 historical replay attribution now treats market sessions, holidays, early
+closes, option expiry, triple-witching, ETF/index rebalance windows, TE macro
+release rows, and SEC/company release refs as distinct calendar inputs. Live and
+shadow trading need the same class of context available before decisions and
+gates, but realtime execution must not let unreviewed calendar detections become
+automatic trade vetoes or order mutations.
+
+### Decision
+
+`trading-execution` accepts `realtime_calendar_context` as the execution-facing
+calendar context interface. It carries point-in-time refs for market structure,
+macro release, and company release context into `realtime_feature_snapshot`
+through optional `calendar_context_refs`.
+
+M03, M04, and M06 realtime coverage rows may consume this interface. M04 uses it
+only as tradeability/context evidence. M06 may use it for residual event-risk
+watch evidence. Untrained or unaccepted event/calendar risk remains advisory
+review evidence until the M06/M03 governance route accepts the family/context.
+
+### Consequences
+
+- Realtime trading has a stable interface for calendar context without making
+  historical M06 event backfill the live runtime controller.
+- `calendar_discovery` remains the narrower execution-owned discovery/acquisition
+  route for official future/current calendar pages and pre-event snapshots.
+- Broker/order/account mutation still requires the existing C05/C06 gates and is
+  not authorized by calendar context alone.
+
 ## D013 - Approved order-intent construction is separate from broker submission
 
 Date: 2026-05-11

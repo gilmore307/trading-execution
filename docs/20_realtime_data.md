@@ -26,6 +26,7 @@ This document defines the first execution-facing realtime data boundary. It does
 | OKX | Same canonical source as historical OKX crypto data | Public WebSocket market data plus public REST snapshots | Crypto realtime market data for execution/risk context | Adapter scaffold allowed; no live socket enabled yet |
 | Alpaca | Same canonical source as historical Alpaca equity/ETF data | Market-data WebSocket plus HTTP API | Equity/ETF/options realtime observations; broker execution may still route elsewhere | Reviewed source; adapter not started |
 | ThetaData | Same canonical source as historical ThetaData options data | Local Theta Terminal WebSocket streams | Options quote/trade stream for option execution context | Reviewed source; adapter not started |
+| `realtime_calendar_context` | Reuses accepted current calendar refs from trading-data/model governance surfaces | Context refs, not a provider stream | Market session, holiday/early-close, option expiry/triple-witching, ETF/index rebalance, TE macro release, and company release context for live/shadow decisions | Interface accepted; source population remains behind source-specific gates |
 
 ## Source notes from official docs checks
 
@@ -42,10 +43,10 @@ Realtime coverage is tracked by `execution_realtime_input_coverage` rows in `src
 |---:|---|---|---|---|
 | `model_01_background_context` | `background_context_state` | market/ETF quotes, bars, liquidity; sector/industry ETF context; volatility/rates/credit/dollar/commodity proxies; crypto risk-appetite proxies | Alpaca, OKX | Partial route defined; proxy/feed gap review still required |
 | `model_02_target_state` | `target_context_state` | target quote/trade/bar/snapshot, liquidity/spread, sector/industry context, M01 refs | Alpaca, OKX | Route defined; adapter not started |
-| `model_03_event_state` | `event_state_vector` | interpreted event refs, earnings/macro triggers, news/event arrivals, freshness/quality diagnostics | derived governance context, calendar discovery, Alpaca | Partial route defined; event adapter review required |
-| `model_04_unified_decision` | `unified_decision_vector` | M01-M03 refs, execution account capacity, underlying quote/liquidity/spread, halt/restriction context | derived model context, execution account state, Alpaca, OKX | Context contract only; broker/account route deferred |
+| `model_03_event_state` | `event_state_vector` | interpreted event refs, earnings/macro triggers, market-session/special-calendar context, news/event arrivals, freshness/quality diagnostics | derived governance context, realtime calendar context, calendar discovery, Alpaca | Partial route defined; event adapter review required |
+| `model_04_unified_decision` | `unified_decision_vector` | M01-M03 refs, execution account capacity, underlying quote/liquidity/spread, market-session/special-calendar tradeability context, halt/restriction context | derived model context, execution account state, realtime calendar context, Alpaca, OKX | Context contract only; broker/account route deferred |
 | `model_05_option_expression` | `option_expression_plan` | underlying quote, option-chain snapshot, option quote/trade stream, IV/Greeks, OI/latest interest | ThetaData, Alpaca | Route defined; adapter not started; terminal required |
-| `model_06_residual_event_governance` | `event_risk_intervention` | residual event governance refs, missed-event review refs, abnormal equity activity, option activity events, freshness/quality diagnostics | derived governance context, Alpaca, ThetaData, calendar discovery | Partial route defined; event adapter review required |
+| `model_06_residual_event_governance` | `event_risk_intervention` | residual event governance refs, missed-event review refs, market-session/special-calendar/macro/company release context, abnormal equity activity, option activity events, freshness/quality diagnostics | derived governance context, realtime calendar context, Alpaca, ThetaData, calendar discovery | Partial route defined; event adapter review required |
 
 The matrix intentionally exposes gaps. A partial row is not a failure; it prevents us from pretending that realtime coverage is complete before a provider, account-state, or restriction route is accepted.
 
@@ -76,6 +77,8 @@ The adapter surface has two safe layers:
 2. concrete provider/source live-observe fixture planning via `execution_realtime_live_observe_adapter_plan`.
 
 Concrete fixture routes currently cover Alpaca equity/ETF quote/trade/bar/snapshot refs, ThetaData option quote/trade/IV/Greeks/OI refs, OKX crypto ticker/trade/candle/snapshot refs, calendar/event refs, read-only execution account/restriction context refs, and derived model context refs. These are still fixture/shadow routes: they do not open sockets or perform provider/broker calls.
+
+`realtime_calendar_context` is the live/shadow trading interface for already accepted calendar refs. It is broader than `calendar_discovery`: it may carry market-session status, holidays, early closes, long closures, option expiry, triple-witching, ETF/index rebalance windows, TE macro release refs, and SEC/company release refs. `calendar_discovery` remains the narrower execution-owned discovery/acquisition route for future or current official release-calendar pages and pre-event expectation snapshots.
 
 The generic adapter scaffold is planning/validation only:
 
@@ -170,6 +173,8 @@ realtime_capture_contract
 
 `realtime_feature_snapshot` preserves the same point-in-time timing discipline as historical features: `feature_time <= available_time <= tradeable_time`, plus historical feature parity refs, frozen model/config refs, dataset snapshot refs, source capture refs, and per-layer feature refs. It is not a new training substrate by itself.
 
+Realtime snapshots may also carry `calendar_context_refs`. These refs are an interface only: they allow M03, M04, M06, C07, and execution gates to see the current calendar state without treating unreviewed or untrained events as hard trading actions. Untrained calendar/event risk must remain advisory review evidence until the M06/M03 governance route accepts it.
+
 `realtime_model_decision_input_snapshot` packages C-runtime component refs into the shape needed by the historical model decision stack. It is intentionally fixture/shadow-ready only: it does not activate a model, construct an order, mutate an account, or authorize provider streams.
 
 Example:
@@ -182,7 +187,8 @@ PYTHONPATH=src python3 scripts/execution/build_realtime_feature_snapshot.py \
   --instrument-ref AAPL \
   --historical-dataset-snapshot-ref trading-model://snapshots/historical/unit \
   --frozen-model-config-ref trading-model://configs/frozen/unit \
-  --source-capture-ref capture://alpaca/aapl/unit > feature_snapshot.json
+  --source-capture-ref capture://alpaca/aapl/unit \
+  --calendar-context-ref calendar-context://market-session/2026-05-11 > feature_snapshot.json
 
 PYTHONPATH=src python3 scripts/execution/build_realtime_model_input.py \
   --feature-snapshot feature_snapshot.json > decision_input.json

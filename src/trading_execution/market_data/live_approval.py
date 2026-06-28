@@ -19,8 +19,10 @@ APPROVED_SOURCES = (
     "alpaca",
     "thetadata",
     "okx",
+    "realtime_calendar_context",
     "calendar_discovery",
     "execution_account_state",
+    "derived_governance_context",
     "derived_model_context",
 )
 

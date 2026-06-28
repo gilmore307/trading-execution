@@ -56,6 +56,7 @@ class RealtimeFeatureSnapshotRow:
     realtime_input_groups: tuple[str, ...]
     source_capture_refs: tuple[str, ...]
     upstream_context_refs: tuple[str, ...]
+    calendar_context_refs: tuple[str, ...]
     feature_ref: str
     historical_feature_parity_ref: str
     coverage_status: str
@@ -68,6 +69,7 @@ class RealtimeFeatureSnapshotRow:
         row["realtime_input_groups"] = list(self.realtime_input_groups)
         row["source_capture_refs"] = list(self.source_capture_refs)
         row["upstream_context_refs"] = list(self.upstream_context_refs)
+        row["calendar_context_refs"] = list(self.calendar_context_refs)
         return row
 
 
@@ -165,6 +167,23 @@ def _dict_string_map(value: Any) -> dict[str, str]:
     return {str(key): str(val) for key, val in value.items() if val not in (None, "")}
 
 
+def _context_ref_map(value: Any) -> dict[str, tuple[str, ...]]:
+    if value is None:
+        return {}
+    if isinstance(value, str):
+        return {"*": (value,)}
+    if isinstance(value, Mapping):
+        refs: dict[str, tuple[str, ...]] = {}
+        for key, val in value.items():
+            if val in (None, "", []):
+                continue
+            refs[str(key)] = _coerce_string_list(val)
+        return refs
+    if isinstance(value, Sequence) and not isinstance(value, (bytes, bytearray)):
+        return {"*": tuple(str(item) for item in value if item not in (None, ""))}
+    raise ValueError("context refs must be a string, list, or object mapping model layers to refs")
+
+
 def _requested_layers(value: Any) -> tuple[str, ...]:
     layers = _coerce_string_list(value, default=MODEL_LAYER_ORDER)
     unknown = sorted(set(layers) - set(MODEL_LAYER_ORDER))
@@ -191,6 +210,10 @@ def realtime_feature_snapshot_contract() -> dict[str, Any]:
             "feature_rows",
         ],
         "required_layer_rows": list(MODEL_LAYER_ORDER),
+        "optional_fields": [
+            "calendar_context_refs",
+            "feature_rows[].calendar_context_refs",
+        ],
         "accepted_dataset_roles": list(ACCEPTED_DATASET_ROLES),
         "forbidden_actions": list(FORBIDDEN_REALTIME_DECISION_ACTIONS),
         "boundary_note": (
@@ -248,6 +271,7 @@ def build_realtime_feature_snapshot(request: Mapping[str, Any]) -> dict[str, Any
     frozen_model_config_ref = str(request.get("frozen_model_config_ref") or "trading-model://frozen-model-config/review-required")
     feature_refs = _dict_string_map(request.get("feature_refs"))
     upstream_refs = _dict_string_map(request.get("upstream_context_refs"))
+    calendar_refs = _context_ref_map(request.get("calendar_context_refs"))
     source_capture_refs = _capture_refs(request.get("source_capture_refs") or request.get("captures"))
     allow_placeholder_context_refs = bool(request.get("allow_placeholder_context_refs", False))
 
@@ -264,6 +288,7 @@ def build_realtime_feature_snapshot(request: Mapping[str, Any]) -> dict[str, Any
             placeholder_context_layers.append(layer)
         if not upstream_ref and layer not in ("model_01_background_context",):
             missing_context_ref_layers.append(layer)
+        layer_calendar_refs = calendar_refs.get(layer) or calendar_refs.get("*") or ()
         row = RealtimeFeatureSnapshotRow(
             contract_type="realtime_feature_snapshot_row",
             snapshot_id=snapshot_id,
@@ -277,6 +302,7 @@ def build_realtime_feature_snapshot(request: Mapping[str, Any]) -> dict[str, Any
             realtime_input_groups=coverage.realtime_input_groups,
             source_capture_refs=source_capture_refs,
             upstream_context_refs=(upstream_ref,) if upstream_ref else (),
+            calendar_context_refs=layer_calendar_refs,
             feature_ref=feature_refs.get(layer, default_feature_ref),
             historical_feature_parity_ref=_HISTORICAL_FEATURE_PARITY_REFS[layer],
             coverage_status=coverage.coverage_status,
@@ -304,6 +330,7 @@ def build_realtime_feature_snapshot(request: Mapping[str, Any]) -> dict[str, Any
         "historical_dataset_snapshot_ref": historical_dataset_snapshot_ref,
         "frozen_model_config_ref": frozen_model_config_ref,
         "feature_rows": [row.summary_row() for row in rows],
+        "calendar_context_refs": sorted({ref for row in rows for ref in row.calendar_context_refs}),
         "missing_model_layers": missing_layers,
         "missing_context_ref_layers": missing_context_ref_layers,
         "placeholder_context_layers": placeholder_context_layers,
@@ -359,6 +386,9 @@ def validate_realtime_feature_snapshot(snapshot: Mapping[str, Any]) -> dict[str,
             for field in ("model_layer", "model_id", "model_output", "feature_ref", "historical_feature_parity_ref"):
                 if not row.get(field):
                     row_errors.append(f"feature_rows[{index}].{field} missing")
+            calendar_row_refs = row.get("calendar_context_refs", [])
+            if not isinstance(calendar_row_refs, Sequence) or isinstance(calendar_row_refs, (str, bytes, bytearray)):
+                row_errors.append(f"feature_rows[{index}].calendar_context_refs must be a list")
 
     valid = (
         not missing_fields
