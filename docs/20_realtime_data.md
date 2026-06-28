@@ -23,9 +23,9 @@ This document defines the first execution-facing realtime data boundary. It does
 
 | Source | Historical relationship | Realtime interface | Execution use | Status |
 |---|---|---|---|---|
-| OKX | Same canonical source as historical OKX crypto data | Public WebSocket market data plus public REST snapshots | Crypto realtime market data for execution/risk context | Adapter scaffold allowed; no live socket enabled yet |
-| Alpaca | Same canonical source as historical Alpaca equity/ETF data | Market-data WebSocket plus HTTP API | Equity/ETF/options realtime observations; broker execution may still route elsewhere | Reviewed source; adapter not started |
-| ThetaData | Same canonical source as historical ThetaData options data | Local Theta Terminal WebSocket streams | Options quote/trade stream for option execution context | Reviewed source; adapter not started |
+| OKX | Same canonical source as historical OKX crypto data | Public WebSocket market data plus public REST snapshots | Crypto realtime market data for execution/risk context | Planning/approval interface accepted; no live socket enabled by default |
+| Alpaca | Same canonical source as historical Alpaca equity/ETF data | Market-data WebSocket plus HTTP API | Equity/ETF/options realtime observations; broker execution may still route elsewhere | Source accepted; live observe requires explicit approval |
+| ThetaData | Same canonical source as historical ThetaData options data | Local Theta Terminal WebSocket streams | Options quote/trade stream for option execution context | Source accepted; live observe requires explicit approval |
 | `realtime_calendar_context` | Reuses accepted current calendar refs from trading-data/model governance surfaces | Context refs, not a provider stream | Market session, holiday/early-close, option expiry/triple-witching, ETF/index rebalance, TE macro release, and company release context for live/shadow decisions | Interface accepted; source population remains behind source-specific gates |
 
 ## Source notes from official docs checks
@@ -69,18 +69,19 @@ The realtime monitor does not create historical test/holdout/training rows by de
 
 After a market-hours cycle matures, runtime roster selection is handled by `c08_shadow_cycle_selection` in `docs/40_runtime_model_lifecycle.md`. Decision-effectiveness metrics feed that review, but the realtime monitor itself still does not switch active pointers.
 
-## Adapter scaffold
+## Realtime Adapter Planning And Observation
 
-The adapter surface has two safe layers:
+The realtime adapter surface has two safe layers:
 
 1. generic subscription planning via `execution_realtime_subscription_plan`;
 2. concrete provider/source live-observe fixture planning via `execution_realtime_live_observe_adapter_plan`.
 
-Concrete fixture routes currently cover Alpaca equity/ETF quote/trade/bar/snapshot refs, ThetaData option quote/trade/IV/Greeks/OI refs, OKX crypto ticker/trade/candle/snapshot refs, calendar/event refs, read-only execution account/restriction context refs, and derived model context refs. These are still fixture/shadow routes: they do not open sockets or perform provider/broker calls.
+Concrete observation-plan routes currently cover Alpaca equity/ETF quote/trade/bar/snapshot refs, ThetaData option quote/trade/IV/Greeks/OI refs, OKX crypto ticker/trade/candle/snapshot refs, calendar/event refs, read-only execution account/restriction context refs, and derived model context refs. Dry-run and fixture routes do not open sockets or perform provider/broker calls; formal read-only provider observation requires `realtime_live_observe_approval`.
 
 `realtime_calendar_context` is the live/shadow trading interface for already accepted calendar refs. It is broader than `calendar_discovery`: it may carry market-session status, holidays, early closes, long closures, option expiry, triple-witching, ETF/index rebalance windows, TE macro release refs, and SEC/company release refs. `calendar_discovery` remains the narrower execution-owned discovery/acquisition route for future or current official release-calendar pages and pre-event expectation snapshots.
 
-The generic adapter scaffold is planning/validation only:
+The generic adapter interface is planning/validation only unless a formal
+live-observe approval is supplied:
 
 ```bash
 PYTHONPATH=src python3 scripts/execution/plan_realtime_capture.py \

@@ -323,7 +323,7 @@ The realtime data layer needs to become executable without collapsing safety bou
 
 ### Consequences
 
-- Adapter scaffolds are now connected across OKX, Alpaca, ThetaData, derived model context, calendar discovery, and execution account-state placeholders.
+- Adapter planning and validation now cover OKX, Alpaca, ThetaData, derived model context, calendar discovery, and bounded execution account-state context refs.
 - Plan/validation helpers report zero provider calls, zero broker calls, and no model activation.
 - Future live-observe adapters must reuse these contracts and add explicit approval, secret, reconnect/backoff, manifest, artifact, and ready-signal handling before any external stream is opened.
 
