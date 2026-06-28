@@ -11,10 +11,25 @@ from typing import Any
 from trading_execution.market_data import build_realtime_feature_snapshot
 
 
+def _context_refs(values: list[str] | None) -> dict[str, str]:
+    refs: dict[str, str] = {}
+    for value in values or []:
+        if "=" not in value:
+            raise ValueError("--upstream-context-ref must use MODEL_LAYER=REF")
+        layer, ref = value.split("=", 1)
+        layer = layer.strip()
+        ref = ref.strip()
+        if not layer or not ref:
+            raise ValueError("--upstream-context-ref must use MODEL_LAYER=REF")
+        refs[layer] = ref
+    return refs
+
+
 def _payload_from_args(args: argparse.Namespace) -> dict[str, Any]:
     payload: dict[str, Any] = {}
     if args.request_json:
         payload.update(json.loads(Path(args.request_json).read_text(encoding="utf-8")))
+    upstream_context_refs = _context_refs(args.upstream_context_ref)
     payload.update(
         {
             key: value
@@ -30,8 +45,8 @@ def _payload_from_args(args: argparse.Namespace) -> dict[str, Any]:
                 "frozen_model_config_ref": args.frozen_model_config_ref,
                 "model_layers": args.model_layer,
                 "source_capture_refs": args.source_capture_ref,
+                "upstream_context_refs": upstream_context_refs,
                 "calendar_context_refs": args.calendar_context_ref,
-                "allow_placeholder_context_refs": args.allow_placeholder_context_refs,
             }.items()
             if value not in (None, [], "")
         }
@@ -53,8 +68,8 @@ def main() -> int:
     parser.add_argument("--frozen-model-config-ref", required=True)
     parser.add_argument("--model-layer", action="append", dest="model_layer")
     parser.add_argument("--source-capture-ref", action="append", dest="source_capture_ref")
+    parser.add_argument("--upstream-context-ref", action="append", dest="upstream_context_ref", help="Explicit upstream context ref as MODEL_LAYER=REF. Required for downstream model layers to be decision-ready.")
     parser.add_argument("--calendar-context-ref", action="append", dest="calendar_context_ref")
-    parser.add_argument("--allow-placeholder-context-refs", action="store_true", help="Allow fixture/shadow placeholder upstream refs for layers without reviewed context refs.")
     args = parser.parse_args()
 
     print(json.dumps(build_realtime_feature_snapshot(_payload_from_args(args)), indent=2, sort_keys=True))

@@ -381,7 +381,6 @@ def build_realtime_shadow_fixture_bundle(request: Mapping[str, Any]) -> dict[str
         {
             **dict(request),
             "source_capture_refs": source_capture_refs,
-            "allow_placeholder_context_refs": bool(request.get("allow_placeholder_context_refs", False)),
         }
     )
     decision_input = build_model_decision_input_snapshot({"feature_snapshot": feature_snapshot})

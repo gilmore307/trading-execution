@@ -266,26 +266,21 @@ def build_realtime_feature_snapshot(request: Mapping[str, Any]) -> dict[str, Any
     historical_dataset_snapshot_ref = str(
         request.get("historical_dataset_snapshot_ref")
         or request.get("dataset_snapshot_ref")
-        or "trading-model://historical-dataset-snapshot/review-required"
+        or ""
     )
-    frozen_model_config_ref = str(request.get("frozen_model_config_ref") or "trading-model://frozen-model-config/review-required")
+    frozen_model_config_ref = str(request.get("frozen_model_config_ref") or "")
     feature_refs = _dict_string_map(request.get("feature_refs"))
     upstream_refs = _dict_string_map(request.get("upstream_context_refs"))
     calendar_refs = _context_ref_map(request.get("calendar_context_refs"))
     source_capture_refs = _capture_refs(request.get("source_capture_refs") or request.get("captures"))
-    allow_placeholder_context_refs = bool(request.get("allow_placeholder_context_refs", False))
 
     rows: list[RealtimeFeatureSnapshotRow] = []
     missing_context_ref_layers: list[str] = []
-    placeholder_context_layers: list[str] = []
     coverage_rows = {row.model_layer: row for row in realtime_input_coverage_matrix()}
     for layer in requested_layers:
         coverage = coverage_rows[layer]
         default_feature_ref = f"realtime-feature://{snapshot_id}/{layer}"
         upstream_ref = upstream_refs.get(layer)
-        if not upstream_ref and allow_placeholder_context_refs and layer not in ("model_01_background_context",):
-            upstream_ref = f"placeholder://upstream-context/{snapshot_id}/{layer}"
-            placeholder_context_layers.append(layer)
         if not upstream_ref and layer not in ("model_01_background_context",):
             missing_context_ref_layers.append(layer)
         layer_calendar_refs = calendar_refs.get(layer) or calendar_refs.get("*") or ()
@@ -316,7 +311,14 @@ def build_realtime_feature_snapshot(request: Mapping[str, Any]) -> dict[str, Any
     requested_actions = set(request.get("requested_actions") or [])
     forbidden_actions_present = sorted(requested_actions.intersection(FORBIDDEN_REALTIME_DECISION_ACTIONS))
     valid_role = dataset_role in ACCEPTED_DATASET_ROLES
-    ready = not missing_layers and not forbidden_actions_present and valid_role and not missing_context_ref_layers
+    ready = (
+        not missing_layers
+        and not forbidden_actions_present
+        and valid_role
+        and bool(historical_dataset_snapshot_ref)
+        and bool(frozen_model_config_ref)
+        and not missing_context_ref_layers
+    )
 
     return {
         "contract_type": "realtime_feature_snapshot",
@@ -333,7 +335,6 @@ def build_realtime_feature_snapshot(request: Mapping[str, Any]) -> dict[str, Any
         "calendar_context_refs": sorted({ref for row in rows for ref in row.calendar_context_refs}),
         "missing_model_layers": missing_layers,
         "missing_context_ref_layers": missing_context_ref_layers,
-        "placeholder_context_layers": placeholder_context_layers,
         "forbidden_actions_present": forbidden_actions_present,
         "readiness_status": "ready_for_fixture_or_shadow_model_decision_input" if ready else "blocked_missing_realtime_feature_requirements",
         "provider_calls_performed": 0,
@@ -386,6 +387,12 @@ def validate_realtime_feature_snapshot(snapshot: Mapping[str, Any]) -> dict[str,
             for field in ("model_layer", "model_id", "model_output", "feature_ref", "historical_feature_parity_ref"):
                 if not row.get(field):
                     row_errors.append(f"feature_rows[{index}].{field} missing")
+            for field in ("upstream_context_refs", "calendar_context_refs", "source_capture_refs"):
+                refs = row.get(field, [])
+                if isinstance(refs, Sequence) and not isinstance(refs, (str, bytes, bytearray)):
+                    for ref in refs:
+                        if str(ref).startswith("placeholder://"):
+                            row_errors.append(f"feature_rows[{index}].{field} contains placeholder ref")
             calendar_row_refs = row.get("calendar_context_refs", [])
             if not isinstance(calendar_row_refs, Sequence) or isinstance(calendar_row_refs, (str, bytes, bytearray)):
                 row_errors.append(f"feature_rows[{index}].calendar_context_refs must be a list")

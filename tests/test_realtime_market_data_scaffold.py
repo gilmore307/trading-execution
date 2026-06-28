@@ -28,6 +28,15 @@ from trading_execution.market_data import (
 
 
 class RealtimeMarketDataScaffoldTests(unittest.TestCase):
+    def _fixture_upstream_context_refs(self) -> dict[str, str]:
+        return {
+            "model_02_target_state": "fixture://upstream-context/model_01_background_context",
+            "model_03_event_state": "fixture://upstream-context/model_02_target_state",
+            "model_04_unified_decision": "fixture://upstream-context/model_03_event_state",
+            "model_05_option_expression": "fixture://upstream-context/model_04_unified_decision",
+            "model_06_residual_event_governance": "fixture://upstream-context/model_04_model_05_decision_context",
+        }
+
     def test_live_observe_adapter_plan_covers_provider_event_account_routes(self) -> None:
         plan = build_live_observe_adapter_plan(
             {
@@ -113,7 +122,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                 "tradeable_time": "2026-05-11T13:30:02+00:00",
                 "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
                 "frozen_model_config_ref": "trading-model://configs/frozen/unit",
-                "allow_placeholder_context_refs": True,
+                "upstream_context_refs": self._fixture_upstream_context_refs(),
             }
         )
 
@@ -139,7 +148,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
 
         self.assertEqual(bundle["bundle_status"], "blocked")
         self.assertIn("model_03_event_state", bundle["feature_snapshot"]["missing_context_ref_layers"])
-        self.assertEqual(bundle["feature_snapshot"]["placeholder_context_layers"], [])
+        self.assertNotIn("placeholder_context_layers", bundle["feature_snapshot"])
 
     def test_build_realtime_subscription_plan_for_alpaca_target_layer(self) -> None:
         plan = build_realtime_subscription_plan(
@@ -302,7 +311,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                 "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
                 "frozen_model_config_ref": "trading-model://configs/frozen/unit",
                 "source_capture_refs": ["capture://alpaca/aapl/unit"],
-                "allow_placeholder_context_refs": True,
+                "upstream_context_refs": self._fixture_upstream_context_refs(),
             }
         )
 
@@ -329,7 +338,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                     "calendar-context://market-session/2026-05-11",
                     "calendar-context://te-macro/2026-05-11",
                 ],
-                "allow_placeholder_context_refs": True,
+                "upstream_context_refs": self._fixture_upstream_context_refs(),
             }
         )
 
@@ -363,6 +372,27 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertEqual(snapshot["readiness_status"], "blocked_missing_realtime_feature_requirements")
         self.assertIn("model_03_event_state", snapshot["missing_context_ref_layers"])
 
+    def test_realtime_feature_snapshot_rejects_placeholder_context_refs(self) -> None:
+        snapshot = build_realtime_feature_snapshot(
+            {
+                "decision_time": "2026-05-11T13:30:00+00:00",
+                "available_time": "2026-05-11T13:30:01+00:00",
+                "tradeable_time": "2026-05-11T13:30:02+00:00",
+                "instrument_ref": "AAPL",
+                "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
+                "frozen_model_config_ref": "trading-model://configs/frozen/unit",
+                "source_capture_refs": ["capture://alpaca/aapl/unit"],
+                "upstream_context_refs": {
+                    **self._fixture_upstream_context_refs(),
+                    "model_03_event_state": "placeholder://upstream-context/model_03_event_state",
+                },
+            }
+        )
+
+        validation = validate_realtime_feature_snapshot(snapshot)
+        self.assertFalse(validation["valid"])
+        self.assertTrue(any("placeholder ref" in error for error in validation["row_errors"]))
+
     def test_build_model_decision_input_snapshot_from_realtime_features(self) -> None:
         decision_input = build_model_decision_input_snapshot(
             {
@@ -373,7 +403,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                 "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
                 "frozen_model_config_ref": "trading-model://configs/frozen/unit",
                 "source_capture_refs": ["capture://alpaca/aapl/unit"],
-                "allow_placeholder_context_refs": True,
+                "upstream_context_refs": self._fixture_upstream_context_refs(),
             }
         )
 
@@ -393,7 +423,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                 "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
                 "frozen_model_config_ref": "trading-model://configs/frozen/unit",
                 "source_capture_refs": ["capture://alpaca/aapl/unit"],
-                "allow_placeholder_context_refs": True,
+                "upstream_context_refs": self._fixture_upstream_context_refs(),
             }
         )
         for row in decision_input["runtime_component_manifest"]["components"]:
@@ -956,7 +986,16 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                     "trading-model://configs/frozen/unit",
                     "--source-capture-ref",
                     "capture://alpaca/aapl/unit",
-                    "--allow-placeholder-context-refs",
+                    "--upstream-context-ref",
+                    "model_02_target_state=fixture://upstream-context/model_01_background_context",
+                    "--upstream-context-ref",
+                    "model_03_event_state=fixture://upstream-context/model_02_target_state",
+                    "--upstream-context-ref",
+                    "model_04_unified_decision=fixture://upstream-context/model_03_event_state",
+                    "--upstream-context-ref",
+                    "model_05_option_expression=fixture://upstream-context/model_04_unified_decision",
+                    "--upstream-context-ref",
+                    "model_06_residual_event_governance=fixture://upstream-context/model_04_model_05_decision_context",
                 ],
                 check=True,
                 cwd="/root/projects/trading-execution",

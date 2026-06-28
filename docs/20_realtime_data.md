@@ -198,6 +198,11 @@ PYTHONPATH=src python3 scripts/execution/build_realtime_feature_snapshot.py \
   --historical-dataset-snapshot-ref trading-model://snapshots/historical/unit \
   --frozen-model-config-ref trading-model://configs/frozen/unit \
   --source-capture-ref capture://alpaca/aapl/unit \
+  --upstream-context-ref model_02_target_state=feature-ref://model_01_background_context/current \
+  --upstream-context-ref model_03_event_state=feature-ref://model_02_target_state/current \
+  --upstream-context-ref model_04_unified_decision=feature-ref://model_03_event_state/current \
+  --upstream-context-ref model_05_option_expression=feature-ref://model_04_unified_decision/current \
+  --upstream-context-ref model_06_residual_event_governance=feature-ref://model_04_model_05/current \
   --calendar-context-ref calendar-context://market-session/2026-05-11 > feature_snapshot.json
 
 PYTHONPATH=src python3 scripts/execution/build_realtime_model_input.py \
@@ -206,7 +211,10 @@ PYTHONPATH=src python3 scripts/execution/build_realtime_model_input.py \
 PYTHONPATH=src python3 scripts/execution/validate_realtime_model_input.py decision_input.json
 ```
 
-This makes the bridge to historical model data decision routing explicit while keeping live inference/model activation behind later reviewed gates.
+This makes the bridge to historical model data decision routing explicit while
+keeping live inference/model activation behind later reviewed gates. The builder
+does not generate placeholder upstream refs; missing context refs block the
+snapshot until the caller provides real fixture, shadow, or live context refs.
 
 ## Implementation hook
 
