@@ -167,6 +167,32 @@ def _dict_string_map(value: Any) -> dict[str, str]:
     return {str(key): str(val) for key, val in value.items() if val not in (None, "")}
 
 
+def model_input_context_from_request(request: Mapping[str, Any]) -> dict[str, Any]:
+    """Extract an accepted model-input context bundle from a request-like object."""
+
+    bundle = request.get("model_input_context_bundle")
+    if not isinstance(bundle, Mapping):
+        record = request.get("promotion_readiness_record")
+        if isinstance(record, Mapping):
+            bundle = record.get("model_input_context_bundle")
+    if not isinstance(bundle, Mapping):
+        return {}
+    upstream_refs = bundle.get("upstream_context_refs") if isinstance(bundle.get("upstream_context_refs"), Mapping) else {}
+    calendar_refs = bundle.get("calendar_context_refs")
+    return {
+        "model_input_context_bundle_ref": str(
+            bundle.get("context_bundle_id")
+            or bundle.get("model_input_context_bundle_ref")
+            or bundle.get("promotion_readiness_record_ref")
+            or ""
+        ),
+        "historical_dataset_snapshot_ref": str(bundle.get("historical_dataset_snapshot_ref") or ""),
+        "frozen_model_config_ref": str(bundle.get("frozen_model_config_ref") or ""),
+        "upstream_context_refs": {str(key): str(value) for key, value in dict(upstream_refs).items() if value not in (None, "")},
+        "calendar_context_refs": calendar_refs,
+    }
+
+
 def _context_ref_map(value: Any) -> dict[str, tuple[str, ...]]:
     if value is None:
         return {}
@@ -263,15 +289,24 @@ def build_realtime_feature_snapshot(request: Mapping[str, Any]) -> dict[str, Any
     dataset_role = str(request.get("dataset_role") or "shadow_monitoring")
     requested_layers = _requested_layers(request.get("model_layers"))
     snapshot_id = str(request.get("snapshot_id") or _stable_id("rtfeat", {"instrument_ref": instrument_ref, "decision_time": decision_time, "layers": requested_layers}))
+    model_input_context = model_input_context_from_request(request)
     historical_dataset_snapshot_ref = str(
         request.get("historical_dataset_snapshot_ref")
         or request.get("dataset_snapshot_ref")
+        or model_input_context.get("historical_dataset_snapshot_ref")
         or ""
     )
-    frozen_model_config_ref = str(request.get("frozen_model_config_ref") or "")
+    frozen_model_config_ref = str(request.get("frozen_model_config_ref") or model_input_context.get("frozen_model_config_ref") or "")
     feature_refs = _dict_string_map(request.get("feature_refs"))
-    upstream_refs = _dict_string_map(request.get("upstream_context_refs"))
-    calendar_refs = _context_ref_map(request.get("calendar_context_refs"))
+    upstream_refs = {
+        **dict(model_input_context.get("upstream_context_refs") or {}),
+        **_dict_string_map(request.get("upstream_context_refs")),
+    }
+    calendar_refs = _context_ref_map(
+        request.get("calendar_context_refs")
+        if request.get("calendar_context_refs") not in (None, "", [], {})
+        else model_input_context.get("calendar_context_refs")
+    )
     source_capture_refs = _capture_refs(request.get("source_capture_refs") or request.get("captures"))
 
     rows: list[RealtimeFeatureSnapshotRow] = []
@@ -331,6 +366,7 @@ def build_realtime_feature_snapshot(request: Mapping[str, Any]) -> dict[str, Any
         "dataset_role": dataset_role,
         "historical_dataset_snapshot_ref": historical_dataset_snapshot_ref,
         "frozen_model_config_ref": frozen_model_config_ref,
+        "model_input_context_bundle_ref": model_input_context.get("model_input_context_bundle_ref") or "",
         "feature_rows": [row.summary_row() for row in rows],
         "calendar_context_refs": sorted({ref for row in rows for ref in row.calendar_context_refs}),
         "missing_model_layers": missing_layers,

@@ -172,7 +172,7 @@ realtime_capture_contract
   -> historical-model decision stack fixture/shadow route
 ```
 
-`realtime_feature_snapshot` preserves the same point-in-time timing discipline as historical features: `feature_time <= available_time <= tradeable_time`, plus historical feature parity refs, frozen model/config refs, dataset snapshot refs, source capture refs, and per-layer feature refs. It is not a new training substrate by itself.
+`realtime_feature_snapshot` preserves the same point-in-time timing discipline as historical features: `feature_time <= available_time <= tradeable_time`, plus historical feature parity refs, frozen model/config refs, dataset snapshot refs, source capture refs, and per-layer feature refs. It is not a new training substrate by itself. Normal shadow/live rehearsal should receive these refs from the accepted promotion-readiness `model_input_context_bundle`; manual per-layer refs are for fixture diagnostics only.
 
 Realtime snapshots may also carry `calendar_context_refs`. These refs are an interface only: they allow M03, M04, M06, C07, and execution gates to see the current calendar state without treating unreviewed or untrained events as hard trading actions. Untrained calendar/event risk must remain advisory review evidence until the M06/M03 governance route accepts it.
 
@@ -195,14 +195,8 @@ PYTHONPATH=src python3 scripts/execution/build_realtime_feature_snapshot.py \
   --available-time 2026-05-11T13:30:01+00:00 \
   --tradeable-time 2026-05-11T13:30:02+00:00 \
   --instrument-ref AAPL \
-  --historical-dataset-snapshot-ref trading-model://snapshots/historical/unit \
-  --frozen-model-config-ref trading-model://configs/frozen/unit \
+  --promotion-readiness-record promotion_readiness.json \
   --source-capture-ref capture://alpaca/aapl/unit \
-  --upstream-context-ref model_02_target_state=feature-ref://model_01_background_context/current \
-  --upstream-context-ref model_03_event_state=feature-ref://model_02_target_state/current \
-  --upstream-context-ref model_04_unified_decision=feature-ref://model_03_event_state/current \
-  --upstream-context-ref model_05_option_expression=feature-ref://model_04_unified_decision/current \
-  --upstream-context-ref model_06_residual_event_governance=feature-ref://model_04_model_05/current \
   --calendar-context-ref calendar-context://market-session/2026-05-11 > feature_snapshot.json
 
 PYTHONPATH=src python3 scripts/execution/build_realtime_model_input.py \
@@ -213,8 +207,9 @@ PYTHONPATH=src python3 scripts/execution/validate_realtime_model_input.py decisi
 
 This makes the bridge to historical model data decision routing explicit while
 keeping live inference/model activation behind later reviewed gates. The builder
-does not generate placeholder upstream refs; missing context refs block the
-snapshot until the caller provides real fixture, shadow, or live context refs.
+does not generate placeholder upstream refs. If the accepted promotion-readiness
+bundle is missing, the failure belongs upstream in promotion/shadow handoff
+preparation; snapshot blocking is only the final safety check.
 
 ## Implementation hook
 

@@ -65,11 +65,15 @@ def build_realtime_monitor_request(
     model_layers: Sequence[str] = DEFAULT_REALTIME_MODEL_LAYERS,
     observation_time: str | None = None,
     label_horizon_seconds: int = 900,
+    promotion_readiness_record: Mapping[str, Any] | None = None,
+    model_input_context_bundle: Mapping[str, Any] | None = None,
+    historical_dataset_snapshot_ref: str | None = None,
+    frozen_model_config_ref: str | None = None,
 ) -> dict[str, Any]:
     """Build a read-only realtime monitor live-observe request."""
 
     observed_at = observation_time or _iso(_now())
-    return {
+    payload = {
         "contract_type": "execution_realtime_monitor_live_observe_request",
         "request_id": request_id,
         "sources": [source_id],
@@ -80,10 +84,17 @@ def build_realtime_monitor_request(
         "provider_available_time": observed_at,
         "tradeable_time": observed_at,
         "label_horizon_seconds": label_horizon_seconds,
-        "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/review-required",
-        "frozen_model_config_ref": "trading-model://configs/frozen/review-required",
         "dataset_role": "shadow_monitoring",
     }
+    if promotion_readiness_record is not None:
+        payload["promotion_readiness_record"] = dict(promotion_readiness_record)
+    if model_input_context_bundle is not None:
+        payload["model_input_context_bundle"] = dict(model_input_context_bundle)
+    if historical_dataset_snapshot_ref:
+        payload["historical_dataset_snapshot_ref"] = historical_dataset_snapshot_ref
+    if frozen_model_config_ref:
+        payload["frozen_model_config_ref"] = frozen_model_config_ref
+    return payload
 
 
 def build_realtime_monitor_approval(

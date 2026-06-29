@@ -37,6 +37,23 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             "model_06_residual_event_governance": "fixture://upstream-context/model_04_model_05_decision_context",
         }
 
+    def _fixture_promotion_readiness_record(self) -> dict[str, object]:
+        return {
+            "contract_type": "promotion_readiness_record",
+            "promotion_readiness_record_id": "promready_unit",
+            "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
+            "frozen_model_config_ref": "trading-model://configs/frozen/unit",
+            "model_input_context_bundle": {
+                "contract_type": "model_input_context_bundle",
+                "context_bundle_id": "modelctx_unit",
+                "promotion_readiness_record_ref": "promready_unit",
+                "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
+                "frozen_model_config_ref": "trading-model://configs/frozen/unit",
+                "upstream_context_refs": self._fixture_upstream_context_refs(),
+                "context_status": "ready_for_realtime_shadow_snapshot",
+            },
+        }
+
     def test_live_observe_adapter_plan_covers_provider_event_account_routes(self) -> None:
         plan = build_live_observe_adapter_plan(
             {
@@ -99,8 +116,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                 "model_layers": ["model_04_unified_decision"],
                 "instrument_refs": ["AAPL"],
                 "decision_time": "2026-05-11T13:30:00+00:00",
-                "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
-                "frozen_model_config_ref": "trading-model://configs/frozen/unit",
+                "promotion_readiness_record": self._fixture_promotion_readiness_record(),
             }
         )
 
@@ -120,9 +136,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                 "decision_time": "2026-05-11T13:30:00+00:00",
                 "available_time": "2026-05-11T13:30:01+00:00",
                 "tradeable_time": "2026-05-11T13:30:02+00:00",
-                "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
-                "frozen_model_config_ref": "trading-model://configs/frozen/unit",
-                "upstream_context_refs": self._fixture_upstream_context_refs(),
+                "promotion_readiness_record": self._fixture_promotion_readiness_record(),
             }
         )
 
@@ -308,16 +322,15 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                 "available_time": "2026-05-11T13:30:01+00:00",
                 "tradeable_time": "2026-05-11T13:30:02+00:00",
                 "instrument_ref": "AAPL",
-                "historical_dataset_snapshot_ref": "trading-model://snapshots/historical/unit",
-                "frozen_model_config_ref": "trading-model://configs/frozen/unit",
                 "source_capture_refs": ["capture://alpaca/aapl/unit"],
-                "upstream_context_refs": self._fixture_upstream_context_refs(),
+                "promotion_readiness_record": self._fixture_promotion_readiness_record(),
             }
         )
 
         self.assertEqual(snapshot["contract_type"], "realtime_feature_snapshot")
         self.assertEqual(snapshot["readiness_status"], "ready_for_fixture_or_shadow_model_decision_input")
         self.assertEqual(len(snapshot["feature_rows"]), 6)
+        self.assertEqual(snapshot["model_input_context_bundle_ref"], "modelctx_unit")
         self.assertEqual(snapshot["provider_calls_performed"], 0)
         self.assertFalse(snapshot["model_activation_performed"])
         validation = validate_realtime_feature_snapshot(snapshot)
@@ -968,6 +981,8 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             feature_path = Path(temp_dir) / "feature_snapshot.json"
+            readiness_path = Path(temp_dir) / "promotion_readiness.json"
+            readiness_path.write_text(json.dumps(self._fixture_promotion_readiness_record()), encoding="utf-8")
             feature_result = subprocess.run(
                 [
                     sys.executable,
@@ -980,22 +995,10 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
                     "2026-05-11T13:30:02+00:00",
                     "--instrument-ref",
                     "AAPL",
-                    "--historical-dataset-snapshot-ref",
-                    "trading-model://snapshots/historical/unit",
-                    "--frozen-model-config-ref",
-                    "trading-model://configs/frozen/unit",
+                    "--promotion-readiness-record",
+                    str(readiness_path),
                     "--source-capture-ref",
                     "capture://alpaca/aapl/unit",
-                    "--upstream-context-ref",
-                    "model_02_target_state=fixture://upstream-context/model_01_background_context",
-                    "--upstream-context-ref",
-                    "model_03_event_state=fixture://upstream-context/model_02_target_state",
-                    "--upstream-context-ref",
-                    "model_04_unified_decision=fixture://upstream-context/model_03_event_state",
-                    "--upstream-context-ref",
-                    "model_05_option_expression=fixture://upstream-context/model_04_unified_decision",
-                    "--upstream-context-ref",
-                    "model_06_residual_event_governance=fixture://upstream-context/model_04_model_05_decision_context",
                 ],
                 check=True,
                 cwd="/root/projects/trading-execution",

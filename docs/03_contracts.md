@@ -108,6 +108,12 @@ authorize broker/order/account mutation, and untrained or unaccepted
 calendar/event risk must remain advisory review evidence until accepted through
 the M06/M03 governance route.
 
+Realtime model-input snapshots should inherit `historical_dataset_snapshot_ref`,
+`frozen_model_config_ref`, and M02-M06 upstream context refs from the accepted
+promotion-readiness `model_input_context_bundle`. Missing refs are a promotion
+or shadow-handoff preparation defect, not a normal runtime state to patch with
+placeholder refs.
+
 When C07 observes an event, anomaly, or context that has not been trained and
 accepted through the M06/M03 event-governance route, the packet must mark the event risk as
 untrained. C07 may estimate a provisional risk value from model-failure severity,

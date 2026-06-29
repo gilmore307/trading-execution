@@ -13,7 +13,7 @@ from hashlib import sha256
 from typing import Any, Mapping, Sequence
 
 from .adapters import ALLOWED_MODES, RealtimeInstrumentRequest, build_realtime_subscription_plan
-from .features import build_model_decision_input_snapshot, build_realtime_feature_snapshot
+from .features import build_model_decision_input_snapshot, build_realtime_feature_snapshot, model_input_context_from_request
 from .contracts import realtime_input_coverage_matrix
 
 LIVE_OBSERVE_SOURCES = (
@@ -303,8 +303,14 @@ def build_realtime_capture_fixture(request: Mapping[str, Any]) -> dict[str, Any]
     provider_available_time = _iso(request.get("provider_available_time"), fallback=_plus_minutes(observation_time, 0))
     tradeable_time = _iso(request.get("tradeable_time"), fallback=_plus_minutes(provider_available_time, 0))
     label_maturity_time = _iso(request.get("label_maturity_time"), fallback=_plus_minutes(tradeable_time, int(request.get("label_horizon_minutes") or 60)))
-    frozen_model_config_ref = str(request.get("frozen_model_config_ref") or "trading-model://frozen-model-config/review-required")
-    dataset_snapshot_ref = str(request.get("historical_dataset_snapshot_ref") or request.get("dataset_snapshot_ref") or "trading-model://historical-dataset-snapshot/review-required")
+    model_input_context = model_input_context_from_request(request)
+    frozen_model_config_ref = str(request.get("frozen_model_config_ref") or model_input_context.get("frozen_model_config_ref") or "")
+    dataset_snapshot_ref = str(
+        request.get("historical_dataset_snapshot_ref")
+        or request.get("dataset_snapshot_ref")
+        or model_input_context.get("historical_dataset_snapshot_ref")
+        or ""
+    )
     dataset_role = str(request.get("dataset_role") or "shadow_monitoring")
     ingestion_commit_ref = str(request.get("ingestion_commit_ref") or "git://trading-execution/fixture-not-persisted")
     coverage = {row.model_layer: row for row in realtime_input_coverage_matrix()}

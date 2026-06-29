@@ -18,7 +18,7 @@ from typing import Any, Callable, Mapping, Sequence
 from urllib import error, parse, request
 
 from .capture import validate_realtime_capture
-from .features import build_model_decision_input_snapshot, build_realtime_feature_snapshot
+from .features import build_model_decision_input_snapshot, build_realtime_feature_snapshot, model_input_context_from_request
 from .live_approval import validate_live_observe_approval
 from .live_observe import _CAPTURE_INTERFACE_BY_SOURCE, _SOURCE_ASSET_CLASS, build_live_observe_adapter_plan
 
@@ -268,6 +268,14 @@ def execute_live_observe(
     observations: list[dict[str, Any]] = []
     captures: list[dict[str, Any]] = []
     provider_calls = 0
+    model_input_context = model_input_context_from_request(request_payload)
+    frozen_model_config_ref = str(request_payload.get("frozen_model_config_ref") or model_input_context.get("frozen_model_config_ref") or "")
+    historical_dataset_snapshot_ref = str(
+        request_payload.get("historical_dataset_snapshot_ref")
+        or request_payload.get("dataset_snapshot_ref")
+        or model_input_context.get("historical_dataset_snapshot_ref")
+        or ""
+    )
     plan_set = build_live_observe_adapter_plan({**dict(request_payload), "mode": "live_observe", "allow_live_streams": True, "live_stream_approval_ref": approval.get("approval_id")})
     adapter_layers = {str(row["source_id"]): list(row.get("model_layers") or []) for row in plan_set.get("adapter_plans", []) if isinstance(row, Mapping)}
     try:
@@ -321,9 +329,9 @@ def execute_live_observe(
                 "asset_class": _SOURCE_ASSET_CLASS.get(source_id, "unspecified"),
                 "instrument_ref": instrument_ref,
                 "normalized_payload_ref": normalized_payload_ref,
-                "frozen_model_config_ref": str(request_payload.get("frozen_model_config_ref") or "trading-model://frozen-model-config/review-required"),
+                "frozen_model_config_ref": frozen_model_config_ref,
                 "model_output_ref": f"shadow://realtime-live-observe/{request_id}/{instrument_ref}/{layer}/model_output_ref_pending",
-                "dataset_snapshot_ref": str(request_payload.get("historical_dataset_snapshot_ref") or request_payload.get("dataset_snapshot_ref") or "trading-model://historical-dataset-snapshot/review-required"),
+                "dataset_snapshot_ref": historical_dataset_snapshot_ref,
                 "dataset_role": str(request_payload.get("dataset_role") or "shadow_monitoring"),
                 "label_maturity_time": str(request_payload.get("label_maturity_time") or _plus_seconds(tradeable_time, int(request_payload.get("label_horizon_seconds") or 3600))),
                 "outcome_label_ref": f"label://realtime-live-observe/{request_id}/{instrument_ref}/{layer}/pending_maturity",

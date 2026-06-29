@@ -29,6 +29,10 @@ def _payload_from_args(args: argparse.Namespace) -> dict[str, Any]:
     payload: dict[str, Any] = {}
     if args.request_json:
         payload.update(json.loads(Path(args.request_json).read_text(encoding="utf-8")))
+    if args.promotion_readiness_record:
+        payload["promotion_readiness_record"] = json.loads(Path(args.promotion_readiness_record).read_text(encoding="utf-8"))
+    if args.model_input_context_bundle:
+        payload["model_input_context_bundle"] = json.loads(Path(args.model_input_context_bundle).read_text(encoding="utf-8"))
     upstream_context_refs = _context_refs(args.upstream_context_ref)
     payload.update(
         {
@@ -64,8 +68,10 @@ def main() -> int:
     parser.add_argument("--tradeable-time")
     parser.add_argument("--instrument-ref", required=True)
     parser.add_argument("--dataset-role", default="shadow_monitoring")
-    parser.add_argument("--historical-dataset-snapshot-ref", required=True)
-    parser.add_argument("--frozen-model-config-ref", required=True)
+    parser.add_argument("--historical-dataset-snapshot-ref")
+    parser.add_argument("--frozen-model-config-ref")
+    parser.add_argument("--promotion-readiness-record", help="Promotion readiness JSON carrying model_input_context_bundle.")
+    parser.add_argument("--model-input-context-bundle", help="Standalone model_input_context_bundle JSON.")
     parser.add_argument("--model-layer", action="append", dest="model_layer")
     parser.add_argument("--source-capture-ref", action="append", dest="source_capture_ref")
     parser.add_argument("--upstream-context-ref", action="append", dest="upstream_context_ref", help="Explicit upstream context ref as MODEL_LAYER=REF. Required for downstream model layers to be decision-ready.")
