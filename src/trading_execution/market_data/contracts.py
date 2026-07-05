@@ -267,30 +267,6 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
             validation_role=validation_role,
             boundary_note="M05 owns option expression and depends on ThetaData option-chain/quote/trade context plus current underlying observations.",
         ),
-        RealtimeModelInputCoverage(
-            contract_type="execution_realtime_input_coverage",
-            model_layer="model_06_residual_event_governance",
-            model_id="model_06_residual_event_governance",
-            model_output="event_risk_intervention",
-            live_input_surface="residual missed-event and failure-governance context over M04/M05 execution decisions",
-            realtime_input_groups=(
-                "residual_event_governance_refs",
-                "missed_event_review_refs",
-                "market_session_holiday_expiry_rebalance_macro_and_company_release_calendar_context",
-                "abnormal_equity_activity",
-                "option_activity_events",
-                "freshness_and_quality_diagnostics",
-            ),
-            primary_realtime_sources=("derived_governance_context", "realtime_calendar_context", "alpaca", "thetadata", "calendar_discovery"),
-            required_capture_fields=common + ("event_time", "event_source_ref", "upstream_context_ref", "model_output_ref"),
-            coverage_status="partial_route_defined_event_adapter_review_required",
-            validation_role=validation_role,
-            boundary_note=(
-                "M06 governs residual event risk over current decisions. Realtime calendar context is an input "
-                "interface only; untrained or unaccepted event risks must remain advisory review evidence before "
-                "they can affect a live block, reduction, exit, or human-review path."
-            ),
-        ),
     )
 
 

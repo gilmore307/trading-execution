@@ -106,7 +106,7 @@ Model surfaces:
 - `model_01_background_context`.
 - `model_02_target_state`.
 
-It does not call `M04`, `M05`, or `M06`. C01 does not size
+It does not call `M04` or `M05`. C01 does not size
 positions, allocate risk budget, decide whether a thesis deserves a trade, or
 manage exits.
 
@@ -160,7 +160,7 @@ build orders.
 Model surfaces:
 
 - required: `model_03_event_state`, `model_04_unified_decision`.
-- optional: `model_06_residual_event_governance`.
+- optional: none.
 
 C02 consumes the unified decision surface; it must not recreate edge, risk,
 exposure, or action heads locally. Option versus direct-underlying expression is
@@ -205,7 +205,7 @@ those already-open positions. It is a sibling of C02, not downstream of C02.
 Model surfaces:
 
 - required: `model_03_event_state`, `model_04_unified_decision`.
-- optional: `model_06_residual_event_governance`.
+- optional: none.
 
 C03 consumes the unified decision surface for open positions; it must not
 relearn action, exposure, or risk policy locally. Observed model or trade
@@ -252,7 +252,7 @@ fixed loss percentage.
 
 Model surfaces:
 
-- optional: `model_05_option_expression`, `model_06_residual_event_governance`.
+- optional: `model_05_option_expression`.
 
 Roll decisions require a material improvement after roll-cost penalty and must
 respect roll-count, liquidity, and risk-budget limits.
@@ -327,8 +327,8 @@ Live timing: C07 is valid in live operation in two modes:
 
 Realtime watch may inspect active and shadow decisions with an open thesis, open
 position, material path deviation, new event evidence, or unexplained model
-drift. When the event or anomaly has not been accepted into the current M06/M03
-event-governance route, C07 must mark the evidence as untrained. It may estimate
+drift. When the event or anomaly has not been accepted into the current M03
+event-state route, C07 must mark the evidence as untrained. It may estimate
 a provisional risk value from model-failure severity, path deviation, event
 proximity, exposure at risk, and evidence quality, but that value is review
 evidence only. It is not an alpha score, not a trained M03 event-state score, and
@@ -358,14 +358,10 @@ For untrained event-risk evidence, `failure_explanation_packet` must carry:
 The trading-review agent owns the final judgment on whether that provisional
 risk warrants blocking, reducing, exiting, or escalation.
 
-Model surface:
-
-- optional: `model_06_residual_event_governance`.
-
-M06 is not a standalone pre-entry veto. It is a residual event-governance,
-explanation, and deviation-watch surface. If the observed event was not trained
-and accepted through the M06/M03 route, C07 may only produce provisional
-untrained risk evidence:
+C07 has no dedicated model surface. It is a component that may consume M03
+event-state evidence and component event-risk-control evidence. If the observed
+event was not trained and accepted through the M03 event-state route, C07 may
+only produce provisional untrained risk evidence:
 
 ```text
 active/shadow thesis or observed model/trade failure
@@ -373,7 +369,7 @@ active/shadow thesis or observed model/trade failure
   -> provisional risk estimate from failure severity
   -> trading-review agent judgment
   -> C03/C05/C06 protective review evidence
-  -> later M06/M03 feedback candidate
+  -> later M03 feedback candidate
 ```
 
 M03 remains the forward event-state model used in entry and position lifecycle

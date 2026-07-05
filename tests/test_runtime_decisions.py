@@ -231,7 +231,7 @@ class RuntimeDecisionTests(unittest.TestCase):
             target_ref="AAPL",
             event_state_vector={"risk_level": "low"},
             unified_decision_vector=VALID_M04_ENTRY_DECISION,
-            residual_event_governance={"risk_level": "low"},
+            event_risk_control={"risk_level": "low"},
             option_expression_plan={"preferred_expression": "long_call", "instrument_ref": "AAPL_20260220_120C"},
             target_context_state={"current_price": 101.0},
             generated_at_utc="2026-01-01T00:01:00Z",
@@ -266,7 +266,7 @@ class RuntimeDecisionTests(unittest.TestCase):
             target_ref="AAPL",
             event_state_vector={"risk_level": "low"},
             unified_decision_vector=VALID_M04_ENTRY_DECISION,
-            residual_event_governance={"risk_level": "low"},
+            event_risk_control={"risk_level": "low"},
             option_expression_plan={
                 "asset_expression_route": "listed_option_contract",
                 "option_surface_status": "optionable_chain_available",
@@ -366,7 +366,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "AAPL",
                 "quantity": 10,
             },
-            residual_event_governance={"risk_level": "high"},
+            event_risk_control={"risk_level": "high"},
             account_sleeve_risk_budget={"max_position_loss_pct": 0.05},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
@@ -374,7 +374,7 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(decision["contract_type"], "position_lifecycle_decision")
         self.assertEqual(decision["decision_status"], "accepted")
         self.assertEqual(decision["decision_action"], "reduce")
-        self.assertIn("m06_residual_event_governance_requires_reduction", decision["reason_codes"])
+        self.assertIn("component_event_risk_control_requires_reduction", decision["reason_codes"])
         self.assertEqual(validate_position_lifecycle_decision(decision)["validation_status"], "passed")
 
     def test_position_lifecycle_uses_underlying_stop_not_fixed_loss_pct(self) -> None:
@@ -486,7 +486,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "MSFT",
                 "quantity": 5,
             },
-            residual_event_governance={"risk_level": "high"},
+            event_risk_control={"risk_level": "high"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
 
@@ -526,7 +526,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "AAPL_20260220_120C",
                 "quantity": 2,
             },
-            residual_event_governance={"risk_level": "high"},
+            event_risk_control={"risk_level": "high"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
         risk_cap = {
@@ -583,7 +583,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "AAPL_20260220_120C",
                 "quantity": 2,
             },
-            residual_event_governance={"risk_level": "high"},
+            event_risk_control={"risk_level": "high"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
         risk_cap = {
@@ -612,7 +612,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "AAPL_20260220_120C",
                 "quantity": 2,
             },
-            residual_event_governance={"risk_level": "high"},
+            event_risk_control={"risk_level": "high"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
         risk_cap = {
@@ -643,7 +643,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "BTC-USDT",
                 "quantity": 0.5,
             },
-            residual_event_governance={"risk_level": "high"},
+            event_risk_control={"risk_level": "high"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
 
@@ -667,7 +667,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "MSFT",
                 "quantity": 5,
             },
-            residual_event_governance={"risk_level": "high"},
+            event_risk_control={"risk_level": "high"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
         intent = build_execution_order_intent(
@@ -701,7 +701,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "MSFT",
                 "quantity": 5,
             },
-            residual_event_governance={"risk_level": "high"},
+            event_risk_control={"risk_level": "high"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
         intent = build_execution_order_intent(
@@ -736,7 +736,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "MSFT",
                 "quantity": 5,
             },
-            residual_event_governance={"risk_level": "low"},
+            event_risk_control={"risk_level": "low"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
         intent = build_execution_order_intent(
@@ -766,7 +766,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "MSFT",
                 "quantity": 5,
             },
-            residual_event_governance={"risk_level": "low"},
+            event_risk_control={"risk_level": "low"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
         intent = build_execution_order_intent(
@@ -795,7 +795,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "MSFT",
                 "quantity": 5,
             },
-            residual_event_governance={"risk_level": "high"},
+            event_risk_control={"risk_level": "high"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
         intent = build_execution_order_intent(
@@ -881,7 +881,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "instrument_ref": "ETH-USDT",
                 "quantity": 0.5,
             },
-            residual_event_governance={"risk_level": "high"},
+            event_risk_control={"risk_level": "high"},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
         intent = build_execution_order_intent(

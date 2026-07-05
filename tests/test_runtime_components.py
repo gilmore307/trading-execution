@@ -103,16 +103,16 @@ class RuntimeComponentGraphTests(unittest.TestCase):
 
         entry = rows["component_02_entry"]
         self.assertEqual(entry.required_model_surfaces, ("model_03_event_state", "model_04_unified_decision"))
-        self.assertEqual(entry.optional_model_surfaces, ("model_06_residual_event_governance",))
+        self.assertEqual(entry.optional_model_surfaces, ())
 
         failure = rows["component_07_failure_review"]
         self.assertEqual(failure.required_model_surfaces, ())
-        self.assertEqual(failure.optional_model_surfaces, ("model_06_residual_event_governance",))
+        self.assertEqual(failure.optional_model_surfaces, ())
 
         manifest = runtime_component_manifest()
         manifest_text = repr(manifest)
         self.assertNotIn("called_model_layers", manifest_text)
-        self.assertIn("model_06_residual_event_governance", manifest_text)
+        self.assertIn("model_03_event_state", manifest_text)
 
     def test_order_intent_component_has_no_model_calls_or_mutation(self) -> None:
         rows = {component.component_id: component for component in runtime_components()}

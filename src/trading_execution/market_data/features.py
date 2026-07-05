@@ -36,7 +36,6 @@ _HISTORICAL_FEATURE_PARITY_REFS = {
     "model_03_event_state": "trading-model://src/models/model_03_event_state",
     "model_04_unified_decision": "trading-model://src/models/model_04_unified_decision",
     "model_05_option_expression": "trading-data://src/data_feature/m05_option_expression_feature_generation",
-    "model_06_residual_event_governance": "trading-data://src/data_feature/m06_residual_event_governance_feature_generation",
 }
 
 

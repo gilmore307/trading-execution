@@ -34,7 +34,6 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             "model_03_event_state": "fixture://upstream-context/model_02_target_state",
             "model_04_unified_decision": "fixture://upstream-context/model_03_event_state",
             "model_05_option_expression": "fixture://upstream-context/model_04_unified_decision",
-            "model_06_residual_event_governance": "fixture://upstream-context/model_04_model_05_decision_context",
         }
 
     def _fixture_promotion_readiness_record(self) -> dict[str, object]:
@@ -82,13 +81,13 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertIn("model_01_background_context", rows["okx"]["model_layers"])
         self.assertEqual(
             rows["realtime_calendar_context"]["model_layers"],
-            ["model_03_event_state", "model_04_unified_decision", "model_06_residual_event_governance"],
+            ["model_03_event_state", "model_04_unified_decision"],
         )
         self.assertIn(
             "realtime_calendar_context.market_session_calendar_ref",
             rows["realtime_calendar_context"]["intended_interfaces"],
         )
-        self.assertEqual(rows["calendar_discovery"]["model_layers"], ["model_03_event_state", "model_06_residual_event_governance"])
+        self.assertEqual(rows["calendar_discovery"]["model_layers"], ["model_03_event_state"])
         self.assertEqual(rows["derived_model_context"]["model_layers"], ["model_04_unified_decision"])
         self.assertIn("model_04_unified_decision", rows["execution_account_state"]["model_layers"])
 
@@ -329,7 +328,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
 
         self.assertEqual(snapshot["contract_type"], "realtime_feature_snapshot")
         self.assertEqual(snapshot["readiness_status"], "ready_for_fixture_or_shadow_model_decision_input")
-        self.assertEqual(len(snapshot["feature_rows"]), 6)
+        self.assertEqual(len(snapshot["feature_rows"]), 5)
         self.assertEqual(snapshot["model_input_context_bundle_ref"], "modelctx_unit")
         self.assertEqual(snapshot["provider_calls_performed"], 0)
         self.assertFalse(snapshot["model_activation_performed"])
@@ -564,7 +563,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
         self.assertEqual(receipt["summary"]["provider_status_counts"], {"observed": 2})
         self.assertEqual(receipt["summary"]["feature_snapshot_readiness"], "blocked_missing_realtime_feature_requirements")
         self.assertEqual(receipt["summary"]["decision_input_readiness"], "blocked_missing_model_decision_input_requirements")
-        self.assertEqual(len(receipt["result"]["feature_snapshot"]["feature_rows"]), 6)
+        self.assertEqual(len(receipt["result"]["feature_snapshot"]["feature_rows"]), 5)
         self.assertEqual(len(receipt["result"]["decision_input_snapshot"]["component_input_refs"]), 7)
         self.assertEqual(receipt["summary"]["broker_calls_performed"], 0)
         self.assertFalse(receipt["summary"]["model_activation_performed"])
@@ -1009,7 +1008,7 @@ class RealtimeMarketDataScaffoldTests(unittest.TestCase):
             feature_snapshot = json.loads(feature_result.stdout)
             feature_path.write_text(json.dumps(feature_snapshot), encoding="utf-8")
             self.assertEqual(feature_snapshot["provider_calls_performed"], 0)
-            self.assertEqual(len(feature_snapshot["feature_rows"]), 6)
+            self.assertEqual(len(feature_snapshot["feature_rows"]), 5)
 
             decision_result = subprocess.run(
                 [sys.executable, "scripts/execution/build_realtime_model_input.py", "--feature-snapshot", str(feature_path)],

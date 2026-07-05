@@ -754,7 +754,7 @@ def build_entry_decision(
     target_context_state: Mapping[str, Any] | None = None,
     event_state_vector: Mapping[str, Any] | None = None,
     unified_decision_vector: Mapping[str, Any] | None = None,
-    residual_event_governance: Mapping[str, Any] | None = None,
+    event_risk_control: Mapping[str, Any] | None = None,
     option_expression_plan: Mapping[str, Any] | None = None,
     generated_at_utc: str | None = None,
 ) -> dict[str, Any]:
@@ -767,7 +767,7 @@ def build_entry_decision(
     selected = _candidate_entry_targets(execution_intake_snapshot)
     event_state = _as_mapping(event_state_vector)
     unified_decision = _as_mapping(unified_decision_vector)
-    residual_governance = _as_mapping(residual_event_governance)
+    residual_governance = _as_mapping(event_risk_control)
     target_state = _as_mapping(target_context_state)
 
     reasons: list[str] = []
@@ -783,7 +783,7 @@ def build_entry_decision(
     if _bool_flag(residual_governance, "block_new_entries", "halt_new_entries") or _risk_level(residual_governance) in {"high", "critical"}:
         status = "rejected"
         action = "reject_entry_thesis"
-        reasons.append("m06_residual_event_governance_blocks_new_entry")
+        reasons.append("component_event_risk_control_blocks_new_entry")
 
     if _bool_flag(unified_decision, "block_new_entries", "account_risk_cap_reached"):
         status = "rejected"
@@ -946,7 +946,7 @@ def build_entry_decision(
             "event_state_vector": event_state.get("model_ref"),
             "unified_decision_vector": unified_decision.get("model_ref"),
             "option_expression_plan": _as_mapping(option_expression_plan).get("model_ref"),
-            "residual_event_governance": residual_governance.get("model_ref"),
+            "event_risk_control": residual_governance.get("model_ref"),
         },
         "safety": _safety_flags(),
     }
@@ -963,7 +963,7 @@ def build_position_lifecycle_decision(
     entry_decision: Mapping[str, Any] | None = None,
     event_state_vector: Mapping[str, Any] | None = None,
     unified_decision_vector: Mapping[str, Any] | None = None,
-    residual_event_governance: Mapping[str, Any] | None = None,
+    event_risk_control: Mapping[str, Any] | None = None,
     generated_at_utc: str | None = None,
 ) -> dict[str, Any]:
     """Manage an existing position without submitting any account mutation."""
@@ -974,7 +974,7 @@ def build_position_lifecycle_decision(
     _sleeve(sleeve_id)
     event_state = _as_mapping(event_state_vector)
     unified_decision = _as_mapping(unified_decision_vector)
-    residual_governance = _as_mapping(residual_event_governance)
+    residual_governance = _as_mapping(event_risk_control)
     entry = _as_mapping(entry_decision)
     market = _as_mapping(market_context_state)
     risk_budget = _as_mapping(account_sleeve_risk_budget)
@@ -1032,7 +1032,7 @@ def build_position_lifecycle_decision(
             reasons.append("model_underlying_invalidation_reached")
         elif _bool_flag(residual_governance, "flatten_positions", "halt_exposure") or _risk_level(residual_governance) == "critical":
             action = "exit"
-            reasons.append("m06_residual_event_governance_requires_exit")
+            reasons.append("component_event_risk_control_requires_exit")
         elif planned_action in {"stop", "exit"}:
             action = planned_action
             reasons.append(f"m04_unified_decision_requires_{planned_action}")
@@ -1041,7 +1041,7 @@ def build_position_lifecycle_decision(
             reasons.append("m04_target_or_take_profit_reached")
         elif _risk_level(residual_governance) == "high":
             action = "reduce"
-            reasons.append("m06_residual_event_governance_requires_reduction")
+            reasons.append("component_event_risk_control_requires_reduction")
         elif planned_action in {"reduce", "hold"}:
             action = planned_action
             reasons.append(f"m04_unified_decision_supports_{planned_action}")
@@ -1088,7 +1088,7 @@ def build_position_lifecycle_decision(
             "market_context_state": market.get("model_ref"),
             "event_state_vector": event_state.get("model_ref"),
             "unified_decision_vector": unified_decision.get("model_ref"),
-            "residual_event_governance": residual_governance.get("model_ref"),
+            "event_risk_control": residual_governance.get("model_ref"),
         },
         "account_state_ref": account.get("account_state_ref"),
         "account_sleeve_risk_budget": dict(risk_budget),
@@ -1221,7 +1221,7 @@ def build_option_reexpression_decision(
     option_position_state: Mapping[str, Any],
     unified_decision_vector: Mapping[str, Any] | None = None,
     option_expression_plan: Mapping[str, Any] | None = None,
-    residual_event_governance: Mapping[str, Any] | None = None,
+    event_risk_control: Mapping[str, Any] | None = None,
     candidate_option_contracts: Any = None,
     generated_at_utc: str | None = None,
 ) -> dict[str, Any]:
@@ -1235,7 +1235,7 @@ def build_option_reexpression_decision(
         raise ValueError("option re-expression is only allowed for equity_options_account")
 
     unified_decision = _as_mapping(unified_decision_vector)
-    residual_governance = _as_mapping(residual_event_governance)
+    residual_governance = _as_mapping(event_risk_control)
     current_score = _number(position.get("contract_quality_score"), default=0.0)
     expression_plan = _as_mapping(option_expression_plan)
     min_improvement = _number(expression_plan.get("minimum_roll_quality_improvement"), default=0.15)
@@ -1250,7 +1250,7 @@ def build_option_reexpression_decision(
     elif _bool_flag(residual_governance, "force_exit_options", "halt_option_exposure") or _risk_level(residual_governance) == "critical":
         status = "accepted"
         action = "exit_option"
-        reasons.append("m06_residual_event_governance_requires_option_exit")
+        reasons.append("component_event_risk_control_requires_option_exit")
     elif best_candidate:
         improvement = _number(best_candidate.get("contract_quality_score"), default=0.0) - current_score
         roll_cost_pct = _number(best_candidate.get("roll_cost_pct"), default=0.0)
@@ -1285,7 +1285,7 @@ def build_option_reexpression_decision(
         "model_layer_refs": {
             "unified_decision_vector": unified_decision.get("model_ref"),
             "option_expression_plan": expression_plan.get("model_ref"),
-            "residual_event_governance": residual_governance.get("model_ref"),
+            "event_risk_control": residual_governance.get("model_ref"),
         },
         "safety": _safety_flags(),
     }
@@ -1411,7 +1411,7 @@ def build_failure_explanation_packet(
     *,
     failure_observation: Mapping[str, Any],
     unscreened_event_evidence: Any,
-    residual_event_governance: Mapping[str, Any] | None = None,
+    event_risk_control: Mapping[str, Any] | None = None,
     generated_at_utc: str | None = None,
 ) -> dict[str, Any]:
     """Link an observed model/trade failure to possible earlier events."""
@@ -1462,8 +1462,8 @@ def build_failure_explanation_packet(
             if row["event_ref"]
         ],
         "model_layer_refs": {
-            "residual_event_governance": _as_mapping(residual_event_governance).get("model_ref")
-            or failure.get("residual_event_governance_ref"),
+            "event_risk_control": _as_mapping(event_risk_control).get("model_ref")
+            or failure.get("event_risk_control_ref"),
         },
         "safety": _safety_flags(),
     }

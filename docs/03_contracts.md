@@ -80,14 +80,15 @@ but they do not call providers, submit broker requests, construct broker-specifi
 payloads, or mutate account, order, or position state.
 
 The second-batch contracts add expression review, C07 realtime
-failure/deviation watch, C07 settlement attribution with optional M06 residual
-event-governance evidence, and Replay fill simulation. They are also implemented as side-effect-free
+failure/deviation watch, C07 settlement attribution with optional M03 event-state
+and component event-risk-control evidence, and Replay fill simulation. They are also implemented as side-effect-free
 runtime builders and validators. `simulated_fill_event` is Replay-only evidence
 and never represents a real broker/account fill or account, order, or position
 mutation.
 
-M06 may be consumed by `component_07_failure_review` for residual event-risk
-explanation and failure/deviation watch. In live operation, C07 may run during
+`component_07_failure_review` may consume M03 event-state evidence and
+component-owned event-risk-control evidence for residual event-risk explanation
+and failure/deviation watch. In live operation, C07 may run during
 market hours as a realtime watch over active or shadow decisions with an open
 thesis, open position, material path deviation, new event evidence, or
 unexplained model drift. C07 also runs settlement attribution after the regular
@@ -103,19 +104,19 @@ generic news veto.
 market-session, holiday/early-close, option-expiry/triple-witching,
 ETF/index-rebalance, TE macro-release, and SEC/company-release refs. It may be
 attached to `realtime_feature_snapshot.calendar_context_refs` and consumed by
-M03, M04, M06, C07, and execution gates as point-in-time context. It does not
+M03, M04, C07, and execution gates as point-in-time context. It does not
 authorize broker/order/account mutation, and untrained or unaccepted
 calendar/event risk must remain advisory review evidence until accepted through
-the M06/M03 governance route.
+the M03 event-state route or component risk-control review.
 
 Realtime model-input snapshots should inherit `historical_dataset_snapshot_ref`,
-`frozen_model_config_ref`, and M02-M06 upstream context refs from the accepted
+`frozen_model_config_ref`, and M02-M05 upstream context refs from the accepted
 promotion-readiness `model_input_context_bundle`. Missing refs are a promotion
 or shadow-handoff preparation defect, not a normal runtime state to patch with
 placeholder refs.
 
 When C07 observes an event, anomaly, or context that has not been trained and
-accepted through the M06/M03 event-governance route, the packet must mark the event risk as
+accepted through the M03 event-state route, the packet must mark the event risk as
 untrained. C07 may estimate a provisional risk value from model-failure severity,
 path deviation, event proximity, exposure at risk, and evidence quality. That
 estimate is advisory review evidence only. It must be routed to the

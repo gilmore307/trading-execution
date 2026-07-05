@@ -46,7 +46,6 @@ Realtime coverage is tracked by `execution_realtime_input_coverage` rows in `src
 | `model_03_event_state` | `event_state_vector` | interpreted event refs, earnings/macro triggers, market-session/special-calendar context, news/event arrivals, freshness/quality diagnostics | derived governance context, realtime calendar context, calendar discovery, Alpaca | Partial route defined; event adapter review required |
 | `model_04_unified_decision` | `unified_decision_vector` | M01-M03 refs, execution account capacity, underlying quote/liquidity/spread, market-session/special-calendar tradeability context, halt/restriction context | derived model context, execution account state, realtime calendar context, Alpaca, OKX | Context contract only; broker/account route deferred |
 | `model_05_option_expression` | `option_expression_plan` | underlying quote, option-chain snapshot, option quote/trade stream, IV/Greeks, OI/latest interest | ThetaData, Alpaca | Route defined; adapter not started; terminal required |
-| `model_06_residual_event_governance` | `event_risk_intervention` | residual event governance refs, missed-event review refs, market-session/special-calendar/macro/company release context, abnormal equity activity, option activity events, freshness/quality diagnostics | derived governance context, realtime calendar context, Alpaca, ThetaData, calendar discovery | Partial route defined; event adapter review required |
 
 The matrix intentionally exposes gaps. A partial row is not a failure; it prevents us from pretending that realtime coverage is complete before a provider, account-state, or restriction route is accepted.
 
@@ -174,7 +173,7 @@ realtime_capture_contract
 
 `realtime_feature_snapshot` preserves the same point-in-time timing discipline as historical features: `feature_time <= available_time <= tradeable_time`, plus historical feature parity refs, frozen model/config refs, dataset snapshot refs, source capture refs, and per-layer feature refs. It is not a new training substrate by itself. Normal shadow/live rehearsal should receive these refs from the accepted promotion-readiness `model_input_context_bundle`; manual per-layer refs are for fixture diagnostics only.
 
-Realtime snapshots may also carry `calendar_context_refs`. These refs are an interface only: they allow M03, M04, M06, C07, and execution gates to see the current calendar state without treating unreviewed or untrained events as hard trading actions. Untrained calendar/event risk must remain advisory review evidence until the M06/M03 governance route accepts it.
+Realtime snapshots may also carry `calendar_context_refs`. These refs are an interface only: they allow M03, M04, C07, and execution gates to see the current calendar state without treating unreviewed or untrained events as hard trading actions. Untrained calendar/event risk must remain advisory review evidence until the M03 event-state route or component risk-control review accepts it.
 
 Realtime feature snapshots must satisfy the manager-owned
 `train_replay_realtime_input_parity` contract for model decision inputs. Current

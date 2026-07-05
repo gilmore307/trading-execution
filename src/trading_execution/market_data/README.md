@@ -6,7 +6,7 @@ This package records reviewed realtime interfaces for providers that may also ex
 
 Key file:
 
-- `contracts.py` — `status_realtime_data_interface` catalog for OKX, Alpaca, and ThetaData realtime routes; `realtime_input_coverage` coverage rows for M01-M06; and `realtime_capture_contract` for append-only forward/shadow validation evidence.
+- `contracts.py` — `status_realtime_data_interface` catalog for OKX, Alpaca, and ThetaData realtime routes; `realtime_input_coverage` coverage rows for M01-M05; and `realtime_capture_contract` for append-only forward/shadow validation evidence.
 - `adapters.py` — `realtime_subscription_plan` planning helpers for dry-run, fixture-replay, and approval-blocked live-observe routes.
 - `live_observe.py` — concrete Alpaca/ThetaData/OKX/calendar/account/model-context fixture adapter plans, capture-fixture rows, and realtime shadow fixture bundles.
 - `live_approval.py` — `realtime_live_observe_approval` validation for bounded formal read-only provider observation.

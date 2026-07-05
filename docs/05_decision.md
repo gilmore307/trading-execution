@@ -38,11 +38,11 @@ The accepted runtime components are:
 - `C06 Execution Gate` / `component_06_execution_gate`
 - `C07 Failure Review` / `component_07_failure_review`
 
-M06 remains an independent model surface, but it is not a normal pre-entry veto.
-It is consumed only by use-case components that need residual event governance,
-including `component_07_failure_review` after observed model or trade failure to
-connect the failure evidence to possible event causes and produce future model
-feedback candidates.
+C07 is component-owned failure/deviation review. It may use M03 event-state
+evidence and component event-risk-control evidence after observed model or
+trade failure to connect failure evidence to possible event causes and produce
+future model feedback candidates. It is not a standalone model surface,
+pre-entry veto, alpha model, or generic news gate.
 
 ## D013 - Realtime trading starts only after a promoted active model config exists
 
@@ -300,7 +300,7 @@ Realtime inputs should cover the model stack's live inference needs and later su
 
 ### Decision
 
-`trading-execution` records `execution_realtime_input_coverage` rows for M01-M06 and a `realtime_capture_contract` for append-only validation evidence. The matrix separates complete routes from partial/gap routes, especially proxy coverage for M01, event-state conditioning for M03, account/restriction context for M04, ThetaData terminal requirements for M05, and residual event-governance coverage for M06.
+`trading-execution` records `execution_realtime_input_coverage` rows for M01-M05 and a `realtime_capture_contract` for append-only validation evidence. The matrix separates complete routes from partial/gap routes, especially proxy coverage for M01, event-state conditioning for M03, account/restriction context for M04, and ThetaData terminal requirements for M05.
 
 ### Consequences
 
@@ -375,12 +375,12 @@ Status: Accepted
 
 ### Context
 
-M06 historical replay attribution now treats market sessions, holidays, early
-closes, option expiry, triple-witching, ETF/index rebalance windows, TE macro
-release rows, and SEC/company release refs as distinct calendar inputs. Live and
-shadow trading need the same class of context available before decisions and
-gates, but realtime execution must not let unreviewed calendar detections become
-automatic trade vetoes or order mutations.
+M03 event-state work treats market sessions, holidays, early closes, option
+expiry, triple-witching, ETF/index rebalance windows, TE macro release rows, and
+SEC/company release refs as distinct calendar inputs. Live and shadow trading
+need the same class of context available before decisions and gates, but
+realtime execution must not let unreviewed calendar detections become automatic
+trade vetoes or order mutations.
 
 ### Decision
 
@@ -389,15 +389,16 @@ calendar context interface. It carries point-in-time refs for market structure,
 macro release, and company release context into `realtime_feature_snapshot`
 through optional `calendar_context_refs`.
 
-M03, M04, and M06 realtime coverage rows may consume this interface. M04 uses it
-only as tradeability/context evidence. M06 may use it for residual event-risk
+M03 and M04 realtime coverage rows may consume this interface. M04 uses it only
+as tradeability/context evidence. C07 may use it for component-owned event-risk
 watch evidence. Untrained or unaccepted event/calendar risk remains advisory
-review evidence until the M06/M03 governance route accepts the family/context.
+review evidence until the M03 event-state route or component risk-control review
+accepts the family/context.
 
 ### Consequences
 
 - Realtime trading has a stable interface for calendar context without making
-  historical M06 event backfill the live runtime controller.
+  historical event backfill the live runtime controller.
 - `calendar_discovery` remains the narrower execution-owned discovery/acquisition
   route for official future/current calendar pages and pre-event snapshots.
 - Broker/order/account mutation still requires the existing C05/C06 gates and is
@@ -513,7 +514,7 @@ attribution evidence so C03/C05/C06 can review protective reduce, exit, block,
 or human-review paths before losses compound.
 
 When C07 identifies an event, anomaly, or context that has not been trained and
-accepted through the M06/M03 event-governance route, it must mark the event risk
+accepted through the M03 event-state route, it must mark the event risk
 as untrained. C07 may estimate a provisional risk value from model-failure severity, path
 deviation, event proximity, exposure at risk, and evidence quality. That value is
 advisory review evidence only and must be handed to the trading-review agent
@@ -526,8 +527,7 @@ underblocks, option-expression drag, and event/co-event evidence.
 
 C07 does not revise intraday C02-C06 decisions, submit orders, mutate broker or
 account state, or switch active model pointers. It produces attribution evidence
-for runtime lifecycle review, evaluation feedback, and M06/M03
-event-family work.
+for runtime lifecycle review, evaluation feedback, and M03 event-family work.
 
 ## D018 - Crypto And Equity Options Use Separate Account Sleeves
 

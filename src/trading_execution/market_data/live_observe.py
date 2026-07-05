@@ -64,7 +64,7 @@ _PROVIDER_INTERFACE_HINTS = {
         "execution_account_state.risk_budget_ref",
     ),
     "derived_governance_context": (
-        "derived_governance_context.residual_event_governance_ref",
+        "derived_governance_context.event_risk_control_ref",
         "derived_governance_context.missed_event_review_ref",
         "derived_governance_context.freshness_quality_diagnostics_ref",
     ),
@@ -92,7 +92,7 @@ _SOURCE_APPROVAL_GATES = {
     "realtime_calendar_context": ("calendar_context_source_policy_review", "runtime_adapter_acceptance"),
     "calendar_discovery": ("event_adapter_policy_review", "runtime_adapter_acceptance"),
     "execution_account_state": ("read_only_account_context_policy_review", "broker_account_no_mutation_invariant", "runtime_adapter_acceptance"),
-    "derived_governance_context": ("residual_event_governance_ref", "missed_event_review_ref", "runtime_adapter_acceptance"),
+    "derived_governance_context": ("event_risk_control_ref", "missed_event_review_ref", "runtime_adapter_acceptance"),
     "derived_model_context": ("frozen_model_output_ref_review", "runtime_adapter_acceptance"),
 }
 
@@ -103,7 +103,7 @@ _CAPTURE_INTERFACE_BY_SOURCE = {
     "realtime_calendar_context": "realtime_calendar_context.ref_set",
     "calendar_discovery": "calendar_discovery.event_catalog_ref",
     "execution_account_state": "execution_account_state.read_only_context_ref",
-    "derived_governance_context": "derived_governance_context.residual_event_governance_ref",
+    "derived_governance_context": "derived_governance_context.event_risk_control_ref",
     "derived_model_context": "derived_model_context.current_model_state_ref",
 }
 
