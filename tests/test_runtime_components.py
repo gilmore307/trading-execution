@@ -110,7 +110,7 @@ class RuntimeComponentGraphTests(unittest.TestCase):
 
         expression = rows["component_04_expression_review"]
         self.assertIn("expression_probability_surface", expression.input_contracts)
-        self.assertIn("option_expression_plan", expression.input_contracts)
+        self.assertNotIn("option_expression_plan", expression.input_contracts)
 
         failure = rows["component_07_failure_review"]
         self.assertEqual(failure.required_model_surfaces, ())

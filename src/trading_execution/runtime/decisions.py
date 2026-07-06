@@ -1370,7 +1370,11 @@ def build_expression_decision(
     residual_governance = _as_mapping(event_risk_control)
     current_score = _number(position.get("contract_quality_score"), default=0.0)
     expression_plan = _as_mapping(option_expression_plan)
-    selected_contract = _as_mapping(expression_plan.get("selected_contract"))
+    selected_expression_candidate = _selected_expression_candidate(expression_surface)
+    selected_contract = _selected_contract_from_expression_inputs(
+        expression_surface=expression_surface,
+        expression_plan=expression_plan,
+    )
     min_improvement = _number(expression_plan.get("minimum_roll_quality_improvement"), default=0.15)
     max_roll_cost_pct = _number(expression_plan.get("max_roll_cost_pct"), default=0.20)
     best_candidate = _best_option_candidate(candidate_option_contracts)
@@ -1405,6 +1409,11 @@ def build_expression_decision(
     elif _number(position.get("quantity"), default=0.0) <= 0:
         route = str(expression_plan.get("asset_expression_route") or "")
         selected_ref = str(selected_contract.get("contract_ref") or selected_contract.get("option_symbol") or "").upper()
+        selected_expression_type = str(
+            selected_expression_candidate.get("expression_type")
+            or expression_surface.get("resolved_expression_type")
+            or ""
+        )
         source_status = str(source_intent.get("decision_status") or "")
         if source_status != "suitable":
             reasons.append("source_underlying_intent_not_suitable")
@@ -1414,13 +1423,17 @@ def build_expression_decision(
             asset_class = "us_option"
             instrument_ref = selected_ref
             reasons.append("m05_expression_probability_surface_selected_option_contract")
-        elif route == "direct_underlying_fallback":
+        elif route == "direct_underlying_fallback" or selected_expression_type in {
+            "underlying_equity",
+            "underlying_only_expression",
+            "no_option_expression",
+        }:
             fallback_scope = str(expression_plan.get("option_fallback_scope_status") or "")
             all_options_unsuitable = _bool_flag(
                 expression_plan,
                 "all_candidate_option_expressions_unsuitable",
                 "no_suitable_option_expression_in_batch",
-            )
+            ) or _surface_all_option_candidates_unsuitable(expression_surface)
             if fallback_scope == "no_suitable_option_expression_in_current_candidate_batch" or all_options_unsuitable:
                 status = "accepted"
                 action = "open_long" if str(source_intent.get("entry_direction") or source_intent.get("position_side") or "long").lower() != "short" else "open_short"
@@ -1487,6 +1500,52 @@ def build_expression_decision(
     }
     body["expression_decision_id"] = _stable_id("ord", body)
     return body
+
+
+def _selected_expression_candidate(expression_probability_surface: Mapping[str, Any]) -> Mapping[str, Any]:
+    surface_selected = _as_mapping(expression_probability_surface.get("selected_candidate"))
+    if surface_selected:
+        return surface_selected
+    selected_id = str(expression_probability_surface.get("selected_candidate_id") or "")
+    candidates = _as_rows(expression_probability_surface.get("candidate_probability_functions"))
+    for candidate in candidates:
+        if selected_id and str(candidate.get("candidate_id") or "") == selected_id:
+            return candidate
+        if _bool_flag(candidate, "selected"):
+            return candidate
+    return {}
+
+
+def _selected_contract_from_expression_inputs(
+    *,
+    expression_surface: Mapping[str, Any],
+    expression_plan: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    selected_contract = _as_mapping(expression_plan.get("selected_contract"))
+    if selected_contract:
+        return selected_contract
+    candidate = _selected_expression_candidate(expression_surface)
+    if str(candidate.get("expression_type") or "") != "option_contract":
+        return {}
+    instrument_ref = str(candidate.get("instrument_ref") or "").upper()
+    if not instrument_ref:
+        return {}
+    return {
+        "contract_ref": instrument_ref,
+        "option_right": candidate.get("option_right"),
+        "probability_function": dict(_as_mapping(candidate.get("probability_function"))),
+    }
+
+
+def _surface_all_option_candidates_unsuitable(expression_probability_surface: Mapping[str, Any]) -> bool:
+    summary = _as_mapping(expression_probability_surface.get("option_suitability_summary"))
+    if "all_option_candidates_unsuitable" in summary:
+        return bool(summary.get("all_option_candidates_unsuitable"))
+    candidates = _as_rows(expression_probability_surface.get("candidate_probability_functions"))
+    option_candidates = [candidate for candidate in candidates if candidate.get("expression_type") == "option_contract"]
+    if not option_candidates:
+        return False
+    return all(candidate.get("eligibility_status") != "eligible" for candidate in option_candidates)
 
 
 def build_execution_gate_result(

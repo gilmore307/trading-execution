@@ -259,7 +259,6 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
                 "entry_decision",
                 "position_lifecycle_decision",
                 "expression_probability_surface",
-                "option_expression_plan",
             ),
             output_contracts=(EXPRESSION_DECISION_CONTRACT,),
             required_model_surfaces=(),

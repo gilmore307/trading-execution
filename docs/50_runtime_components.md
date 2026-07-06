@@ -262,7 +262,9 @@ fixed loss percentage.
 Model surfaces:
 
 - primary when option expression is available: M05 `expression_probability_surface`.
-- derived handoff: M05 `option_expression_plan`.
+- derived handoff: M05 `option_expression_plan` may be present for audit or
+  compatibility, but C04's current expression choice is derived from the
+  probability surface's selected candidate and option-suitability summary.
 
 Roll decisions require a material improvement after roll-cost penalty and must
 respect roll-count, liquidity, and risk-budget limits.

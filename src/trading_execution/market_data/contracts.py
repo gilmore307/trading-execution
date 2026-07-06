@@ -267,7 +267,7 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
             validation_role=validation_role,
             boundary_note=(
                 "M05 owns expression_probability_surface as the option-expression payoff probability function; "
-                "the option_expression_plan is a derived selected-expression handoff for C04."
+                "the option_expression_plan is only a derived selected-expression audit/compatibility view."
             ),
         ),
     )

@@ -70,6 +70,80 @@ VALID_DIRECT_UNDERLYING_INTENT = {
 VALID_EXPRESSION_PROBABILITY_SURFACE = {
     "schema_ref": "expression_probability_surface",
     "surface_ref": "eps_fixture",
+    "candidate_probability_functions": [],
+}
+
+OPTION_SELECTED_EXPRESSION_PROBABILITY_SURFACE = {
+    **VALID_EXPRESSION_PROBABILITY_SURFACE,
+    "selected_candidate_id": "expr_aapl_call",
+    "selected_candidate": {
+        "candidate_id": "expr_aapl_call",
+        "expression_type": "option_contract",
+        "instrument_ref": "AAPL_20260220_C_120",
+        "option_right": "call",
+        "eligibility_status": "eligible",
+        "selected": True,
+        "probability_function": {"payoff_positive_probability": 0.66},
+    },
+    "option_suitability_summary": {
+        "option_candidate_count": 1,
+        "eligible_option_candidate_count": 1,
+        "selected_expression_type": "option_contract",
+        "selected_instrument_ref": "AAPL_20260220_C_120",
+        "all_option_candidates_unsuitable": False,
+    },
+    "candidate_probability_functions": [
+        {
+            "candidate_id": "expr_aapl_call",
+            "expression_type": "option_contract",
+            "instrument_ref": "AAPL_20260220_C_120",
+            "option_right": "call",
+            "eligibility_status": "eligible",
+            "selected": True,
+            "probability_function": {"payoff_positive_probability": 0.66},
+        }
+    ],
+}
+
+UNDERLYING_FALLBACK_EXPRESSION_PROBABILITY_SURFACE = {
+    **VALID_EXPRESSION_PROBABILITY_SURFACE,
+    "selected_candidate_id": "expr_underlying",
+    "selected_candidate": {
+        "candidate_id": "expr_underlying",
+        "expression_type": "underlying_equity",
+        "instrument_ref": "underlying_equity_proxy",
+        "option_right": "none",
+        "eligibility_status": "eligible",
+        "selected": True,
+        "probability_function": {"payoff_positive_probability": 0.51},
+    },
+    "option_suitability_summary": {
+        "option_candidate_count": 1,
+        "eligible_option_candidate_count": 0,
+        "selected_expression_type": "underlying_equity",
+        "selected_instrument_ref": "underlying_equity_proxy",
+        "all_option_candidates_unsuitable": True,
+    },
+    "candidate_probability_functions": [
+        {
+            "candidate_id": "expr_underlying",
+            "expression_type": "underlying_equity",
+            "instrument_ref": "underlying_equity_proxy",
+            "option_right": "none",
+            "eligibility_status": "eligible",
+            "selected": True,
+            "probability_function": {"payoff_positive_probability": 0.51},
+        },
+        {
+            "candidate_id": "expr_aapl_call_rejected",
+            "expression_type": "option_contract",
+            "instrument_ref": "AAPL_20260220_C_120",
+            "option_right": "call",
+            "eligibility_status": "rejected",
+            "selected": False,
+            "probability_function": {"payoff_positive_probability": 0.41},
+        },
+    ],
 }
 
 
@@ -300,14 +374,7 @@ class RuntimeDecisionTests(unittest.TestCase):
         )
         expression = build_expression_decision(
             entry_decision=decision,
-            expression_probability_surface=VALID_EXPRESSION_PROBABILITY_SURFACE,
-            option_expression_plan={
-                "model_ref": "oep_fixture",
-                "asset_expression_route": "listed_option_contract",
-                "option_surface_status": "optionable_chain_available",
-                "selected_expression_type": "long_call",
-                "selected_contract": {"contract_ref": "AAPL_20260220_C_120", "mid_price": 2.15},
-            },
+            expression_probability_surface=OPTION_SELECTED_EXPRESSION_PROBABILITY_SURFACE,
             generated_at_utc="2026-01-01T00:01:30Z",
         )
         intent = build_execution_order_intent(
@@ -373,11 +440,7 @@ class RuntimeDecisionTests(unittest.TestCase):
         )
         expression = build_expression_decision(
             entry_decision=decision,
-            expression_probability_surface=VALID_EXPRESSION_PROBABILITY_SURFACE,
-            option_expression_plan={
-                "asset_expression_route": "direct_underlying_fallback",
-                "option_fallback_scope_status": "no_suitable_option_expression_in_current_candidate_batch",
-            },
+            expression_probability_surface=UNDERLYING_FALLBACK_EXPRESSION_PROBABILITY_SURFACE,
             generated_at_utc="2026-01-01T00:01:30Z",
         )
 
