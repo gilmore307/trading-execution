@@ -2,8 +2,8 @@ import unittest
 
 from trading_execution.runtime import (
     CRYPTO_CANDIDATE_SYMBOLS,
-    CRYPTO_SPOT_ACCOUNT_SLEEVE,
-    CRYPTO_SPOT_INSTRUMENT_REFS,
+    CRYPTO_LEVERAGE_ACCOUNT_SLEEVE,
+    CRYPTO_LEVERAGE_INSTRUMENT_REFS,
     EQUITY_OPTIONS_ACCOUNT_SLEEVE,
     build_runtime_component_graph,
     runtime_component_manifest,
@@ -157,13 +157,16 @@ class RuntimeComponentGraphTests(unittest.TestCase):
     def test_account_sleeves_keep_crypto_and_equity_options_separate(self) -> None:
         sleeves = {sleeve.sleeve_id: sleeve for sleeve in runtime_account_sleeves()}
 
-        crypto = sleeves[CRYPTO_SPOT_ACCOUNT_SLEEVE]
+        crypto = sleeves[CRYPTO_LEVERAGE_ACCOUNT_SLEEVE]
         self.assertEqual(crypto.candidate_symbols, CRYPTO_CANDIDATE_SYMBOLS)
         self.assertEqual(CRYPTO_CANDIDATE_SYMBOLS, ("BTC", "ETH", "SOL"))
-        self.assertEqual(crypto.candidate_instrument_refs, CRYPTO_SPOT_INSTRUMENT_REFS)
-        self.assertEqual(CRYPTO_SPOT_INSTRUMENT_REFS, ("BTC-USDT", "ETH-USDT", "SOL-USDT"))
-        self.assertEqual(crypto.allowed_asset_classes, ("crypto_spot",))
-        self.assertFalse(crypto.expression_review_enabled)
+        self.assertEqual(crypto.candidate_instrument_refs, CRYPTO_LEVERAGE_INSTRUMENT_REFS)
+        self.assertEqual(CRYPTO_LEVERAGE_INSTRUMENT_REFS, ("BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP"))
+        self.assertEqual(crypto.allowed_asset_classes, ("crypto_underlying", "crypto_perp"))
+        self.assertTrue(crypto.expression_review_enabled)
+        self.assertEqual(crypto.starting_capital_usd, 5000.0)
+        self.assertEqual(crypto.leverage_policy["min_leverage"], 2)
+        self.assertEqual(crypto.leverage_policy["max_leverage"], 50)
 
         equity_options = sleeves[EQUITY_OPTIONS_ACCOUNT_SLEEVE]
         self.assertEqual(equity_options.allowed_asset_classes, ("us_equity", "us_etf", "us_option"))
@@ -175,7 +178,7 @@ class RuntimeComponentGraphTests(unittest.TestCase):
         graph = build_runtime_component_graph(mode="replay")
         self.assertEqual(
             graph["account_sleeve_policy"],
-            "separate_crypto_and_equity_options_accounts_no_cross_account_netting",
+            "separate_crypto_leverage_and_equity_options_accounts_no_cross_account_netting",
         )
         self.assertFalse(graph["side_effect_policy"]["cross_account_collateral_or_position_netting_allowed"])
         self.assertFalse(graph["side_effect_policy"]["replay_broker_mutation_allowed"])
@@ -193,7 +196,7 @@ class RuntimeComponentGraphTests(unittest.TestCase):
         self.assertNotIn("account_sleeve_state_snapshot", rows["component_02_entry"].input_contracts)
 
         expression_review = rows["component_04_expression_review"]
-        self.assertEqual(expression_review.account_sleeves, (EQUITY_OPTIONS_ACCOUNT_SLEEVE,))
+        self.assertEqual(expression_review.account_sleeves, (CRYPTO_LEVERAGE_ACCOUNT_SLEEVE, EQUITY_OPTIONS_ACCOUNT_SLEEVE))
 
     def test_runtime_manifest_declares_use_case_graphs(self) -> None:
         manifest = runtime_component_manifest()
@@ -204,7 +207,7 @@ class RuntimeComponentGraphTests(unittest.TestCase):
         self.assertIn("candidate_entry_execution", use_cases)
         self.assertIn("open_position_lifecycle_execution", use_cases)
         self.assertIn("direct_underlying_execution", use_cases)
-        self.assertIn("option_expression_execution", use_cases)
+        self.assertIn("option_or_crypto_expression_execution", use_cases)
         self.assertIn("failure_diagnosis", use_cases)
         self.assertTrue(manifest["manifest_checksum"])
 

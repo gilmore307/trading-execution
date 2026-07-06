@@ -1,7 +1,7 @@
 import unittest
 
 from trading_execution.runtime import (
-    CRYPTO_SPOT_ACCOUNT_SLEEVE,
+    CRYPTO_LEVERAGE_ACCOUNT_SLEEVE,
     EQUITY_OPTIONS_ACCOUNT_SLEEVE,
     build_entry_decision,
     build_execution_gate_result,
@@ -76,14 +76,14 @@ VALID_EXPRESSION_PROBABILITY_SURFACE = {
 class RuntimeDecisionTests(unittest.TestCase):
     def test_crypto_intake_uses_fixed_three_asset_pool(self) -> None:
         snapshot = build_execution_intake_snapshot(
-            account_sleeve_id=CRYPTO_SPOT_ACCOUNT_SLEEVE,
+            account_sleeve_id=CRYPTO_LEVERAGE_ACCOUNT_SLEEVE,
             account_sleeve_state={"available_cash_usd": 1000.0},
             market_universe={"targets": [{"symbol": "BTC"}, {"symbol": "DOGE"}]},
             generated_at_utc="2026-01-01T00:00:00Z",
         )
 
         self.assertEqual(snapshot["contract_type"], "execution_intake_snapshot")
-        self.assertEqual(snapshot["account_sleeve_id"], CRYPTO_SPOT_ACCOUNT_SLEEVE)
+        self.assertEqual(snapshot["account_sleeve_id"], CRYPTO_LEVERAGE_ACCOUNT_SLEEVE)
         self.assertEqual([row["target_ref"] for row in snapshot["candidate_entry_pool"]], ["BTC"])
         self.assertEqual(snapshot["blocked_targets"], [{"target_ref": "DOGE", "reason_codes": ["outside_fixed_crypto_candidate_pool"]}])
         self.assertEqual(snapshot["new_position_balance_status"], "has_balance")
@@ -325,9 +325,70 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(intent["intent_status"], "ready_for_execution_gate_not_submitted")
         self.assertEqual(intent["broker_neutral_order"]["instrument_ref"], "AAPL_20260220_C_120")
 
+    def test_equity_direct_underlying_fallback_requires_batch_no_suitable_options(self) -> None:
+        allocation = build_execution_intake_snapshot(
+            account_sleeve_id=EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+            account_sleeve_state={"available_cash_usd": 1000.0},
+            target_context_rows=[
+                {"target_ref": "AAPL", "instrument_ref": "AAPL", "asset_class": "us_equity"},
+            ],
+            generated_at_utc="2026-01-01T00:00:00Z",
+        )
+
+        decision = build_entry_decision(
+            execution_intake_snapshot=allocation,
+            target_ref="AAPL",
+            thesis_distribution_surface=VALID_THESIS_DISTRIBUTION_SURFACE,
+            direct_underlying_intent=VALID_DIRECT_UNDERLYING_INTENT,
+            target_context_state={"current_price": 101.0},
+            generated_at_utc="2026-01-01T00:01:00Z",
+        )
+        expression = build_expression_decision(
+            entry_decision=decision,
+            expression_probability_surface=VALID_EXPRESSION_PROBABILITY_SURFACE,
+            option_expression_plan={"asset_expression_route": "direct_underlying_fallback"},
+            generated_at_utc="2026-01-01T00:01:30Z",
+        )
+
+        self.assertEqual(expression["decision_status"], "monitor_only")
+        self.assertIn("direct_underlying_fallback_requires_batch_no_suitable_options", expression["reason_codes"])
+
+    def test_equity_direct_underlying_fallback_allowed_when_no_batch_option_is_suitable(self) -> None:
+        allocation = build_execution_intake_snapshot(
+            account_sleeve_id=EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+            account_sleeve_state={"available_cash_usd": 1000.0},
+            target_context_rows=[
+                {"target_ref": "AAPL", "instrument_ref": "AAPL", "asset_class": "us_equity"},
+            ],
+            generated_at_utc="2026-01-01T00:00:00Z",
+        )
+
+        decision = build_entry_decision(
+            execution_intake_snapshot=allocation,
+            target_ref="AAPL",
+            thesis_distribution_surface=VALID_THESIS_DISTRIBUTION_SURFACE,
+            direct_underlying_intent=VALID_DIRECT_UNDERLYING_INTENT,
+            target_context_state={"current_price": 101.0},
+            generated_at_utc="2026-01-01T00:01:00Z",
+        )
+        expression = build_expression_decision(
+            entry_decision=decision,
+            expression_probability_surface=VALID_EXPRESSION_PROBABILITY_SURFACE,
+            option_expression_plan={
+                "asset_expression_route": "direct_underlying_fallback",
+                "option_fallback_scope_status": "no_suitable_option_expression_in_current_candidate_batch",
+            },
+            generated_at_utc="2026-01-01T00:01:30Z",
+        )
+
+        self.assertEqual(expression["decision_status"], "accepted")
+        self.assertEqual(expression["asset_class"], "us_equity")
+        self.assertEqual(expression["instrument_ref"], "AAPL")
+        self.assertIn("m05_expression_probability_surface_direct_underlying_fallback", expression["reason_codes"])
+
     def test_entry_rejects_missing_underlying_thesis_without_handling_options(self) -> None:
         allocation = build_execution_intake_snapshot(
-            account_sleeve_id=CRYPTO_SPOT_ACCOUNT_SLEEVE,
+            account_sleeve_id=CRYPTO_LEVERAGE_ACCOUNT_SLEEVE,
             account_sleeve_state={"available_cash_usd": 1000.0},
             generated_at_utc="2026-01-01T00:00:00Z",
         )
@@ -350,12 +411,12 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertNotIn("options_not_allowed_for_account_sleeve", decision["reason_codes"])
         self.assertEqual(validate_entry_decision(decision)["validation_status"], "passed")
 
-    def test_crypto_spot_entry_can_open_long_in_replay(self) -> None:
+    def test_crypto_leverage_expression_can_open_long_in_replay(self) -> None:
         allocation = build_execution_intake_snapshot(
-            account_sleeve_id=CRYPTO_SPOT_ACCOUNT_SLEEVE,
+            account_sleeve_id=CRYPTO_LEVERAGE_ACCOUNT_SLEEVE,
             account_sleeve_state={"available_cash_usd": 1000.0},
             market_universe=[
-                {"target_ref": "SOL", "instrument_ref": "SOL-USDT", "asset_class": "crypto_spot"},
+                {"target_ref": "SOL", "instrument_ref": "SOL-USDT", "asset_class": "crypto_underlying"},
             ],
             generated_at_utc="2026-01-01T00:00:00Z",
         )
@@ -377,8 +438,21 @@ class RuntimeDecisionTests(unittest.TestCase):
             target_context_state={"current_price": 100.0},
             generated_at_utc="2026-01-01T00:01:00Z",
         )
+        expression = build_expression_decision(
+            option_position_state={},
+            entry_decision=decision,
+            expression_probability_surface={
+                **VALID_EXPRESSION_PROBABILITY_SURFACE,
+                "selected_expression": {"confidence_score": 0.90},
+                "surface_quality_score": 0.80,
+                "risk": {"downside_tail_probability": 0.10, "volatility_score": 0.20},
+            },
+            option_expression_plan={},
+            candidate_option_contracts=[],
+            generated_at_utc="2026-01-01T00:01:30Z",
+        )
         intent = build_execution_order_intent(
-            decision_record=decision,
+            decision_record=expression,
             trade_risk_cap={
                 "max_loss_usd": 50.0,
                 "max_loss_pct": 0.02,
@@ -393,8 +467,15 @@ class RuntimeDecisionTests(unittest.TestCase):
             generated_at_utc="2026-01-01T00:02:00Z",
         )
 
-        self.assertEqual(decision["decision_status"], "accepted")
-        self.assertEqual(decision["decision_action"], "open_long")
+        self.assertEqual(decision["decision_status"], "suitable")
+        self.assertEqual(decision["decision_action"], "continue_to_expression_review")
+        self.assertEqual(expression["decision_status"], "accepted")
+        self.assertEqual(expression["decision_action"], "open_long")
+        self.assertEqual(expression["asset_class"], "crypto_perp")
+        self.assertEqual(expression["instrument_ref"], "SOL-USDT-SWAP")
+        self.assertGreaterEqual(expression["leverage_plan"]["leverage_multiple"], 2)
+        self.assertLessEqual(expression["leverage_plan"]["leverage_multiple"], 50)
+        self.assertIn("component_04_crypto_leverage_expression_selected", expression["reason_codes"])
         self.assertEqual(intent["intent_status"], "ready_for_execution_gate_not_submitted")
 
     def test_position_lifecycle_reduces_on_high_event_risk(self) -> None:
@@ -682,7 +763,7 @@ class RuntimeDecisionTests(unittest.TestCase):
         decision = build_position_lifecycle_decision(
             position_state={
                 "position_ref": "pos-btc-1",
-                "account_sleeve_id": CRYPTO_SPOT_ACCOUNT_SLEEVE,
+                "account_sleeve_id": CRYPTO_LEVERAGE_ACCOUNT_SLEEVE,
                 "target_ref": "BTC",
                 "instrument_ref": "BTC-USDT",
                 "quantity": 0.5,
@@ -924,10 +1005,60 @@ class RuntimeDecisionTests(unittest.TestCase):
     def test_simulated_fill_event_consumes_ready_order_intent(self) -> None:
         decision = build_position_lifecycle_decision(
             position_state={
-                "position_ref": "pos-eth-1",
-                "account_sleeve_id": CRYPTO_SPOT_ACCOUNT_SLEEVE,
+                "position_ref": "pos-aapl-1",
+                "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
+                "target_ref": "AAPL",
+                "instrument_ref": "AAPL260117C00100000",
+                "quantity": 1,
+            },
+            event_risk_control={"risk_level": "high"},
+            generated_at_utc="2026-01-01T00:02:00Z",
+        )
+        intent = build_execution_order_intent(
+            decision_record=decision,
+            trade_risk_cap={
+                "max_loss_usd": 50.0,
+                "max_loss_pct": 0.02,
+                "time_stop_at": "2026-01-05T20:00:00Z",
+                "cap_enforcement_mode": "broker_native_stop",
+                "cap_failure_action": "reject_order",
+                "model_invalidation_price": 94.0,
+                "hard_stop_price": 93.5,
+                "planned_quantity": 1.0,
+                "planned_limit_price": 5.0,
+            },
+            generated_at_utc="2026-01-01T00:03:00Z",
+        )
+        gate = build_execution_gate_result(
+            execution_order_intent=intent,
+            mode="replay",
+            execution_hard_block_checks={"reason_codes": []},
+            generated_at_utc="2026-01-01T00:03:30Z",
+        )
+        fill = build_simulated_fill_event(
+            execution_order_intent=intent,
+            execution_gate_result=gate,
+            replay_fill_policy={"slippage_bps": 5, "fee_bps": 10, "replay_fill_policy_ref": "policy://fixture"},
+            market_snapshot={"reference_price": 5.0, "market_snapshot_ref": "snapshot://aapl-option"},
+            generated_at_utc="2026-01-01T00:04:00Z",
+        )
+
+        self.assertEqual(fill["contract_type"], "simulated_fill_event")
+        self.assertEqual(fill["fill_status"], "simulated_filled")
+        self.assertEqual(fill["source_execution_gate_result_id"], gate["execution_gate_result_id"])
+        self.assertEqual(fill["instrument_ref"], "AAPL260117C00100000")
+        self.assertAlmostEqual(fill["simulated_fill_price"], 4.9975)
+        self.assertEqual(fill["safety"]["broker_calls_performed"], 0)
+        self.assertEqual(validate_simulated_fill_event(fill)["validation_status"], "passed")
+
+    def test_crypto_lifecycle_reduce_does_not_require_new_leverage_plan(self) -> None:
+        decision = build_position_lifecycle_decision(
+            position_state={
+                "position_ref": "pos-eth-swap-1",
+                "account_sleeve_id": CRYPTO_LEVERAGE_ACCOUNT_SLEEVE,
                 "target_ref": "ETH",
-                "instrument_ref": "ETH-USDT",
+                "instrument_ref": "ETH-USDT-SWAP",
+                "asset_class": "crypto_perp",
                 "quantity": 0.5,
             },
             event_risk_control={"risk_level": "high"},
@@ -954,21 +1085,13 @@ class RuntimeDecisionTests(unittest.TestCase):
             execution_hard_block_checks={"reason_codes": []},
             generated_at_utc="2026-01-01T00:03:30Z",
         )
-        fill = build_simulated_fill_event(
-            execution_order_intent=intent,
-            execution_gate_result=gate,
-            replay_fill_policy={"slippage_bps": 5, "fee_bps": 10, "replay_fill_policy_ref": "policy://fixture"},
-            market_snapshot={"reference_price": 3190.0, "market_snapshot_ref": "snapshot://eth"},
-            generated_at_utc="2026-01-01T00:04:00Z",
-        )
 
-        self.assertEqual(fill["contract_type"], "simulated_fill_event")
-        self.assertEqual(fill["fill_status"], "simulated_filled")
-        self.assertEqual(fill["source_execution_gate_result_id"], gate["execution_gate_result_id"])
-        self.assertEqual(fill["instrument_ref"], "ETH-USDT")
-        self.assertAlmostEqual(fill["simulated_fill_price"], 3188.405)
-        self.assertEqual(fill["safety"]["broker_calls_performed"], 0)
-        self.assertEqual(validate_simulated_fill_event(fill)["validation_status"], "passed")
+        self.assertEqual(decision["decision_status"], "accepted")
+        self.assertEqual(decision["decision_action"], "reduce")
+        self.assertEqual(intent["intent_status"], "ready_for_execution_gate_not_submitted")
+        self.assertNotIn("crypto_leverage_plan_missing_or_outside_policy_bounds", intent["reason_codes"])
+        self.assertEqual(gate["execution_gate_status"], "approved_for_simulated_fill")
+        self.assertNotIn("crypto_leverage_missing_liquidation_buffer", gate["reason_codes"])
 
 
 if __name__ == "__main__":

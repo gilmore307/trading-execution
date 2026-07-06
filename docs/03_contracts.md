@@ -124,11 +124,14 @@ trading-review agent before it can affect a live block, reduce, exit, or
 human-review path.
 
 Runtime decisions must be scoped to one independent account sleeve:
-`crypto_spot_account` or `equity_options_account`. The crypto sleeve is limited
-to `BTC`, `ETH`, and `SOL` spot candidates. The equity/options sleeve uses the
-reviewed stock/ETF/optionable-underlying candidate process and owns option
-roll. Cross-account collateral, buying-power substitution, and position
-netting are not accepted.
+`crypto_leverage_account` or `equity_options_account`. The crypto sleeve starts
+from an independent `5000` USD capital base, is limited to `BTC`, `ETH`, and
+`SOL` underlying candidates, and expresses accepted crypto theses through OKX
+swap/perp instruments with isolated leverage selected by C04 in the 2x-50x
+policy range. The equity/options sleeve uses the reviewed stock/ETF/optionable
+candidate process and is options-first: C04 may fall back to direct stock only
+when the current candidate batch has no suitable option expression. Cross-account
+collateral, buying-power substitution, and position netting are not accepted.
 
 `execution_intake_snapshot` is C01-owned. It emits a `candidate_entry_pool` for
 C02 and an `open_position_pool` for C03. C02 and C03 are sibling branches:

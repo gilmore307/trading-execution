@@ -91,15 +91,18 @@ trained event-risk score and cannot directly authorize an order. Settlement
 attribution produces the final evidence for model feedback, runtime lifecycle
 review, and M03 event-family work.
 
-The account adapter exposes two independent sleeves: `crypto_spot_account` and
-`equity_options_account`. Runtime components must preserve that split through
+The account adapter exposes two independent sleeves: `crypto_leverage_account`
+and `equity_options_account`. Runtime components must preserve that split through
 intake, entry, lifecycle, expression review, and order intent records. C01 is
 the runtime intake boundary: it receives model/candidate-policy targets and
 current open positions, then emits a `candidate_entry_pool` for C02 and an
 `open_position_pool` for C03. C02 and C03 are sibling branches, not a linear
-dependency. Crypto candidates are fixed to `BTC`, `ETH`, and `SOL`;
-equity/options candidates come from the eligible equity/ETF/optionable-underlying
-universe.
+dependency. Crypto candidates are fixed to `BTC`, `ETH`, and `SOL` and are
+expressed through isolated OKX swap/perp leverage selected by C04 within the
+2x-50x policy range. Equity/options candidates come from the eligible
+equity/ETF/optionable-underlying universe; non-crypto execution is options-first
+and uses direct stock only when the current candidate batch has no suitable
+option expression.
 
 ## Operating Principles
 

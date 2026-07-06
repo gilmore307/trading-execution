@@ -33,13 +33,16 @@ buying power, or risk budget across sleeves when producing trade decisions.
 
 Accepted sleeves:
 
-- `crypto_spot_account`
+- `crypto_leverage_account`
   - account contract: `crypto_account_state_snapshot`
   - risk-budget contract: `crypto_risk_budget_snapshot`
-  - allowed asset class: `crypto_spot`
+  - starting capital: `5000` USD, independent from equity/options
+  - allowed asset classes: `crypto_underlying` and `crypto_perp`
   - candidate pool: fixed to `BTC`, `ETH`, and `SOL`
-  - OKX spot instrument refs: `BTC-USDT`, `ETH-USDT`, and `SOL-USDT`
-  - expression review is disabled
+  - OKX swap/perp expression refs: `BTC-USDT-SWAP`, `ETH-USDT-SWAP`, and
+    `SOL-USDT-SWAP`
+  - expression review is enabled and selects isolated leverage in the 2x-50x
+    policy range
 - `equity_options_account`
   - account contract: `equity_options_account_state_snapshot`
   - risk-budget contract: `equity_options_risk_budget_snapshot`
@@ -115,9 +118,9 @@ Live application scenario:
 - At each live decision minute, C01 reads account sleeve state, available
   balance, current open positions, the market universe, watch targets, and the
   latest M01/M02 outputs.
-- For `crypto_spot_account`, it keeps the fixed crypto pool limited to `BTC`,
-  `ETH`, and `SOL`, blocking other crypto symbols before later components see
-  them.
+- For `crypto_leverage_account`, it keeps the fixed crypto pool limited to
+  `BTC`, `ETH`, and `SOL`, blocking other crypto symbols before later components
+  see them.
 - For `equity_options_account`, it keeps only eligible equity, ETF, or
   optionable-underlying watch targets and leaves option expression to C02/C04.
 - It builds `sector_opportunity_mix` from the M01 background-context sector or
@@ -238,13 +241,16 @@ Live application scenario:
 
 Owns `expression_decision`.
 
-Purpose: translate accepted C02/C03 underlying intents into direct-underlying,
-option, or no-expression runtime decisions, and periodically review held option
-contracts for moneyness, greeks, DTE, spread, liquidity, IV, payoff efficiency,
-and roll cost.
+Purpose: translate accepted C02/C03 underlying intents into option, crypto
+leverage, direct-underlying fallback, or no-expression runtime decisions, and
+periodically review held option contracts for moneyness, greeks, DTE, spread,
+liquidity, IV, payoff efficiency, and roll cost.
 
-This component runs only for `equity_options_account`. Crypto spot positions
-use direct-underlying bypass semantics and do not use expression review.
+This component runs for both active sleeves. For `equity_options_account`, it is
+options-first and can use direct-underlying fallback only when the current
+candidate batch has no suitable option expression. For `crypto_leverage_account`,
+it selects the OKX swap/perp expression and computes isolated leverage by the
+component policy formula inside the 2x-50x range.
 
 For the high-risk options account, option review is underlying-thesis driven.
 Large option mark-to-market drawdowns are tolerated when the underlying path

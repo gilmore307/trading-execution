@@ -15,7 +15,7 @@ from typing import Any, Literal
 RUNTIME_COMPONENT_CONTRACT = "execution_runtime_component"
 RUNTIME_COMPONENT_GRAPH_CONTRACT = "execution_runtime_component_graph"
 RUNTIME_COMPONENT_MANIFEST_CONTRACT = "execution_runtime_component_manifest"
-RUNTIME_COMPONENT_MANIFEST_VERSION = "2026-07-05"
+RUNTIME_COMPONENT_MANIFEST_VERSION = "2026-07-06"
 
 EXECUTION_INTAKE_SNAPSHOT_CONTRACT = "execution_intake_snapshot"
 ENTRY_DECISION_CONTRACT = "entry_decision"
@@ -27,10 +27,14 @@ EXECUTION_GATE_RESULT_CONTRACT = "execution_gate_result"
 SIMULATED_FILL_EVENT_CONTRACT = "simulated_fill_event"
 ACCOUNT_SLEEVE_CONTRACT = "execution_account_sleeve"
 
-CRYPTO_SPOT_ACCOUNT_SLEEVE = "crypto_spot_account"
+CRYPTO_LEVERAGE_ACCOUNT_SLEEVE = "crypto_leverage_account"
 EQUITY_OPTIONS_ACCOUNT_SLEEVE = "equity_options_account"
 CRYPTO_CANDIDATE_SYMBOLS = ("BTC", "ETH", "SOL")
-CRYPTO_SPOT_INSTRUMENT_REFS = ("BTC-USDT", "ETH-USDT", "SOL-USDT")
+CRYPTO_UNDERLYING_INSTRUMENT_REFS = ("BTC-USDT", "ETH-USDT", "SOL-USDT")
+CRYPTO_LEVERAGE_INSTRUMENT_REFS = ("BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP")
+CRYPTO_LEVERAGE_MIN_MULTIPLE = 2
+CRYPTO_LEVERAGE_MAX_MULTIPLE = 50
+CRYPTO_LEVERAGE_STARTING_CAPITAL_USD = 5000.0
 EXPRESSION_REVIEW_COMPONENT_ID = "component_04_expression_review"
 RUNTIME_COMPONENT_ORDER = (
     "component_01_intake",
@@ -69,6 +73,8 @@ class RuntimeAccountSleeve:
     candidate_symbols: tuple[str, ...]
     candidate_instrument_refs: tuple[str, ...]
     expression_review_enabled: bool
+    starting_capital_usd: float | None = None
+    leverage_policy: dict[str, Any] | None = None
     broker_mutation_allowed: bool = False
     account_mutation_allowed: bool = False
 
@@ -78,6 +84,7 @@ class RuntimeAccountSleeve:
         row["allowed_asset_classes"] = list(self.allowed_asset_classes)
         row["candidate_symbols"] = list(self.candidate_symbols)
         row["candidate_instrument_refs"] = list(self.candidate_instrument_refs)
+        row["leverage_policy"] = dict(self.leverage_policy or {})
         return row
 
 
@@ -98,7 +105,7 @@ class RuntimeComponent:
     replay_invocation_policy: str
     skip_degrade_policy: str
     forbidden_recomputations: tuple[str, ...]
-    account_sleeves: tuple[str, ...] = (CRYPTO_SPOT_ACCOUNT_SLEEVE, EQUITY_OPTIONS_ACCOUNT_SLEEVE)
+    account_sleeves: tuple[str, ...] = (CRYPTO_LEVERAGE_ACCOUNT_SLEEVE, EQUITY_OPTIONS_ACCOUNT_SLEEVE)
     broker_mutation_allowed: bool = False
     account_mutation_allowed: bool = False
 
@@ -119,15 +126,24 @@ def runtime_account_sleeves() -> tuple[RuntimeAccountSleeve, ...]:
 
     return (
         RuntimeAccountSleeve(
-            sleeve_id=CRYPTO_SPOT_ACCOUNT_SLEEVE,
-            sleeve_label="Crypto Spot Account",
+            sleeve_id=CRYPTO_LEVERAGE_ACCOUNT_SLEEVE,
+            sleeve_label="Crypto Leverage Account",
             account_state_contract="crypto_account_state_snapshot",
             risk_budget_contract="crypto_risk_budget_snapshot",
-            allowed_asset_classes=("crypto_spot",),
-            candidate_pool_policy="fixed_three_asset_crypto_pool",
+            allowed_asset_classes=("crypto_underlying", "crypto_perp"),
+            candidate_pool_policy="fixed_three_asset_crypto_leverage_pool",
             candidate_symbols=CRYPTO_CANDIDATE_SYMBOLS,
-            candidate_instrument_refs=CRYPTO_SPOT_INSTRUMENT_REFS,
-            expression_review_enabled=False,
+            candidate_instrument_refs=CRYPTO_LEVERAGE_INSTRUMENT_REFS,
+            expression_review_enabled=True,
+            starting_capital_usd=CRYPTO_LEVERAGE_STARTING_CAPITAL_USD,
+            leverage_policy={
+                "owner_component": EXPRESSION_REVIEW_COMPONENT_ID,
+                "min_leverage": CRYPTO_LEVERAGE_MIN_MULTIPLE,
+                "max_leverage": CRYPTO_LEVERAGE_MAX_MULTIPLE,
+                "default_margin_mode": "isolated",
+                "order_intent_owner": "component_05_order_intent",
+                "hard_gate_owner": "component_06_execution_gate",
+            },
         ),
         RuntimeAccountSleeve(
             sleeve_id=EQUITY_OPTIONS_ACCOUNT_SLEEVE,
@@ -236,7 +252,7 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             purpose=(
                 "Periodically review held option contracts for moneyness, greeks, "
                 "DTE, spread, liquidity, IV, payoff efficiency, and roll cost, or translate accepted "
-                "C02/C03 underlying intents into the current option or underlying expression."
+                "C02/C03 underlying intents into the current option, direct-underlying fallback, or crypto leveraged expression."
             ),
             input_contracts=(
                 "option_position_state_snapshot",
@@ -248,11 +264,11 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             output_contracts=(EXPRESSION_DECISION_CONTRACT,),
             required_model_surfaces=(),
             optional_model_surfaces=("model_05_option_expression",),
-            live_invocation_policy="conditional_for_optionable_routes_held_options_or_expression_required_underlying_intents",
-            replay_invocation_policy="conditional_but_replay_records_direct_underlying_pass_through_or_not_option_applicable_state",
-            skip_degrade_policy="emit_direct_underlying_or_not_option_applicable_expression_without_fabricating_option_selection",
+            live_invocation_policy="conditional_for_optionable_routes_crypto_leverage_routes_held_options_or_expression_required_underlying_intents",
+            replay_invocation_policy="conditional_but_replay_records_direct_underlying_crypto_leverage_or_not_option_applicable_state",
+            skip_degrade_policy="emit_direct_underlying_crypto_leverage_or_not_option_applicable_expression_without_fabricating_option_selection",
             forbidden_recomputations=no_model_recompute + ("direct_underlying_decision", "final_order_sizing"),
-            account_sleeves=(EQUITY_OPTIONS_ACCOUNT_SLEEVE,),
+            account_sleeves=(CRYPTO_LEVERAGE_ACCOUNT_SLEEVE, EQUITY_OPTIONS_ACCOUNT_SLEEVE),
         ),
         RuntimeComponent(
             component_step="C05",
@@ -364,16 +380,16 @@ def runtime_use_case_graphs() -> tuple[dict[str, Any], ...]:
         },
         {
             "use_case_id": "direct_underlying_execution",
-            "description": "Accepted direct-underlying intents pass through C04 expression review without requiring option-expression model output.",
+            "description": "Accepted direct-underlying and crypto leveraged intents pass through C04 expression review without requiring listed-option model output.",
             "source_component_id": EXPRESSION_REVIEW_COMPONENT_ID,
             "source_pool": "accepted_underlying_intents",
             "component_ids": [EXPRESSION_REVIEW_COMPONENT_ID, "component_05_order_intent", "component_06_execution_gate"],
         },
         {
-            "use_case_id": "option_expression_execution",
-            "description": "Optionable routes and held options use C04 expression review with optional M05 option-expression evidence.",
+            "use_case_id": "option_or_crypto_expression_execution",
+            "description": "Optionable routes, held options, and crypto leveraged routes use C04 expression review with M05 expression evidence when available.",
             "source_component_id": EXPRESSION_REVIEW_COMPONENT_ID,
-            "source_pool": "optionable_or_held_option_intents",
+            "source_pool": "optionable_crypto_or_held_option_intents",
             "component_ids": [EXPRESSION_REVIEW_COMPONENT_ID, "component_05_order_intent", "component_06_execution_gate"],
         },
         {
@@ -461,7 +477,7 @@ def build_runtime_component_graph(*, mode: RuntimeMode) -> dict[str, Any]:
         "manifest_version": manifest["manifest_version"],
         "manifest_checksum": manifest["manifest_checksum"],
         "adapter_profile": _adapter_profile(mode=mode),
-        "account_sleeve_policy": "separate_crypto_and_equity_options_accounts_no_cross_account_netting",
+        "account_sleeve_policy": "separate_crypto_leverage_and_equity_options_accounts_no_cross_account_netting",
         "account_sleeves": manifest["account_sleeves"],
         "component_order": manifest["component_order"],
         "component_sequence": [

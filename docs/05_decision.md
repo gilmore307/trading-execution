@@ -534,18 +534,21 @@ for runtime lifecycle review, evaluation feedback, and M03 event-family work.
 Date: 2026-05-21
 Status: Accepted
 
-Crypto spot trading and US equity/options trading are independent execution
+Crypto leverage trading and US equity/options trading are independent execution
 accounts. Runtime components may observe aggregate portfolio limits, but each
-intake, entry, lifecycle, expression review, and order-intent
-record must belong to exactly one account sleeve.
+intake, entry, lifecycle, expression review, and order-intent record must belong
+to exactly one account sleeve.
 
 Accepted sleeves:
 
-- `crypto_spot_account`: fixed candidate pool `BTC`, `ETH`, and `SOL`; OKX spot
-  instrument refs `BTC-USDT`, `ETH-USDT`, and `SOL-USDT`; no option
-  roll.
+- `crypto_leverage_account`: fixed candidate pool `BTC`, `ETH`, and `SOL`;
+  independent starting capital `5000` USD; OKX swap/perp instrument refs
+  `BTC-USDT-SWAP`, `ETH-USDT-SWAP`, and `SOL-USDT-SWAP`; isolated leverage is
+  selected by C04 with a hard 2x-50x policy range.
 - `equity_options_account`: stocks/ETFs/options from the reviewed equity
-  watchlist and optionable-underlying process; expression review is enabled.
+  watchlist and optionable-underlying process; expression review is enabled and
+  direct stock fallback is allowed only when the current candidate batch has no
+  suitable option expression.
 
 Cross-account collateral, buying-power substitution, and position/risk netting
 between these sleeves are not accepted.

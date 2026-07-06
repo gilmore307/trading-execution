@@ -18,8 +18,11 @@ from trading_execution.risk_cap.validator import validate_trade_risk_cap
 
 from .components import (
     CRYPTO_CANDIDATE_SYMBOLS,
-    CRYPTO_SPOT_ACCOUNT_SLEEVE,
-    CRYPTO_SPOT_INSTRUMENT_REFS,
+    CRYPTO_LEVERAGE_ACCOUNT_SLEEVE,
+    CRYPTO_LEVERAGE_INSTRUMENT_REFS,
+    CRYPTO_LEVERAGE_MAX_MULTIPLE,
+    CRYPTO_LEVERAGE_MIN_MULTIPLE,
+    CRYPTO_UNDERLYING_INSTRUMENT_REFS,
     ENTRY_DECISION_CONTRACT,
     EQUITY_OPTIONS_ACCOUNT_SLEEVE,
     EXECUTION_GATE_RESULT_CONTRACT,
@@ -36,7 +39,8 @@ from .components import (
 DecisionStatus = Literal["accepted", "blocked", "deferred", "watch_only", "monitor_only", "suitable", "rejected"]
 
 _ALLOWED_SLEEVES = {sleeve.sleeve_id: sleeve for sleeve in runtime_account_sleeves()}
-_CRYPTO_INSTRUMENT_BY_SYMBOL = dict(zip(CRYPTO_CANDIDATE_SYMBOLS, CRYPTO_SPOT_INSTRUMENT_REFS, strict=True))
+_CRYPTO_UNDERLYING_BY_SYMBOL = dict(zip(CRYPTO_CANDIDATE_SYMBOLS, CRYPTO_UNDERLYING_INSTRUMENT_REFS, strict=True))
+_CRYPTO_LEVERAGE_BY_SYMBOL = dict(zip(CRYPTO_CANDIDATE_SYMBOLS, CRYPTO_LEVERAGE_INSTRUMENT_REFS, strict=True))
 _EXECUTABLE_ENTRY_ACTIONS = {"open_long"}
 _EXECUTABLE_LIFECYCLE_ACTIONS = {"reduce", "exit", "stop", "take_profit"}
 _EXECUTABLE_EXPRESSION_ACTIONS = {"open_long", "open_short", "roll_option", "exit_option", "reduce_option"}
@@ -98,7 +102,7 @@ def _instrument_ref(row: Mapping[str, Any], target_ref: str) -> str:
     value = row.get("instrument_ref") or row.get("venue_symbol") or row.get("contract_ref")
     if isinstance(value, str) and value.strip():
         return value.strip().upper()
-    return _CRYPTO_INSTRUMENT_BY_SYMBOL.get(target_ref, target_ref)
+    return _CRYPTO_UNDERLYING_BY_SYMBOL.get(target_ref, target_ref)
 
 
 def _number(value: Any, default: float = 0.0) -> float:
@@ -253,6 +257,88 @@ def _m04_thesis_handoff(
     if "action_confidence_score" in handoff:
         handoff.setdefault("unified_decision_confidence_score", handoff.get("action_confidence_score"))
     return handoff
+
+
+def _crypto_leverage_multiple(
+    *,
+    expression_probability_surface: Mapping[str, Any],
+    source_intent: Mapping[str, Any],
+    crypto_leverage_policy: Mapping[str, Any],
+) -> tuple[int, dict[str, Any]]:
+    """Compute component-owned crypto leverage from surface quality and hard policy caps."""
+
+    selected = _as_mapping(expression_probability_surface.get("selected_expression"))
+    risk = _as_mapping(expression_probability_surface.get("risk_summary"))
+    confidence = max(
+        0.0,
+        min(
+            1.0,
+            _number(
+                selected.get(
+                    "confidence_score",
+                    expression_probability_surface.get(
+                        "expression_confidence_score",
+                        source_intent.get("unified_decision_confidence_score"),
+                    ),
+                ),
+                default=0.5,
+            ),
+        ),
+    )
+    quality = max(
+        0.0,
+        min(
+            1.0,
+            _number(selected.get("surface_quality_score", expression_probability_surface.get("surface_quality_score")), default=0.75),
+        ),
+    )
+    downside_tail = max(
+        0.0,
+        min(
+            1.0,
+            _number(
+                risk.get(
+                    "downside_tail_probability",
+                    expression_probability_surface.get("downside_tail_probability", expression_probability_surface.get("left_tail_probability")),
+                ),
+                default=0.20,
+            ),
+        ),
+    )
+    volatility = max(
+        0.0,
+        min(
+            1.0,
+            _number(risk.get("volatility_score", expression_probability_surface.get("volatility_score")), default=0.50),
+        ),
+    )
+    min_leverage = int(_number(crypto_leverage_policy.get("min_leverage"), default=CRYPTO_LEVERAGE_MIN_MULTIPLE))
+    max_leverage = int(_number(crypto_leverage_policy.get("max_leverage"), default=CRYPTO_LEVERAGE_MAX_MULTIPLE))
+    min_leverage = max(CRYPTO_LEVERAGE_MIN_MULTIPLE, min_leverage)
+    max_leverage = min(CRYPTO_LEVERAGE_MAX_MULTIPLE, max(min_leverage, max_leverage))
+    min_liquidation_buffer_pct = max(
+        0.01,
+        _number(crypto_leverage_policy.get("min_liquidation_buffer_pct"), default=0.04),
+    )
+    liquidation_cap = max(min_leverage, int(1.0 / min_liquidation_buffer_pct))
+    max_leverage = min(max_leverage, liquidation_cap)
+    raw = min_leverage + (max_leverage - min_leverage) * confidence * quality * (1.0 - downside_tail) * (1.0 - 0.5 * volatility)
+    leverage = max(min_leverage, min(max_leverage, int(raw)))
+    plan = {
+        "owner_component": "component_04_expression_review",
+        "formula": "min_plus_surface_quality_confidence_tail_volatility_clip",
+        "leverage_multiple": leverage,
+        "min_leverage": min_leverage,
+        "max_leverage": max_leverage,
+        "hard_max_leverage": CRYPTO_LEVERAGE_MAX_MULTIPLE,
+        "margin_mode": str(crypto_leverage_policy.get("margin_mode") or crypto_leverage_policy.get("default_margin_mode") or "isolated"),
+        "min_liquidation_buffer_pct": min_liquidation_buffer_pct,
+        "confidence_score": round(confidence, 6),
+        "surface_quality_score": round(quality, 6),
+        "downside_tail_probability": round(downside_tail, 6),
+        "volatility_score": round(volatility, 6),
+    }
+    return leverage, plan
 
 
 def _price_reaches_downside(price: float | None, level: float | None, direction: str) -> bool:
@@ -640,7 +726,7 @@ def _candidate_rows_for_sleeve(
         _recent_high_trading_volume(row) or _recent_abnormal_volume(row) or _recent_news_catalyst(row) for row in rows
     )
 
-    if sleeve.sleeve_id == CRYPTO_SPOT_ACCOUNT_SLEEVE:
+    if sleeve.sleeve_id == CRYPTO_LEVERAGE_ACCOUNT_SLEEVE:
         allowed = set(CRYPTO_CANDIDATE_SYMBOLS)
         input_refs = {_target_ref(row) for row in rows} if rows else allowed
         for symbol in CRYPTO_CANDIDATE_SYMBOLS:
@@ -648,8 +734,8 @@ def _candidate_rows_for_sleeve(
                 selected.append(
                     {
                         "target_ref": symbol,
-                        "instrument_ref": _CRYPTO_INSTRUMENT_BY_SYMBOL[symbol],
-                        "asset_class": "crypto_spot",
+                        "instrument_ref": _CRYPTO_UNDERLYING_BY_SYMBOL[symbol],
+                        "asset_class": "crypto_underlying",
                     }
                 )
         for ref in sorted(row_ref for row_ref in input_refs if row_ref and row_ref not in allowed):
@@ -820,7 +906,7 @@ def build_entry_decision(
     reasons: list[str] = []
     status: DecisionStatus = "suitable"
     action = "continue_to_expression_review"
-    asset_class = "crypto_spot" if sleeve_id == CRYPTO_SPOT_ACCOUNT_SLEEVE else "us_equity"
+    asset_class = "crypto_underlying" if sleeve_id == CRYPTO_LEVERAGE_ACCOUNT_SLEEVE else "us_equity"
 
     if target_ref not in selected:
         status = "rejected"
@@ -916,10 +1002,6 @@ def build_entry_decision(
             action = "defer_entry_thesis"
             reasons.append("current_price_outside_entry_zone")
 
-    if status == "suitable" and sleeve_id == CRYPTO_SPOT_ACCOUNT_SLEEVE and direction == "long":
-        status = "accepted"
-        action = "open_long"
-        reasons.append("crypto_spot_entry_thesis_accepted_for_replay")
     suitability_score = max(
         0.0,
         min(
@@ -939,8 +1021,8 @@ def build_entry_decision(
         "source_intake_snapshot_id": execution_intake_snapshot.get("intake_snapshot_id"),
         "generated_at_utc": generated_at_utc,
         "target_ref": target_ref,
-        "instrument_ref": _CRYPTO_INSTRUMENT_BY_SYMBOL.get(target_ref, target_ref)
-        if sleeve_id == CRYPTO_SPOT_ACCOUNT_SLEEVE
+        "instrument_ref": _CRYPTO_UNDERLYING_BY_SYMBOL.get(target_ref, target_ref)
+        if sleeve_id == CRYPTO_LEVERAGE_ACCOUNT_SLEEVE
         else target_ref,
         "asset_class": asset_class,
         "decision_status": status,
@@ -1162,8 +1244,20 @@ def build_execution_order_intent(
         EXPRESSION_DECISION_CONTRACT,
     }:
         reasons.append("unsupported_source_decision_contract")
-    if sleeve.sleeve_id == CRYPTO_SPOT_ACCOUNT_SLEEVE and instrument_ref not in CRYPTO_SPOT_INSTRUMENT_REFS:
-        reasons.append("crypto_order_instrument_not_in_fixed_spot_pool")
+    if sleeve.sleeve_id == CRYPTO_LEVERAGE_ACCOUNT_SLEEVE and instrument_ref not in CRYPTO_LEVERAGE_INSTRUMENT_REFS:
+        reasons.append("crypto_order_instrument_not_in_fixed_leverage_pool")
+    leverage_plan = _as_mapping(decision_record.get("leverage_plan"))
+    leverage_multiple = _number(leverage_plan.get("leverage_multiple"), default=0.0)
+    crypto_opening_expression = (
+        sleeve.sleeve_id == CRYPTO_LEVERAGE_ACCOUNT_SLEEVE
+        and contract_type == EXPRESSION_DECISION_CONTRACT
+        and action in {"open_long", "open_short"}
+    )
+    if crypto_opening_expression:
+        if leverage_multiple < CRYPTO_LEVERAGE_MIN_MULTIPLE or leverage_multiple > CRYPTO_LEVERAGE_MAX_MULTIPLE:
+            reasons.append("crypto_leverage_plan_missing_or_outside_policy_bounds")
+        if str(leverage_plan.get("margin_mode") or "").lower() != "isolated":
+            reasons.append("crypto_leverage_requires_isolated_margin_mode")
     if not cap_validation["valid"]:
         reasons.extend(cap_validation["reason_codes"])
 
@@ -1208,6 +1302,8 @@ def build_execution_order_intent(
             "quantity": quantity if quantity > 0 else None,
             "limit_price": decision_record.get("limit_price") or trade_risk_cap.get("planned_limit_price"),
             "time_in_force": _as_mapping(execution_policy_snapshot).get("time_in_force", "day"),
+            "leverage": leverage_multiple if leverage_multiple > 0 else None,
+            "margin_mode": leverage_plan.get("margin_mode"),
         },
         "sizing_plan": {
             "position_management_owner": "component_05_order_intent",
@@ -1218,6 +1314,7 @@ def build_execution_order_intent(
             "planned_exposure_change": decision_record.get("planned_exposure_change")
             or trade_risk_cap.get("planned_exposure_change"),
             "target_position_scaling_capacity": scaling_capacity,
+            "leverage_plan": dict(leverage_plan),
             "sizing_reason_codes": list(
                 decision_record.get("sizing_reason_codes")
                 or trade_risk_cap.get("sizing_reason_codes")
@@ -1254,6 +1351,7 @@ def build_expression_decision(
     position_lifecycle_decision: Mapping[str, Any] | None = None,
     expression_probability_surface: Mapping[str, Any] | None = None,
     option_expression_plan: Mapping[str, Any] | None = None,
+    crypto_leverage_policy: Mapping[str, Any] | None = None,
     event_risk_control: Mapping[str, Any] | None = None,
     candidate_option_contracts: Any = None,
     generated_at_utc: str | None = None,
@@ -1267,8 +1365,6 @@ def build_expression_decision(
     source_intent = entry or lifecycle
     sleeve_id = str(position.get("account_sleeve_id") or source_intent.get("account_sleeve_id") or "")
     sleeve = _sleeve(sleeve_id)
-    if sleeve.sleeve_id != EQUITY_OPTIONS_ACCOUNT_SLEEVE:
-        raise ValueError("expression review is only allowed for equity_options_account")
 
     expression_surface = _as_mapping(expression_probability_surface)
     residual_governance = _as_mapping(event_risk_control)
@@ -1284,8 +1380,29 @@ def build_expression_decision(
     asset_class = str(source_intent.get("asset_class") or position.get("asset_class") or "us_equity")
     instrument_ref = str(position.get("instrument_ref") or source_intent.get("instrument_ref") or "").upper()
     replacement_instrument_ref = ""
+    leverage_plan: dict[str, Any] = {}
 
-    if _number(position.get("quantity"), default=0.0) <= 0:
+    if sleeve.sleeve_id == CRYPTO_LEVERAGE_ACCOUNT_SLEEVE:
+        source_status = str(source_intent.get("decision_status") or "")
+        direction = str(source_intent.get("entry_direction") or source_intent.get("position_side") or "long").lower()
+        target_ref = str(source_intent.get("target_ref") or position.get("target_ref") or "").upper()
+        if source_status != "suitable":
+            reasons.append("source_underlying_intent_not_suitable")
+        elif target_ref not in _CRYPTO_LEVERAGE_BY_SYMBOL:
+            reasons.append("crypto_target_not_in_fixed_leverage_pool")
+        else:
+            status = "accepted"
+            action = "open_short" if direction == "short" else "open_long"
+            asset_class = "crypto_perp"
+            instrument_ref = _CRYPTO_LEVERAGE_BY_SYMBOL[target_ref]
+            leverage_multiple, leverage_plan = _crypto_leverage_multiple(
+                expression_probability_surface=expression_surface,
+                source_intent=source_intent,
+                crypto_leverage_policy=_as_mapping(crypto_leverage_policy) or _as_mapping(sleeve.leverage_policy),
+            )
+            reasons.append("component_04_crypto_leverage_expression_selected")
+            reasons.append(f"crypto_leverage_{leverage_multiple}x_selected_by_policy_formula")
+    elif _number(position.get("quantity"), default=0.0) <= 0:
         route = str(expression_plan.get("asset_expression_route") or "")
         selected_ref = str(selected_contract.get("contract_ref") or selected_contract.get("option_symbol") or "").upper()
         source_status = str(source_intent.get("decision_status") or "")
@@ -1298,11 +1415,20 @@ def build_expression_decision(
             instrument_ref = selected_ref
             reasons.append("m05_expression_probability_surface_selected_option_contract")
         elif route == "direct_underlying_fallback":
-            status = "accepted"
-            action = "open_long" if str(source_intent.get("entry_direction") or source_intent.get("position_side") or "long").lower() != "short" else "open_short"
-            asset_class = str(source_intent.get("asset_class") or "us_equity")
-            instrument_ref = str(source_intent.get("instrument_ref") or source_intent.get("target_ref") or "").upper()
-            reasons.append("m05_expression_probability_surface_direct_underlying_fallback")
+            fallback_scope = str(expression_plan.get("option_fallback_scope_status") or "")
+            all_options_unsuitable = _bool_flag(
+                expression_plan,
+                "all_candidate_option_expressions_unsuitable",
+                "no_suitable_option_expression_in_batch",
+            )
+            if fallback_scope == "no_suitable_option_expression_in_current_candidate_batch" or all_options_unsuitable:
+                status = "accepted"
+                action = "open_long" if str(source_intent.get("entry_direction") or source_intent.get("position_side") or "long").lower() != "short" else "open_short"
+                asset_class = str(source_intent.get("asset_class") or "us_equity")
+                instrument_ref = str(source_intent.get("instrument_ref") or source_intent.get("target_ref") or "").upper()
+                reasons.append("m05_expression_probability_surface_direct_underlying_fallback")
+            else:
+                reasons.append("direct_underlying_fallback_requires_batch_no_suitable_options")
         else:
             reasons.append("no_open_option_position_or_valid_expression_selection")
     elif _bool_flag(residual_governance, "force_exit_options", "halt_option_exposure") or _risk_level(residual_governance) == "critical":
@@ -1348,6 +1474,8 @@ def build_expression_decision(
         "decision_status": status,
         "decision_action": action,
         "reason_codes": reasons,
+        "expression_type": "crypto_perp" if sleeve.sleeve_id == CRYPTO_LEVERAGE_ACCOUNT_SLEEVE else asset_class,
+        "leverage_plan": leverage_plan,
         "current_contract_quality_score": current_score,
         "candidate_contract": dict(best_candidate) if best_candidate else {},
         "model_layer_refs": {
@@ -1399,6 +1527,20 @@ def build_execution_gate_result(
         reasons.append("c06_quantity_mismatch_with_c05_sizing_plan")
     if sizing.get("execution_gate_may_change_quantity") is not False:
         reasons.append("execution_gate_quantity_change_not_allowed")
+    if intent.get("account_sleeve_id") == CRYPTO_LEVERAGE_ACCOUNT_SLEEVE and (
+        order.get("leverage") is not None or _as_mapping(sizing.get("leverage_plan"))
+    ):
+        leverage = _number(order.get("leverage", _as_mapping(sizing.get("leverage_plan")).get("leverage_multiple")), default=0.0)
+        margin_mode = str(order.get("margin_mode") or _as_mapping(sizing.get("leverage_plan")).get("margin_mode") or "").lower()
+        liquidation_buffer = _number(_as_mapping(sizing.get("leverage_plan")).get("min_liquidation_buffer_pct"), default=0.0)
+        if leverage < CRYPTO_LEVERAGE_MIN_MULTIPLE:
+            reasons.append("crypto_leverage_below_minimum_policy")
+        if leverage > CRYPTO_LEVERAGE_MAX_MULTIPLE:
+            reasons.append("crypto_leverage_above_maximum_policy")
+        if margin_mode != "isolated":
+            reasons.append("crypto_leverage_requires_isolated_margin_mode")
+        if liquidation_buffer <= 0:
+            reasons.append("crypto_leverage_missing_liquidation_buffer")
 
     hard_block_keys = (
         "broker_regulatory_hard_block",
@@ -1710,13 +1852,19 @@ def validate_expression_decision(record: Mapping[str, Any]) -> dict[str, Any]:
             "safety",
         ),
     )
-    if record.get("account_sleeve_id") != EQUITY_OPTIONS_ACCOUNT_SLEEVE:
-        validation["errors"].append("expression_requires_equity_options_account")
+    if record.get("account_sleeve_id") not in {CRYPTO_LEVERAGE_ACCOUNT_SLEEVE, EQUITY_OPTIONS_ACCOUNT_SLEEVE}:
+        validation["errors"].append("expression_requires_supported_expression_account")
         validation["validation_status"] = "failed"
     if record.get("decision_status") == "accepted" and record.get("decision_action") in _EXECUTABLE_EXPRESSION_ACTIONS:
         if not record.get("instrument_ref"):
             validation["errors"].append("accepted_expression_requires_instrument_ref")
             validation["validation_status"] = "failed"
+        if record.get("account_sleeve_id") == CRYPTO_LEVERAGE_ACCOUNT_SLEEVE:
+            leverage_plan = _as_mapping(record.get("leverage_plan"))
+            leverage = _number(leverage_plan.get("leverage_multiple"), default=0.0)
+            if leverage < CRYPTO_LEVERAGE_MIN_MULTIPLE or leverage > CRYPTO_LEVERAGE_MAX_MULTIPLE:
+                validation["errors"].append("accepted_crypto_expression_requires_valid_leverage_plan")
+                validation["validation_status"] = "failed"
     return validation
 
 

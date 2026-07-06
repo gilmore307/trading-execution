@@ -40,7 +40,7 @@ These items are intentionally outside the current promote-first model phase and 
 - Realtime capture, feature snapshot, and model-decision input handoff builders.
 - Runtime active/shadow model roster selection and active-pointer write records.
 - Live/Replay shared runtime component graph and side-effect-free decision builders.
-- Independent `crypto_spot_account` and `equity_options_account` sleeves.
+- Independent `crypto_leverage_account` and `equity_options_account` sleeves.
 - OKX broker-order intent construction after approval and risk-cap validation, without submission.
 - Capability catalogs for realtime data and broker/exchange posture.
 - Calendar discovery, including approved Nasdaq future EPS-consensus baseline snapshots.
