@@ -15,12 +15,12 @@ from typing import Any, Literal
 RUNTIME_COMPONENT_CONTRACT = "execution_runtime_component"
 RUNTIME_COMPONENT_GRAPH_CONTRACT = "execution_runtime_component_graph"
 RUNTIME_COMPONENT_MANIFEST_CONTRACT = "execution_runtime_component_manifest"
-RUNTIME_COMPONENT_MANIFEST_VERSION = "2026-06-19"
+RUNTIME_COMPONENT_MANIFEST_VERSION = "2026-07-05"
 
 EXECUTION_INTAKE_SNAPSHOT_CONTRACT = "execution_intake_snapshot"
 ENTRY_DECISION_CONTRACT = "entry_decision"
 POSITION_LIFECYCLE_DECISION_CONTRACT = "position_lifecycle_decision"
-OPTION_REEXPRESSION_DECISION_CONTRACT = "option_reexpression_decision"
+EXPRESSION_DECISION_CONTRACT = "expression_decision"
 FAILURE_EXPLANATION_PACKET_CONTRACT = "failure_explanation_packet"
 EXECUTION_ORDER_INTENT_CONTRACT = "execution_order_intent"
 EXECUTION_GATE_RESULT_CONTRACT = "execution_gate_result"
@@ -68,7 +68,7 @@ class RuntimeAccountSleeve:
     candidate_pool_policy: str
     candidate_symbols: tuple[str, ...]
     candidate_instrument_refs: tuple[str, ...]
-    option_reexpression_enabled: bool
+    expression_review_enabled: bool
     broker_mutation_allowed: bool = False
     account_mutation_allowed: bool = False
 
@@ -127,7 +127,7 @@ def runtime_account_sleeves() -> tuple[RuntimeAccountSleeve, ...]:
             candidate_pool_policy="fixed_three_asset_crypto_pool",
             candidate_symbols=CRYPTO_CANDIDATE_SYMBOLS,
             candidate_instrument_refs=CRYPTO_SPOT_INSTRUMENT_REFS,
-            option_reexpression_enabled=False,
+            expression_review_enabled=False,
         ),
         RuntimeAccountSleeve(
             sleeve_id=EQUITY_OPTIONS_ACCOUNT_SLEEVE,
@@ -138,7 +138,7 @@ def runtime_account_sleeves() -> tuple[RuntimeAccountSleeve, ...]:
             candidate_pool_policy="model_selected_from_reviewed_equity_watchlist_and_optionable_underlyings",
             candidate_symbols=(),
             candidate_instrument_refs=(),
-            option_reexpression_enabled=True,
+            expression_review_enabled=True,
         ),
     )
 
@@ -191,7 +191,8 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             input_contracts=(
                 EXECUTION_INTAKE_SNAPSHOT_CONTRACT,
                 "event_state_vector",
-                "unified_decision_vector",
+                "thesis_distribution_surface",
+                "direct_underlying_intent",
             ),
             output_contracts=(ENTRY_DECISION_CONTRACT,),
             required_model_surfaces=("model_03_event_state", "model_04_unified_decision"),
@@ -215,9 +216,9 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
                 "position_state_snapshot",
                 "account_sleeve_state_snapshot",
                 "account_sleeve_risk_budget_snapshot",
-                "entry_decision",
                 "event_state_vector",
-                "unified_decision_vector",
+                "thesis_distribution_surface",
+                "direct_underlying_intent",
             ),
             output_contracts=(POSITION_LIFECYCLE_DECISION_CONTRACT,),
             required_model_surfaces=("model_03_event_state", "model_04_unified_decision"),
@@ -241,10 +242,10 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
                 "option_position_state_snapshot",
                 "entry_decision",
                 "position_lifecycle_decision",
-                "unified_decision_vector",
+                "expression_probability_surface",
                 "option_expression_plan",
             ),
-            output_contracts=(OPTION_REEXPRESSION_DECISION_CONTRACT,),
+            output_contracts=(EXPRESSION_DECISION_CONTRACT,),
             required_model_surfaces=(),
             optional_model_surfaces=("model_05_option_expression",),
             live_invocation_policy="conditional_for_optionable_routes_held_options_or_expression_required_underlying_intents",
@@ -259,14 +260,14 @@ def runtime_components() -> tuple[RuntimeComponent, ...]:
             component_id="component_05_order_intent",
             component_label="C05 Order Intent",
             purpose=(
-                "Convert accepted entry, lifecycle, or option re-expression decisions into complete "
+                "Convert accepted entry, lifecycle, or expression review decisions into complete "
                 "broker-neutral execution order intents, including final quantity, target post-trade "
                 "position, risk-cap packaging, and price/order policy."
             ),
             input_contracts=(
                 ENTRY_DECISION_CONTRACT,
                 POSITION_LIFECYCLE_DECISION_CONTRACT,
-                OPTION_REEXPRESSION_DECISION_CONTRACT,
+                EXPRESSION_DECISION_CONTRACT,
                 "account_sleeve_state_snapshot",
                 "account_sleeve_risk_budget_snapshot",
                 "position_sizing_context",
@@ -481,7 +482,7 @@ def build_runtime_component_graph(*, mode: RuntimeMode) -> dict[str, Any]:
             EXECUTION_GATE_RESULT_CONTRACT,
         ],
         "required_second_batch_contracts": [
-            OPTION_REEXPRESSION_DECISION_CONTRACT,
+            EXPRESSION_DECISION_CONTRACT,
             FAILURE_EXPLANATION_PACKET_CONTRACT,
             SIMULATED_FILL_EVENT_CONTRACT,
         ],

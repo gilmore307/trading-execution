@@ -93,7 +93,7 @@ review, and M03 event-family work.
 
 The account adapter exposes two independent sleeves: `crypto_spot_account` and
 `equity_options_account`. Runtime components must preserve that split through
-intake, entry, lifecycle, option re-expression, and order intent records. C01 is
+intake, entry, lifecycle, expression review, and order intent records. C01 is
 the runtime intake boundary: it receives model/candidate-policy targets and
 current open positions, then emits a `candidate_entry_pool` for C02 and an
 `open_position_pool` for C03. C02 and C03 are sibling branches, not a linear

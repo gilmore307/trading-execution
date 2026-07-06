@@ -39,17 +39,17 @@ Accepted sleeves:
   - allowed asset class: `crypto_spot`
   - candidate pool: fixed to `BTC`, `ETH`, and `SOL`
   - OKX spot instrument refs: `BTC-USDT`, `ETH-USDT`, and `SOL-USDT`
-  - option re-expression is disabled
+  - expression review is disabled
 - `equity_options_account`
   - account contract: `equity_options_account_state_snapshot`
   - risk-budget contract: `equity_options_risk_budget_snapshot`
   - allowed asset classes: `us_equity`, `us_etf`, and `us_option`
   - candidate pool: model-selected from the reviewed equity watchlist and
     optionable underlyings
-  - option re-expression is enabled
+  - expression review is enabled
 
 Every `execution_intake_snapshot`, `entry_decision`,
-`position_lifecycle_decision`, `option_reexpression_decision`, and
+`position_lifecycle_decision`, `expression_decision`, and
 `execution_order_intent` must carry exactly one account sleeve. Cross-account
 collateral, cross-account buying-power substitution, and cross-account position
 netting are not accepted.
@@ -83,7 +83,7 @@ gate review. The stable
 | `C01` | Intake | `component_01_intake` | `execution_intake_snapshot` |
 | `C02` | Entry | `component_02_entry` | `entry_decision` |
 | `C03` | Lifecycle | `component_03_lifecycle` | `position_lifecycle_decision` |
-| `C04` | Expression Review | `component_04_expression_review` | `option_reexpression_decision` |
+| `C04` | Expression Review | `component_04_expression_review` | `expression_decision` |
 | `C05` | Order Intent | `component_05_order_intent` | `execution_order_intent` |
 | `C06` | Execution Gate | `component_06_execution_gate` | `execution_gate_result` / `broker_order_request` / `simulated_fill_event` |
 | `C07` | Failure Review | `component_07_failure_review` | `failure_explanation_packet` |
@@ -162,9 +162,10 @@ Model surfaces:
 - required: `model_03_event_state`, `model_04_unified_decision`.
 - optional: none.
 
-C02 consumes the unified decision surface; it must not recreate edge, risk,
-exposure, or action heads locally. Option versus direct-underlying expression is
-a C04 decision.
+C02 consumes M04's `thesis_distribution_surface` plus the derived
+`direct_underlying_intent` handoff. It must not recreate edge, risk, exposure,
+or action heads locally. Option versus direct-underlying expression is a C04
+decision.
 
 Live application scenario:
 
@@ -207,7 +208,9 @@ Model surfaces:
 - required: `model_03_event_state`, `model_04_unified_decision`.
 - optional: none.
 
-C03 consumes the unified decision surface for open positions; it must not
+C03 consumes M04's `thesis_distribution_surface` plus the derived lifecycle
+intent/decision summary for open positions. It may cite a prior `entry_decision`
+as provenance, but open positions do not require C02 to run again. C03 must not
 relearn action, exposure, or risk policy locally. Observed model or trade
 failure routes to C07 Failure Review.
 
@@ -233,7 +236,7 @@ Live application scenario:
 
 ### C04 Expression Review
 
-Owns `option_reexpression_decision`.
+Owns `expression_decision`.
 
 Purpose: translate accepted C02/C03 underlying intents into direct-underlying,
 option, or no-expression runtime decisions, and periodically review held option
@@ -241,7 +244,7 @@ contracts for moneyness, greeks, DTE, spread, liquidity, IV, payoff efficiency,
 and roll cost.
 
 This component runs only for `equity_options_account`. Crypto spot positions
-use direct-underlying bypass semantics and do not use option re-expression.
+use direct-underlying bypass semantics and do not use expression review.
 
 For the high-risk options account, option review is underlying-thesis driven.
 Large option mark-to-market drawdowns are tolerated when the underlying path
@@ -252,7 +255,8 @@ fixed loss percentage.
 
 Model surfaces:
 
-- optional: `model_05_option_expression`.
+- primary when option expression is available: M05 `expression_probability_surface`.
+- derived handoff: M05 `option_expression_plan`.
 
 Roll decisions require a material improvement after roll-cost penalty and must
 respect roll-count, liquidity, and risk-budget limits.
@@ -261,7 +265,7 @@ respect roll-count, liquidity, and risk-budget limits.
 
 Owns `execution_order_intent`.
 
-Purpose: convert accepted entry, lifecycle, or option re-expression decisions
+Purpose: convert accepted entry, lifecycle, or expression review decisions
 into complete broker-neutral execution order intents.
 
 C05 owns all position-management content needed for the order:
@@ -292,12 +296,11 @@ Live broker mutation remains disabled unless a reviewed execution gate enables
 it. Replay uses simulated adapters only; it must not submit broker requests or
 mutate account, order, or position state.
 
-Agent final review is a hard live-submission boundary. Any open, reduce,
-exit, stop, take-profit, roll, or stock-fallback order must present its C02/C03
-or C04 reason evidence to C06 and receive an approved agent review before a
-live broker order can be submitted. C06 only validates the C05 order intent,
-checks final missed-event review, C07 untrained-event risk review evidence when
-present, and broker/regulatory hard blocks, and then rejects the intent,
+Agent final review is not an ordinary automatic-path requirement. C06 validates
+the C05 order intent, checks final missed-event review, C07 untrained-event risk
+review evidence when present, and broker/regulatory hard blocks. An approved
+agent review is required only when the execution policy explicitly marks the
+intent as live-broker or high-risk manual mode. C06 then rejects the intent,
 approves it for live submission, or approves it for Replay simulation. C06 does
 not own position management, sizing, target exposure, or order-policy
 calculation.
@@ -308,7 +311,7 @@ The C06 gate result must prove:
 - the broker-neutral order quantity equals the C05 `sizing_plan` quantity;
 - `execution_gate_may_change_quantity` is false;
 - hard-block checks do not reject the order;
-- live mode has an approved `agent_final_review_ref`;
+- required manual-review/live-broker modes have an approved `agent_final_review_ref`;
 - Replay simulated fills cite the approving `execution_gate_result`.
 
 ### C07 Failure Review
@@ -388,6 +391,6 @@ Implemented and tested runtime dry-run contracts:
 - `position_lifecycle_decision`
 - `execution_order_intent`
 - `execution_gate_result`
-- `option_reexpression_decision`
+- `expression_decision`
 - `failure_explanation_packet`
 - `simulated_fill_event`

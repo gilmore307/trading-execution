@@ -7,7 +7,7 @@ from trading_execution.runtime import (
     build_execution_gate_result,
     build_execution_order_intent,
     build_failure_explanation_packet,
-    build_option_reexpression_decision,
+    build_expression_decision,
     build_position_lifecycle_decision,
     build_simulated_fill_event,
     build_execution_intake_snapshot,
@@ -15,7 +15,7 @@ from trading_execution.runtime import (
     validate_execution_gate_result,
     validate_execution_order_intent,
     validate_failure_explanation_packet,
-    validate_option_reexpression_decision,
+    validate_expression_decision,
     validate_position_lifecycle_decision,
     validate_simulated_fill_event,
     validate_execution_intake_snapshot,
@@ -45,6 +45,31 @@ VALID_M04_ENTRY_DECISION = {
     "entry_thesis_score": 0.82,
     "unified_decision_confidence_score": 0.80,
     "minimum_entry_confidence": 0.55,
+}
+
+VALID_THESIS_DISTRIBUTION_SURFACE = {
+    "schema_ref": "thesis_distribution_surface",
+    "surface_ref": "tds_fixture",
+}
+
+VALID_DIRECT_UNDERLYING_INTENT = {
+    "model_ref": "dui_fixture",
+    "action_side": "long",
+    "direction_thesis": "bullish",
+    "reference_price": 101.0,
+    "entry_zone": {"low": 100.0, "high": 103.0},
+    "expected_target_price": 112.0,
+    "thesis_invalidation_price": 94.0,
+    "stop_loss_price": 93.5,
+    "dominant_horizon": "swing",
+    "entry_thesis_score": 0.82,
+    "underlying_action_confidence_score": 0.80,
+    "minimum_entry_confidence": 0.55,
+}
+
+VALID_EXPRESSION_PROBABILITY_SURFACE = {
+    "schema_ref": "expression_probability_surface",
+    "surface_ref": "eps_fixture",
 }
 
 
@@ -230,9 +255,9 @@ class RuntimeDecisionTests(unittest.TestCase):
             execution_intake_snapshot=allocation,
             target_ref="AAPL",
             event_state_vector={"risk_level": "low"},
-            unified_decision_vector=VALID_M04_ENTRY_DECISION,
+            thesis_distribution_surface=VALID_THESIS_DISTRIBUTION_SURFACE,
+            direct_underlying_intent=VALID_DIRECT_UNDERLYING_INTENT,
             event_risk_control={"risk_level": "low"},
-            option_expression_plan={"preferred_expression": "long_call", "instrument_ref": "AAPL_20260220_120C"},
             target_context_state={"current_price": 101.0},
             generated_at_utc="2026-01-01T00:01:00Z",
         )
@@ -248,10 +273,12 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(decision["target_price"], 112.0)
         self.assertEqual(decision["model_invalidation_price"], 94.0)
         self.assertEqual(decision["hard_stop_price"], 93.5)
-        self.assertIn("option_expression_plan", decision["model_layer_refs"])
+        self.assertEqual(decision["model_layer_refs"]["thesis_distribution_surface"], "tds_fixture")
+        self.assertEqual(decision["model_layer_refs"]["direct_underlying_intent"], "dui_fixture")
+        self.assertNotIn("option_expression_plan", decision["model_layer_refs"])
         self.assertEqual(validate_entry_decision(decision)["validation_status"], "passed")
 
-    def test_equity_options_entry_uses_selected_option_contract_in_replay(self) -> None:
+    def test_equity_options_expression_uses_selected_option_contract_in_replay(self) -> None:
         allocation = build_execution_intake_snapshot(
             account_sleeve_id=EQUITY_OPTIONS_ACCOUNT_SLEEVE,
             account_sleeve_state={"available_cash_usd": 1000.0},
@@ -265,28 +292,36 @@ class RuntimeDecisionTests(unittest.TestCase):
             execution_intake_snapshot=allocation,
             target_ref="AAPL",
             event_state_vector={"risk_level": "low"},
-            unified_decision_vector=VALID_M04_ENTRY_DECISION,
+            thesis_distribution_surface=VALID_THESIS_DISTRIBUTION_SURFACE,
+            direct_underlying_intent=VALID_DIRECT_UNDERLYING_INTENT,
             event_risk_control={"risk_level": "low"},
+            target_context_state={"current_price": 101.0},
+            generated_at_utc="2026-01-01T00:01:00Z",
+        )
+        expression = build_expression_decision(
+            entry_decision=decision,
+            expression_probability_surface=VALID_EXPRESSION_PROBABILITY_SURFACE,
             option_expression_plan={
+                "model_ref": "oep_fixture",
                 "asset_expression_route": "listed_option_contract",
                 "option_surface_status": "optionable_chain_available",
                 "selected_expression_type": "long_call",
                 "selected_contract": {"contract_ref": "AAPL_20260220_C_120", "mid_price": 2.15},
             },
-            target_context_state={"current_price": 101.0},
-            generated_at_utc="2026-01-01T00:01:00Z",
+            generated_at_utc="2026-01-01T00:01:30Z",
         )
         intent = build_execution_order_intent(
-            decision_record=decision,
+            decision_record=expression,
             trade_risk_cap=VALID_STOCK_RISK_CAP,
             generated_at_utc="2026-01-01T00:02:00Z",
         )
 
-        self.assertEqual(decision["decision_status"], "accepted")
-        self.assertEqual(decision["decision_action"], "open_long")
-        self.assertEqual(decision["asset_class"], "us_option")
-        self.assertEqual(decision["instrument_ref"], "AAPL_20260220_C_120")
-        self.assertIn("equity_option_contract_selected_for_replay", decision["reason_codes"])
+        self.assertEqual(decision["decision_status"], "suitable")
+        self.assertEqual(expression["decision_status"], "accepted")
+        self.assertEqual(expression["decision_action"], "open_long")
+        self.assertEqual(expression["asset_class"], "us_option")
+        self.assertEqual(expression["instrument_ref"], "AAPL_20260220_C_120")
+        self.assertIn("m05_expression_probability_surface_selected_option_contract", expression["reason_codes"])
         self.assertEqual(intent["intent_status"], "ready_for_execution_gate_not_submitted")
         self.assertEqual(intent["broker_neutral_order"]["instrument_ref"], "AAPL_20260220_C_120")
 
@@ -300,8 +335,12 @@ class RuntimeDecisionTests(unittest.TestCase):
         decision = build_entry_decision(
             execution_intake_snapshot=allocation,
             target_ref="BTC",
-            unified_decision_vector={"unified_decision_confidence_score": 0.95, "minimum_entry_confidence": 0.55},
-            option_expression_plan={"preferred_expression": "long_call", "instrument_ref": "BTC_OPTION"},
+            thesis_distribution_surface=VALID_THESIS_DISTRIBUTION_SURFACE,
+            direct_underlying_intent={
+                "model_ref": "dui_missing_direction_fixture",
+                "underlying_action_confidence_score": 0.95,
+                "minimum_entry_confidence": 0.55,
+            },
             generated_at_utc="2026-01-01T00:01:00Z",
         )
 
@@ -324,14 +363,15 @@ class RuntimeDecisionTests(unittest.TestCase):
         decision = build_entry_decision(
             execution_intake_snapshot=allocation,
             target_ref="SOL",
-            unified_decision_vector={
+            thesis_distribution_surface=VALID_THESIS_DISTRIBUTION_SURFACE,
+            direct_underlying_intent={
                 "action_side": "long",
-                "unified_decision_confidence_score": 0.80,
+                "underlying_action_confidence_score": 0.80,
                 "minimum_entry_confidence": 0.55,
                 "entry_zone": {"low": 95.0, "high": 105.0},
-                "target_price": 112.0,
-                "model_invalidation_price": 94.0,
-                "hard_stop_price": 93.5,
+                "expected_target_price": 112.0,
+                "thesis_invalidation_price": 94.0,
+                "stop_loss_price": 93.5,
                 "current_price": 100.0,
             },
             target_context_state={"current_price": 100.0},
@@ -390,11 +430,12 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "position_side": "long",
             },
             account_sleeve_risk_budget={"max_position_loss_pct": 0.05},
-            unified_decision_vector={
-                "hard_stop_price": 94.0,
-                "model_invalidation_price": 95.0,
-                "target_price": 120.0,
-                "unified_decision_confidence_score": 0.80,
+            thesis_distribution_surface=VALID_THESIS_DISTRIBUTION_SURFACE,
+            direct_underlying_intent={
+                "stop_loss_price": 94.0,
+                "thesis_invalidation_price": 95.0,
+                "expected_target_price": 120.0,
+                "underlying_action_confidence_score": 0.80,
             },
             generated_at_utc="2026-01-01T00:02:00Z",
         )
@@ -416,7 +457,8 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "current_underlying_price": 93.5,
                 "position_side": "long",
             },
-            unified_decision_vector={"hard_stop_price": 94.0, "model_invalidation_price": 95.0},
+            thesis_distribution_surface=VALID_THESIS_DISTRIBUTION_SURFACE,
+            direct_underlying_intent={"stop_loss_price": 94.0, "thesis_invalidation_price": 95.0},
             generated_at_utc="2026-01-01T00:02:00Z",
         )
 
@@ -435,8 +477,9 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "quantity": 1,
                 "current_underlying_price": 105.0,
             },
-            unified_decision_vector={
-                "unified_decision_confidence_score": 0.90,
+            thesis_distribution_surface=VALID_THESIS_DISTRIBUTION_SURFACE,
+            direct_underlying_intent={
+                "underlying_action_confidence_score": 0.90,
                 "minimum_add_confidence": 0.70,
                 "add_allowed": True,
                 "sector_mix_add_allowed": False,
@@ -461,7 +504,8 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "quantity": 2,
                 "current_underlying_price": 105.0,
             },
-            unified_decision_vector={
+            thesis_distribution_surface=VALID_THESIS_DISTRIBUTION_SURFACE,
+            direct_underlying_intent={
                 "planned_action": "add",
                 "position_scaling_capacity_state": {
                     "target_allocated_buying_power_usd": 3000.0,
@@ -473,7 +517,7 @@ class RuntimeDecisionTests(unittest.TestCase):
 
         self.assertEqual(decision["decision_status"], "accepted")
         self.assertEqual(decision["decision_action"], "hold")
-        self.assertIn("m04_unified_decision_supports_hold", decision["reason_codes"])
+        self.assertIn("m04_thesis_distribution_supports_hold", decision["reason_codes"])
         self.assertNotIn("position_scaling_capacity_checks", decision)
         self.assertNotIn("advanced_position_management_blocked_by_target_capacity", decision["reason_codes"])
 
@@ -508,10 +552,10 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertEqual(intent["sizing_plan"]["target_position_scaling_capacity"]["position_scaling_mode"], "position_scaling_capacity_unknown")
         self.assertFalse(intent["sizing_plan"]["execution_gate_may_change_quantity"])
         self.assertEqual(intent["risk_cap_validation"]["valid"], True)
-        self.assertTrue(intent["required_execution_gate_reviews"]["agent_final_review_required"])
+        self.assertFalse(intent["required_execution_gate_reviews"]["agent_final_review_required"])
         self.assertEqual(
             intent["required_execution_gate_reviews"]["agent_final_review_status"],
-            "required_before_live_submission",
+            "not_required_for_automatic_gate",
         )
         self.assertEqual(intent["safety"]["broker_calls_performed"], 0)
         self.assertFalse(intent["safety"]["account_mutation_performed"])
@@ -707,6 +751,10 @@ class RuntimeDecisionTests(unittest.TestCase):
         intent = build_execution_order_intent(
             decision_record=decision,
             trade_risk_cap=VALID_STOCK_RISK_CAP,
+            execution_policy_snapshot={
+                "agent_final_review_required": True,
+                "agent_final_review_status": "required_before_live_submission",
+            },
             generated_at_utc="2026-01-01T00:03:00Z",
         )
 
@@ -816,8 +864,8 @@ class RuntimeDecisionTests(unittest.TestCase):
         self.assertFalse(gate["quantity_unchanged_by_execution_gate"])
         self.assertEqual(validate_execution_gate_result(gate)["validation_status"], "passed")
 
-    def test_option_reexpression_rolls_only_for_equity_options_sleeve(self) -> None:
-        decision = build_option_reexpression_decision(
+    def test_expression_rolls_only_for_equity_options_sleeve(self) -> None:
+        decision = build_expression_decision(
             option_position_state={
                 "position_ref": "opt-aapl-1",
                 "account_sleeve_id": EQUITY_OPTIONS_ACCOUNT_SLEEVE,
@@ -826,6 +874,7 @@ class RuntimeDecisionTests(unittest.TestCase):
                 "quantity": 1,
                 "contract_quality_score": 0.40,
             },
+            expression_probability_surface=VALID_EXPRESSION_PROBABILITY_SURFACE,
             option_expression_plan={"minimum_roll_quality_improvement": 0.15, "max_roll_cost_pct": 0.10},
             candidate_option_contracts=[
                 {"instrument_ref": "AAPL_20260320_115C", "contract_quality_score": 0.62, "roll_cost_pct": 0.04},
@@ -834,11 +883,11 @@ class RuntimeDecisionTests(unittest.TestCase):
             generated_at_utc="2026-01-01T00:04:00Z",
         )
 
-        self.assertEqual(decision["contract_type"], "option_reexpression_decision")
+        self.assertEqual(decision["contract_type"], "expression_decision")
         self.assertEqual(decision["decision_status"], "accepted")
         self.assertEqual(decision["decision_action"], "roll_option")
         self.assertEqual(decision["replacement_instrument_ref"], "AAPL_20260320_115C")
-        self.assertEqual(validate_option_reexpression_decision(decision)["validation_status"], "passed")
+        self.assertEqual(validate_expression_decision(decision)["validation_status"], "passed")
 
     def test_failure_explanation_only_uses_events_before_failure(self) -> None:
         packet = build_failure_explanation_packet(

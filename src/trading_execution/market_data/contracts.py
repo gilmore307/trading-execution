@@ -230,8 +230,8 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
             contract_type="execution_realtime_input_coverage",
             model_layer="model_04_unified_decision",
             model_id="model_04_unified_decision",
-            model_output="unified_decision_vector",
-            live_input_surface="direct-underlying decision state from current M01-M03, account context, and tradeability context",
+            model_output="thesis_distribution_surface",
+            live_input_surface="direct-underlying posterior probability surface from current M01-M03, account context, and tradeability context",
             realtime_input_groups=(
                 "background_target_event_context_refs",
                 "execution_account_capacity_context",
@@ -244,16 +244,16 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
             coverage_status="context_contract_only_broker_account_route_deferred",
             validation_role=validation_role,
             boundary_note=(
-                "M04 owns the unified direct-underlying decision surface; realtime calendar context may inform "
-                "tradeability but the output is still a decision context, not an order."
+                "M04 owns the thesis_distribution_surface as the direct-underlying posterior probability function; "
+                "derived direct-underlying intent and unified decision summaries are component handoffs, not orders."
             ),
         ),
         RealtimeModelInputCoverage(
             contract_type="execution_realtime_input_coverage",
             model_layer="model_05_option_expression",
             model_id="model_05_option_expression",
-            model_output="option_expression_plan",
-            live_input_surface="current option-expression feasibility context over the M04 direct-underlying decision",
+            model_output="expression_probability_surface",
+            live_input_surface="current option-expression payoff probability surface over the M04 thesis distribution",
             realtime_input_groups=(
                 "underlying_quote_ref",
                 "option_chain_snapshot",
@@ -265,7 +265,10 @@ def realtime_input_coverage_matrix() -> tuple[RealtimeModelInputCoverage, ...]:
             required_capture_fields=common + ("option_contract_ref", "underlying_context_ref", "upstream_context_ref"),
             coverage_status="route_defined_adapter_not_started_terminal_required",
             validation_role=validation_role,
-            boundary_note="M05 owns option expression and depends on ThetaData option-chain/quote/trade context plus current underlying observations.",
+            boundary_note=(
+                "M05 owns expression_probability_surface as the option-expression payoff probability function; "
+                "the option_expression_plan is a derived selected-expression handoff for C04."
+            ),
         ),
     )
 

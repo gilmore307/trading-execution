@@ -59,7 +59,7 @@ First-batch contracts:
 
 Second-batch contracts:
 
-- `option_reexpression_decision`
+- `expression_decision`
 - `failure_explanation_packet`
 - `simulated_fill_event`
 
@@ -127,7 +127,7 @@ Runtime decisions must be scoped to one independent account sleeve:
 `crypto_spot_account` or `equity_options_account`. The crypto sleeve is limited
 to `BTC`, `ETH`, and `SOL` spot candidates. The equity/options sleeve uses the
 reviewed stock/ETF/optionable-underlying candidate process and owns option
-re-expression. Cross-account collateral, buying-power substitution, and position
+roll. Cross-account collateral, buying-power substitution, and position
 netting are not accepted.
 
 `execution_intake_snapshot` is C01-owned. It emits a `candidate_entry_pool` for
@@ -186,8 +186,9 @@ reopening the full model-value debate.
 `execution_gate_result` is C06-owned. It records whether the C05 intent is
 rejected, approved for Replay simulation, or approved for live broker submission.
 It must verify the order quantity matches the C05 `sizing_plan`, preserve the
-broker-neutral order unchanged, apply final hard-block checks, and require an
-approved agent final review before live submission. C06 must not recalculate,
+broker-neutral order unchanged, and apply final hard-block checks. Approved
+agent final review is required only when the C05 intent or hard-block context
+explicitly marks live-broker or high-risk manual mode. C06 must not recalculate,
 increase, reduce, or otherwise alter the C05 quantity or order policy.
 
 `simulated_fill_event` must cite both the source `execution_order_intent` and

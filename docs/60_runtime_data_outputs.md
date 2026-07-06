@@ -65,7 +65,7 @@ Runtime component decisions:
 - `trading_execution.c01_intake_snapshot`
 - `trading_execution.c02_entry_decision`
 - `trading_execution.c03_position_lifecycle_decision`
-- `trading_execution.c04_option_reexpression_decision`
+- `trading_execution.c04_expression_decision`
 - `trading_execution.c05_order_intent`
 - `trading_execution.c06_execution_gate_result`
 - `trading_execution.c07_failure_explanation_packet`

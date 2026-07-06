@@ -536,16 +536,16 @@ Status: Accepted
 
 Crypto spot trading and US equity/options trading are independent execution
 accounts. Runtime components may observe aggregate portfolio limits, but each
-intake, entry, lifecycle, option re-expression, and order-intent
+intake, entry, lifecycle, expression review, and order-intent
 record must belong to exactly one account sleeve.
 
 Accepted sleeves:
 
 - `crypto_spot_account`: fixed candidate pool `BTC`, `ETH`, and `SOL`; OKX spot
   instrument refs `BTC-USDT`, `ETH-USDT`, and `SOL-USDT`; no option
-  re-expression.
+  roll.
 - `equity_options_account`: stocks/ETFs/options from the reviewed equity
-  watchlist and optionable-underlying process; option re-expression is enabled.
+  watchlist and optionable-underlying process; expression review is enabled.
 
 Cross-account collateral, buying-power substitution, and position/risk netting
 between these sleeves are not accepted.

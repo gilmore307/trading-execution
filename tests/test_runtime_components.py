@@ -104,6 +104,13 @@ class RuntimeComponentGraphTests(unittest.TestCase):
         entry = rows["component_02_entry"]
         self.assertEqual(entry.required_model_surfaces, ("model_03_event_state", "model_04_unified_decision"))
         self.assertEqual(entry.optional_model_surfaces, ())
+        self.assertIn("thesis_distribution_surface", entry.input_contracts)
+        self.assertIn("direct_underlying_intent", entry.input_contracts)
+        self.assertNotIn("unified_decision_vector", entry.input_contracts)
+
+        expression = rows["component_04_expression_review"]
+        self.assertIn("expression_probability_surface", expression.input_contracts)
+        self.assertIn("option_expression_plan", expression.input_contracts)
 
         failure = rows["component_07_failure_review"]
         self.assertEqual(failure.required_model_surfaces, ())
@@ -143,7 +150,7 @@ class RuntimeComponentGraphTests(unittest.TestCase):
                 "execution_gate_result",
             ],
         )
-        self.assertIn("option_reexpression_decision", graph["required_second_batch_contracts"])
+        self.assertIn("expression_decision", graph["required_second_batch_contracts"])
         self.assertIn("failure_explanation_packet", graph["required_second_batch_contracts"])
         self.assertIn("simulated_fill_event", graph["required_second_batch_contracts"])
 
@@ -156,13 +163,13 @@ class RuntimeComponentGraphTests(unittest.TestCase):
         self.assertEqual(crypto.candidate_instrument_refs, CRYPTO_SPOT_INSTRUMENT_REFS)
         self.assertEqual(CRYPTO_SPOT_INSTRUMENT_REFS, ("BTC-USDT", "ETH-USDT", "SOL-USDT"))
         self.assertEqual(crypto.allowed_asset_classes, ("crypto_spot",))
-        self.assertFalse(crypto.option_reexpression_enabled)
+        self.assertFalse(crypto.expression_review_enabled)
 
         equity_options = sleeves[EQUITY_OPTIONS_ACCOUNT_SLEEVE]
         self.assertEqual(equity_options.allowed_asset_classes, ("us_equity", "us_etf", "us_option"))
         self.assertEqual(equity_options.candidate_symbols, ())
         self.assertIn("reviewed_equity_watchlist", equity_options.candidate_pool_policy)
-        self.assertTrue(equity_options.option_reexpression_enabled)
+        self.assertTrue(equity_options.expression_review_enabled)
 
     def test_components_use_account_sleeve_contracts(self) -> None:
         graph = build_runtime_component_graph(mode="replay")

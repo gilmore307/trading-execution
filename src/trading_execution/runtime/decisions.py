@@ -25,7 +25,7 @@ from .components import (
     EXECUTION_GATE_RESULT_CONTRACT,
     EXECUTION_ORDER_INTENT_CONTRACT,
     FAILURE_EXPLANATION_PACKET_CONTRACT,
-    OPTION_REEXPRESSION_DECISION_CONTRACT,
+    EXPRESSION_DECISION_CONTRACT,
     POSITION_LIFECYCLE_DECISION_CONTRACT,
     SIMULATED_FILL_EVENT_CONTRACT,
     EXECUTION_INTAKE_SNAPSHOT_CONTRACT,
@@ -39,7 +39,7 @@ _ALLOWED_SLEEVES = {sleeve.sleeve_id: sleeve for sleeve in runtime_account_sleev
 _CRYPTO_INSTRUMENT_BY_SYMBOL = dict(zip(CRYPTO_CANDIDATE_SYMBOLS, CRYPTO_SPOT_INSTRUMENT_REFS, strict=True))
 _EXECUTABLE_ENTRY_ACTIONS = {"open_long"}
 _EXECUTABLE_LIFECYCLE_ACTIONS = {"reduce", "exit", "stop", "take_profit"}
-_EXECUTABLE_OPTION_REEXPRESSION_ACTIONS = {"roll_option", "exit_option", "reduce_option"}
+_EXECUTABLE_EXPRESSION_ACTIONS = {"open_long", "open_short", "roll_option", "exit_option", "reduce_option"}
 _HIGH_VOLUME_SCORE_THRESHOLD = 0.80
 _ABNORMAL_RELATIVE_VOLUME_THRESHOLD = 2.0
 _ABNORMAL_VOLUME_Z_SCORE_THRESHOLD = 2.0
@@ -153,6 +153,8 @@ def _candidate_entry_targets(snapshot: Mapping[str, Any]) -> set[str]:
 def _entry_direction(unified_decision: Mapping[str, Any]) -> str | None:
     value = str(
         unified_decision.get("entry_direction")
+        or unified_decision.get("underlying_path_direction")
+        or unified_decision.get("direction_thesis")
         or unified_decision.get("resolved_action_side")
         or unified_decision.get("action_side")
         or unified_decision.get("planned_side")
@@ -211,6 +213,46 @@ def _planned_lifecycle_action(unified_decision: Mapping[str, Any]) -> str | None
     if value in {"take_profit", "profit_take", "take-profit"}:
         return "take_profit"
     return None
+
+
+def _m04_thesis_handoff(
+    *,
+    thesis_distribution_surface: Mapping[str, Any] | None = None,
+    direct_underlying_intent: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return the M04-derived operational handoff without treating it as a model."""
+
+    handoff: dict[str, Any] = {}
+    intent = _as_mapping(direct_underlying_intent)
+    nested = _as_mapping(intent.get("handoff_to_model_05"))
+    handoff.update(nested)
+    handoff.update(intent)
+    surface = _as_mapping(thesis_distribution_surface)
+    if surface:
+        handoff.setdefault("thesis_distribution_surface_ref", surface.get("surface_ref") or surface.get("model_ref"))
+        dominant = _as_mapping(surface.get("dominant_horizon_distribution"))
+        if dominant:
+            handoff.setdefault("dominant_horizon", dominant.get("horizon"))
+            handoff.setdefault("direction_thesis", dominant.get("direction_thesis"))
+            handoff.setdefault("direction_thesis_score", dominant.get("direction_thesis_score"))
+            handoff.setdefault("direction_certainty_score", dominant.get("direction_certainty_score"))
+    if "expected_target_price" in handoff:
+        handoff.setdefault("target_price", handoff.get("expected_target_price"))
+    if "expected_entry_price" in handoff:
+        handoff.setdefault("entry_price", handoff.get("expected_entry_price"))
+    if "reference_price" in handoff:
+        handoff.setdefault("entry_price", handoff.get("reference_price"))
+        handoff.setdefault("current_price", handoff.get("reference_price"))
+    if "stop_loss_price" in handoff:
+        handoff.setdefault("hard_stop_price", handoff.get("stop_loss_price"))
+    if "thesis_invalidation_price" in handoff:
+        handoff.setdefault("model_invalidation_price", handoff.get("thesis_invalidation_price"))
+        handoff.setdefault("hard_stop_price", handoff.get("thesis_invalidation_price"))
+    if "underlying_action_confidence_score" in handoff:
+        handoff.setdefault("unified_decision_confidence_score", handoff.get("underlying_action_confidence_score"))
+    if "action_confidence_score" in handoff:
+        handoff.setdefault("unified_decision_confidence_score", handoff.get("action_confidence_score"))
+    return handoff
 
 
 def _price_reaches_downside(price: float | None, level: float | None, direction: str) -> bool:
@@ -753,9 +795,9 @@ def build_entry_decision(
     position_state: Any = None,
     target_context_state: Mapping[str, Any] | None = None,
     event_state_vector: Mapping[str, Any] | None = None,
-    unified_decision_vector: Mapping[str, Any] | None = None,
+    thesis_distribution_surface: Mapping[str, Any] | None = None,
+    direct_underlying_intent: Mapping[str, Any] | None = None,
     event_risk_control: Mapping[str, Any] | None = None,
-    option_expression_plan: Mapping[str, Any] | None = None,
     generated_at_utc: str | None = None,
 ) -> dict[str, Any]:
     """Decide whether a C01 target has a suitable M04 direct-underlying entry thesis."""
@@ -766,7 +808,12 @@ def build_entry_decision(
     _sleeve(sleeve_id)
     selected = _candidate_entry_targets(execution_intake_snapshot)
     event_state = _as_mapping(event_state_vector)
-    unified_decision = _as_mapping(unified_decision_vector)
+    thesis_surface = _as_mapping(thesis_distribution_surface)
+    direct_intent = _as_mapping(direct_underlying_intent)
+    thesis_handoff = _m04_thesis_handoff(
+        thesis_distribution_surface=thesis_surface,
+        direct_underlying_intent=direct_intent,
+    )
     residual_governance = _as_mapping(event_risk_control)
     target_state = _as_mapping(target_context_state)
 
@@ -785,62 +832,63 @@ def build_entry_decision(
         action = "reject_entry_thesis"
         reasons.append("component_event_risk_control_blocks_new_entry")
 
-    if _bool_flag(unified_decision, "block_new_entries", "account_risk_cap_reached"):
+    if _bool_flag(thesis_handoff, "block_new_entries", "account_risk_cap_reached"):
         status = "rejected"
         action = "reject_entry_thesis"
-        reasons.append("m04_unified_decision_blocks_new_entry")
+        reasons.append("m04_thesis_distribution_blocks_new_entry")
 
     confidence_score = _number(
-        unified_decision.get(
+        thesis_handoff.get(
             "unified_decision_confidence_score",
-            unified_decision.get("entry_thesis_score", unified_decision.get("score")),
+            thesis_handoff.get("entry_thesis_score", thesis_handoff.get("score")),
         ),
         default=0.0,
     )
-    minimum_confidence = _number(unified_decision.get("minimum_entry_confidence"), default=0.55)
+    minimum_confidence = _number(thesis_handoff.get("minimum_entry_confidence"), default=0.55)
     if status == "suitable" and confidence_score < minimum_confidence:
         status = "rejected"
         action = "reject_entry_thesis"
-        reasons.append("m04_unified_decision_confidence_below_entry_threshold")
+        reasons.append("m04_thesis_confidence_below_entry_threshold")
 
-    direction = _entry_direction(unified_decision)
+    direction = _entry_direction(thesis_handoff)
     if status == "suitable" and direction is None:
         status = "rejected"
         action = "reject_entry_thesis"
         reasons.append("missing_m04_entry_direction")
 
     entry_zone = _zone_from_fields(
-        unified_decision,
+        thesis_handoff,
         "entry_zone",
         ("entry_price_min", "entry_lower_price", "entry_low", "entry_min"),
         ("entry_price_max", "entry_upper_price", "entry_high", "entry_max"),
     )
     if entry_zone is None:
-        single_entry = _first_number(unified_decision, "entry_price", "planned_entry_price", "limit_price")
+        single_entry = _first_number(thesis_handoff, "entry_price", "planned_entry_price", "limit_price", "reference_price")
         if single_entry is not None:
             entry_zone = {"low": single_entry, "high": single_entry}
 
     target_price = _first_number(
-        unified_decision,
+        thesis_handoff,
         "target_price",
+        "expected_target_price",
         "take_profit_price",
         "planned_target_price",
         "price_target",
     )
     take_profit_zone = _zone_from_fields(
-        unified_decision,
+        thesis_handoff,
         "take_profit_zone",
         ("take_profit_price_min", "target_price_min", "take_profit_low"),
         ("take_profit_price_max", "target_price_max", "take_profit_high"),
     )
     model_invalidation_price = _first_number(
-        unified_decision,
+        thesis_handoff,
         "model_invalidation_price",
         "thesis_invalidation_price",
         "invalidation_price",
     )
-    hard_stop_price = _first_number(unified_decision, "hard_stop_price", "stop_price", "planned_stop_price")
-    expected_horizon = unified_decision.get("expected_horizon") or unified_decision.get("dominant_horizon") or unified_decision.get("horizon")
+    hard_stop_price = _first_number(thesis_handoff, "hard_stop_price", "stop_loss_price", "stop_price", "planned_stop_price")
+    expected_horizon = thesis_handoff.get("expected_horizon") or thesis_handoff.get("dominant_horizon") or thesis_handoff.get("horizon")
 
     if status == "suitable" and entry_zone is None:
         status = "deferred"
@@ -861,7 +909,7 @@ def build_entry_decision(
 
     current_price = _first_number(target_state, "current_price", "last_price", "mark_price")
     if current_price is None:
-        current_price = _first_number(unified_decision, "current_price", "reference_price", "last_price")
+        current_price = _first_number(thesis_handoff, "current_price", "reference_price", "last_price")
     if status == "suitable" and current_price is not None and entry_zone is not None:
         if current_price < entry_zone["low"] or current_price > entry_zone["high"]:
             status = "deferred"
@@ -872,45 +920,18 @@ def build_entry_decision(
         status = "accepted"
         action = "open_long"
         reasons.append("crypto_spot_entry_thesis_accepted_for_replay")
-    if (
-        status == "suitable"
-        and sleeve_id == EQUITY_OPTIONS_ACCOUNT_SLEEVE
-        and direction == "long"
-        and _as_mapping(_as_mapping(option_expression_plan).get("selected_contract")).get("contract_ref")
-    ):
-        selected_contract = _as_mapping(_as_mapping(option_expression_plan).get("selected_contract"))
-        status = "accepted"
-        action = "open_long"
-        asset_class = "us_option"
-        reasons.append("equity_option_contract_selected_for_replay")
-        if _as_mapping(option_expression_plan).get("option_surface_status"):
-            reasons.append(str(_as_mapping(option_expression_plan).get("option_surface_status")))
-    if (
-        status == "suitable"
-        and sleeve_id == EQUITY_OPTIONS_ACCOUNT_SLEEVE
-        and direction == "long"
-        and str(_as_mapping(option_expression_plan).get("asset_expression_route") or "") == "direct_underlying_fallback"
-    ):
-        status = "accepted"
-        action = "open_long"
-        reasons.append("equity_direct_underlying_fallback_accepted_for_replay")
-        if _as_mapping(option_expression_plan).get("option_surface_status"):
-            reasons.append(str(_as_mapping(option_expression_plan).get("option_surface_status")))
-
     suitability_score = max(
         0.0,
         min(
             1.0,
             (
                 confidence_score
-                + _pool_score(unified_decision, "unified_decision_score", "entry_thesis_score", "setup_quality_score")
+                + _pool_score(thesis_handoff, "unified_decision_score", "entry_thesis_score", "setup_quality_score")
             )
             / 2,
         ),
     )
 
-    selected_option_contract = _as_mapping(_as_mapping(option_expression_plan).get("selected_contract"))
-    selected_option_instrument = str(selected_option_contract.get("contract_ref") or selected_option_contract.get("option_symbol") or "").upper()
     body = {
         "contract_type": ENTRY_DECISION_CONTRACT,
         "entry_decision_id": None,
@@ -920,7 +941,7 @@ def build_entry_decision(
         "target_ref": target_ref,
         "instrument_ref": _CRYPTO_INSTRUMENT_BY_SYMBOL.get(target_ref, target_ref)
         if sleeve_id == CRYPTO_SPOT_ACCOUNT_SLEEVE
-        else selected_option_instrument or target_ref,
+        else target_ref,
         "asset_class": asset_class,
         "decision_status": status,
         "decision_action": action,
@@ -944,8 +965,8 @@ def build_entry_decision(
         "model_layer_refs": {
             "target_context_state": _as_mapping(target_context_state).get("model_ref"),
             "event_state_vector": event_state.get("model_ref"),
-            "unified_decision_vector": unified_decision.get("model_ref"),
-            "option_expression_plan": _as_mapping(option_expression_plan).get("model_ref"),
+            "thesis_distribution_surface": thesis_surface.get("surface_ref") or thesis_surface.get("model_ref"),
+            "direct_underlying_intent": direct_intent.get("model_ref") or direct_intent.get("intent_ref"),
             "event_risk_control": residual_governance.get("model_ref"),
         },
         "safety": _safety_flags(),
@@ -962,7 +983,8 @@ def build_position_lifecycle_decision(
     market_context_state: Mapping[str, Any] | None = None,
     entry_decision: Mapping[str, Any] | None = None,
     event_state_vector: Mapping[str, Any] | None = None,
-    unified_decision_vector: Mapping[str, Any] | None = None,
+    thesis_distribution_surface: Mapping[str, Any] | None = None,
+    direct_underlying_intent: Mapping[str, Any] | None = None,
     event_risk_control: Mapping[str, Any] | None = None,
     generated_at_utc: str | None = None,
 ) -> dict[str, Any]:
@@ -973,13 +995,18 @@ def build_position_lifecycle_decision(
     sleeve_id = str(position.get("account_sleeve_id") or _as_mapping(entry_decision).get("account_sleeve_id") or "")
     _sleeve(sleeve_id)
     event_state = _as_mapping(event_state_vector)
-    unified_decision = _as_mapping(unified_decision_vector)
+    thesis_surface = _as_mapping(thesis_distribution_surface)
+    direct_intent = _as_mapping(direct_underlying_intent)
+    thesis_handoff = _m04_thesis_handoff(
+        thesis_distribution_surface=thesis_surface,
+        direct_underlying_intent=direct_intent,
+    )
     residual_governance = _as_mapping(event_risk_control)
     entry = _as_mapping(entry_decision)
     market = _as_mapping(market_context_state)
     risk_budget = _as_mapping(account_sleeve_risk_budget)
     account = _as_mapping(account_sleeve_state)
-    position_side = _position_direction(position, entry, unified_decision)
+    position_side = _position_direction(position, entry, thesis_handoff)
     current_underlying_price = _first_number(
         position,
         "current_underlying_price",
@@ -992,7 +1019,7 @@ def build_position_lifecycle_decision(
         current_underlying_price = _first_number(market, "current_underlying_price", "current_price", "last_price", "reference_price")
     if current_underlying_price is None:
         current_underlying_price = _first_number(
-            unified_decision,
+            thesis_handoff,
             "current_underlying_price",
             "underlying_price",
             "current_price",
@@ -1000,21 +1027,21 @@ def build_position_lifecycle_decision(
             "reference_price",
         )
     model_invalidation_price = (
-        _first_number(unified_decision, "model_invalidation_price", "thesis_invalidation_price", "invalidation_price")
+        _first_number(thesis_handoff, "model_invalidation_price", "thesis_invalidation_price", "invalidation_price")
         or _first_number(entry, "model_invalidation_price", "thesis_invalidation_price", "invalidation_price")
         or _first_number(position, "model_invalidation_price", "thesis_invalidation_price", "invalidation_price")
     )
     hard_stop_price = (
-        _first_number(unified_decision, "hard_stop_price", "stop_loss_price", "stop_price")
+        _first_number(thesis_handoff, "hard_stop_price", "stop_loss_price", "stop_price")
         or _first_number(entry, "hard_stop_price", "stop_loss_price", "stop_price")
         or _first_number(position, "hard_stop_price", "stop_loss_price", "stop_price")
     )
     target_price = (
-        _first_number(unified_decision, "take_profit_price", "target_price", "target_price_high", "target_price_low")
+        _first_number(thesis_handoff, "take_profit_price", "target_price", "expected_target_price", "target_price_high", "target_price_low")
         or _first_number(entry, "take_profit_price", "target_price", "target_price_high", "target_price_low")
         or _first_number(position, "take_profit_price", "target_price", "target_price_high", "target_price_low")
     )
-    planned_action = _planned_lifecycle_action(unified_decision)
+    planned_action = _planned_lifecycle_action(thesis_handoff)
     reasons: list[str] = []
     status: DecisionStatus = "monitor_only"
     action = "hold"
@@ -1035,28 +1062,28 @@ def build_position_lifecycle_decision(
             reasons.append("component_event_risk_control_requires_exit")
         elif planned_action in {"stop", "exit"}:
             action = planned_action
-            reasons.append(f"m04_unified_decision_requires_{planned_action}")
+            reasons.append(f"m04_thesis_distribution_requires_{planned_action}")
         elif planned_action == "take_profit" or _price_reaches_upside(current_underlying_price, target_price, position_side):
             action = "take_profit"
-            reasons.append("m04_target_or_take_profit_reached")
+            reasons.append("m04_thesis_target_or_take_profit_reached")
         elif _risk_level(residual_governance) == "high":
             action = "reduce"
             reasons.append("component_event_risk_control_requires_reduction")
         elif planned_action in {"reduce", "hold"}:
             action = planned_action
-            reasons.append(f"m04_unified_decision_supports_{planned_action}")
+            reasons.append(f"m04_thesis_distribution_supports_{planned_action}")
         else:
             confidence_score = _number(
-                unified_decision.get(
+                thesis_handoff.get(
                     "unified_decision_confidence_score",
-                    unified_decision.get("hold_thesis_score", unified_decision.get("score")),
+                    thesis_handoff.get("hold_thesis_score", thesis_handoff.get("score")),
                 ),
                 default=0.0,
             )
-            hold_threshold = _number(unified_decision.get("minimum_hold_confidence"), default=0.45)
+            hold_threshold = _number(thesis_handoff.get("minimum_hold_confidence"), default=0.45)
             if confidence_score < hold_threshold:
                 action = "reduce"
-                reasons.append("m04_unified_decision_confidence_below_hold_threshold")
+                reasons.append("m04_thesis_confidence_below_hold_threshold")
             else:
                 action = "hold"
                 reasons.append("position_thesis_still_valid")
@@ -1087,7 +1114,8 @@ def build_position_lifecycle_decision(
         "model_layer_refs": {
             "market_context_state": market.get("model_ref"),
             "event_state_vector": event_state.get("model_ref"),
-            "unified_decision_vector": unified_decision.get("model_ref"),
+            "thesis_distribution_surface": thesis_surface.get("surface_ref") or thesis_surface.get("model_ref"),
+            "direct_underlying_intent": direct_intent.get("model_ref") or direct_intent.get("intent_ref"),
             "event_risk_control": residual_governance.get("model_ref"),
         },
         "account_state_ref": account.get("account_state_ref"),
@@ -1126,12 +1154,12 @@ def build_execution_order_intent(
         reasons.append("entry_action_not_executable")
     if contract_type == POSITION_LIFECYCLE_DECISION_CONTRACT and action not in _EXECUTABLE_LIFECYCLE_ACTIONS:
         reasons.append("lifecycle_action_not_executable")
-    if contract_type == OPTION_REEXPRESSION_DECISION_CONTRACT and action not in _EXECUTABLE_OPTION_REEXPRESSION_ACTIONS:
-        reasons.append("option_reexpression_action_not_executable")
+    if contract_type == EXPRESSION_DECISION_CONTRACT and action not in _EXECUTABLE_EXPRESSION_ACTIONS:
+        reasons.append("expression_action_not_executable")
     if contract_type not in {
         ENTRY_DECISION_CONTRACT,
         POSITION_LIFECYCLE_DECISION_CONTRACT,
-        OPTION_REEXPRESSION_DECISION_CONTRACT,
+        EXPRESSION_DECISION_CONTRACT,
     }:
         reasons.append("unsupported_source_decision_contract")
     if sleeve.sleeve_id == CRYPTO_SPOT_ACCOUNT_SLEEVE and instrument_ref not in CRYPTO_SPOT_INSTRUMENT_REFS:
@@ -1168,7 +1196,7 @@ def build_execution_order_intent(
         "source_decision_contract": contract_type,
         "source_decision_id": decision_record.get("entry_decision_id")
         or decision_record.get("position_lifecycle_decision_id")
-        or decision_record.get("option_reexpression_decision_id")
+        or decision_record.get("expression_decision_id")
         or decision_record.get("decision_id"),
         "decision_action": action,
         "instrument_ref": instrument_ref,
@@ -1202,13 +1230,16 @@ def build_execution_order_intent(
         "risk_cap_validation": cap_validation,
         "execution_policy_ref": _as_mapping(execution_policy_snapshot).get("execution_policy_ref"),
         "required_execution_gate_reviews": {
-            "agent_final_review_required": True,
+            "agent_final_review_required": _as_mapping(execution_policy_snapshot).get("agent_final_review_required") is True,
             "agent_final_review_status": _as_mapping(execution_policy_snapshot).get(
                 "agent_final_review_status",
-                "required_before_live_submission",
+                "not_required_for_automatic_gate",
             ),
             "agent_final_review_ref": _as_mapping(execution_policy_snapshot).get("agent_final_review_ref"),
-            "review_scope": "open_add_reduce_exit_stop_take_profit_before_live_order_submission",
+            "review_scope": _as_mapping(execution_policy_snapshot).get(
+                "review_scope",
+                "automatic_gate_default_agent_review_only_for_live_broker_or_high_risk_manual_mode",
+            ),
         },
         "safety": _safety_flags(),
     }
@@ -1216,37 +1247,64 @@ def build_execution_order_intent(
     return body
 
 
-def build_option_reexpression_decision(
+def build_expression_decision(
     *,
-    option_position_state: Mapping[str, Any],
-    unified_decision_vector: Mapping[str, Any] | None = None,
+    option_position_state: Mapping[str, Any] | None = None,
+    entry_decision: Mapping[str, Any] | None = None,
+    position_lifecycle_decision: Mapping[str, Any] | None = None,
+    expression_probability_surface: Mapping[str, Any] | None = None,
     option_expression_plan: Mapping[str, Any] | None = None,
     event_risk_control: Mapping[str, Any] | None = None,
     candidate_option_contracts: Any = None,
     generated_at_utc: str | None = None,
 ) -> dict[str, Any]:
-    """Review a held option and decide whether it should be rolled or held."""
+    """Translate an accepted underlying intent or review a held option expression."""
 
     generated_at_utc = generated_at_utc or _utc_now_iso()
     position = _as_mapping(option_position_state)
-    sleeve_id = str(position.get("account_sleeve_id") or "")
+    entry = _as_mapping(entry_decision)
+    lifecycle = _as_mapping(position_lifecycle_decision)
+    source_intent = entry or lifecycle
+    sleeve_id = str(position.get("account_sleeve_id") or source_intent.get("account_sleeve_id") or "")
     sleeve = _sleeve(sleeve_id)
     if sleeve.sleeve_id != EQUITY_OPTIONS_ACCOUNT_SLEEVE:
-        raise ValueError("option re-expression is only allowed for equity_options_account")
+        raise ValueError("expression review is only allowed for equity_options_account")
 
-    unified_decision = _as_mapping(unified_decision_vector)
+    expression_surface = _as_mapping(expression_probability_surface)
     residual_governance = _as_mapping(event_risk_control)
     current_score = _number(position.get("contract_quality_score"), default=0.0)
     expression_plan = _as_mapping(option_expression_plan)
+    selected_contract = _as_mapping(expression_plan.get("selected_contract"))
     min_improvement = _number(expression_plan.get("minimum_roll_quality_improvement"), default=0.15)
     max_roll_cost_pct = _number(expression_plan.get("max_roll_cost_pct"), default=0.20)
     best_candidate = _best_option_candidate(candidate_option_contracts)
     reasons: list[str] = []
     status: DecisionStatus = "monitor_only"
-    action = "hold_option"
+    action = "hold_expression"
+    asset_class = str(source_intent.get("asset_class") or position.get("asset_class") or "us_equity")
+    instrument_ref = str(position.get("instrument_ref") or source_intent.get("instrument_ref") or "").upper()
+    replacement_instrument_ref = ""
 
     if _number(position.get("quantity"), default=0.0) <= 0:
-        reasons.append("no_open_option_position")
+        route = str(expression_plan.get("asset_expression_route") or "")
+        selected_ref = str(selected_contract.get("contract_ref") or selected_contract.get("option_symbol") or "").upper()
+        source_status = str(source_intent.get("decision_status") or "")
+        if source_status != "suitable":
+            reasons.append("source_underlying_intent_not_suitable")
+        elif selected_ref:
+            status = "accepted"
+            action = "open_long" if str(source_intent.get("entry_direction") or source_intent.get("position_side") or "long").lower() != "short" else "open_short"
+            asset_class = "us_option"
+            instrument_ref = selected_ref
+            reasons.append("m05_expression_probability_surface_selected_option_contract")
+        elif route == "direct_underlying_fallback":
+            status = "accepted"
+            action = "open_long" if str(source_intent.get("entry_direction") or source_intent.get("position_side") or "long").lower() != "short" else "open_short"
+            asset_class = str(source_intent.get("asset_class") or "us_equity")
+            instrument_ref = str(source_intent.get("instrument_ref") or source_intent.get("target_ref") or "").upper()
+            reasons.append("m05_expression_probability_surface_direct_underlying_fallback")
+        else:
+            reasons.append("no_open_option_position_or_valid_expression_selection")
     elif _bool_flag(residual_governance, "force_exit_options", "halt_option_exposure") or _risk_level(residual_governance) == "critical":
         status = "accepted"
         action = "exit_option"
@@ -1257,6 +1315,9 @@ def build_option_reexpression_decision(
         if improvement >= min_improvement and roll_cost_pct <= max_roll_cost_pct:
             status = "accepted"
             action = "roll_option"
+            replacement_instrument_ref = str(best_candidate.get("instrument_ref") or "").upper()
+            instrument_ref = replacement_instrument_ref or instrument_ref
+            asset_class = "us_option"
             reasons.append("candidate_option_materially_better_after_roll_cost")
         elif roll_cost_pct > max_roll_cost_pct:
             reasons.append("roll_cost_above_policy_limit")
@@ -1266,16 +1327,23 @@ def build_option_reexpression_decision(
         reasons.append("no_candidate_option_contract")
 
     body = {
-        "contract_type": OPTION_REEXPRESSION_DECISION_CONTRACT,
-        "option_reexpression_decision_id": None,
+        "contract_type": EXPRESSION_DECISION_CONTRACT,
+        "expression_decision_id": None,
         "account_sleeve_id": sleeve.sleeve_id,
         "position_ref": position.get("position_ref"),
-        "target_ref": str(position.get("underlying_symbol") or position.get("target_ref") or "").upper(),
+        "source_entry_decision_id": entry.get("entry_decision_id"),
+        "source_position_lifecycle_decision_id": lifecycle.get("position_lifecycle_decision_id"),
+        "target_ref": str(
+            position.get("underlying_symbol")
+            or position.get("target_ref")
+            or entry.get("target_ref")
+            or lifecycle.get("target_ref")
+            or ""
+        ).upper(),
         "current_instrument_ref": str(position.get("instrument_ref") or "").upper(),
-        "replacement_instrument_ref": str(best_candidate.get("instrument_ref") or "").upper() if best_candidate else "",
-        "instrument_ref": str(best_candidate.get("instrument_ref") or position.get("instrument_ref") or "").upper()
-        if best_candidate
-        else str(position.get("instrument_ref") or "").upper(),
+        "replacement_instrument_ref": replacement_instrument_ref,
+        "instrument_ref": instrument_ref,
+        "asset_class": asset_class,
         "generated_at_utc": generated_at_utc,
         "decision_status": status,
         "decision_action": action,
@@ -1283,13 +1351,13 @@ def build_option_reexpression_decision(
         "current_contract_quality_score": current_score,
         "candidate_contract": dict(best_candidate) if best_candidate else {},
         "model_layer_refs": {
-            "unified_decision_vector": unified_decision.get("model_ref"),
+            "expression_probability_surface": expression_surface.get("surface_ref") or expression_surface.get("model_ref"),
             "option_expression_plan": expression_plan.get("model_ref"),
             "event_risk_control": residual_governance.get("model_ref"),
         },
         "safety": _safety_flags(),
     }
-    body["option_reexpression_decision_id"] = _stable_id("ord", body)
+    body["expression_decision_id"] = _stable_id("ord", body)
     return body
 
 
@@ -1311,6 +1379,7 @@ def build_execution_gate_result(
     intent = _as_mapping(execution_order_intent)
     order = _as_mapping(intent.get("broker_neutral_order"))
     sizing = _as_mapping(intent.get("sizing_plan"))
+    required_reviews = _as_mapping(intent.get("required_execution_gate_reviews"))
     review = _as_mapping(agent_final_review)
     hard_blocks = _as_mapping(execution_hard_block_checks)
     reasons: list[str] = []
@@ -1358,11 +1427,13 @@ def build_execution_gate_result(
         reasons.append("live_broker_execution_disabled")
         if broker_submit_enabled:
             reasons.append("use_paper_mode_for_alpaca_simulated_trading")
-    if mode in {"live", "paper"}:
+    agent_review_required = required_reviews.get("agent_final_review_required") is True or hard_blocks.get("agent_final_review_required") is True
+    if mode in {"live", "paper"} and agent_review_required:
         if not _agent_review_approved(review):
             reasons.append("agent_final_review_not_approved")
         if not review_ref:
             reasons.append("missing_agent_final_review_ref")
+    if mode in {"live", "paper"}:
         if not broker_submit_enabled:
             reasons.append("broker_submit_disabled")
 
@@ -1627,22 +1698,25 @@ def validate_execution_gate_result(record: Mapping[str, Any]) -> dict[str, Any]:
     )
 
 
-def validate_option_reexpression_decision(record: Mapping[str, Any]) -> dict[str, Any]:
+def validate_expression_decision(record: Mapping[str, Any]) -> dict[str, Any]:
     validation = _validate_record(
         record,
-        contract_type=OPTION_REEXPRESSION_DECISION_CONTRACT,
+        contract_type=EXPRESSION_DECISION_CONTRACT,
         required_fields=(
-            "option_reexpression_decision_id",
+            "expression_decision_id",
             "account_sleeve_id",
-            "current_instrument_ref",
             "decision_status",
             "decision_action",
             "safety",
         ),
     )
     if record.get("account_sleeve_id") != EQUITY_OPTIONS_ACCOUNT_SLEEVE:
-        validation["errors"].append("option_reexpression_requires_equity_options_account")
+        validation["errors"].append("expression_requires_equity_options_account")
         validation["validation_status"] = "failed"
+    if record.get("decision_status") == "accepted" and record.get("decision_action") in _EXECUTABLE_EXPRESSION_ACTIONS:
+        if not record.get("instrument_ref"):
+            validation["errors"].append("accepted_expression_requires_instrument_ref")
+            validation["validation_status"] = "failed"
     return validation
 
 
